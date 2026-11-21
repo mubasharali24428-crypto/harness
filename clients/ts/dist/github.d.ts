@@ -46,6 +46,12 @@ export interface ValidationError {
     msg: string;
     type: string;
 }
+/** VerdictCommentBody. Required keys: bodyMd, runId. */
+export interface VerdictCommentBody {
+    bodyMd: string;
+    marker?: string;
+    runId: string;
+}
 /** WritesBody. Required keys: enabled. */
 export interface WritesBody {
     enabled: boolean;
@@ -105,6 +111,9 @@ export declare class GithubClient {
     /** Pr Diff
      *  GET /api/v1/projects/{project_id}/pulls/{pr_number}/diff */
     pr_diff(project_id: string, pr_number: string): Promise<Record<string, unknown>>;
+    /** Post Verdict Comment
+     *  POST /api/v1/projects/{project_id}/pulls/{pr_number}/verdict-comment */
+    post_verdict_comment(project_id: string, pr_number: string, body: VerdictCommentBody): Promise<Record<string, unknown>>;
     /** Connect Repo
      *  POST /api/v1/projects/{project_id}/repo/connect */
     connect_repo(project_id: string, body: ConnectBody): Promise<Record<string, unknown>>;

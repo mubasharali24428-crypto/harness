@@ -470,6 +470,12 @@ export class IdentityClient {
         const _path = `/api/v1/policy/orgs/${encodeURIComponent(org_id)}/roles/${encodeURIComponent(name)}`;
         return this.http.request(this.baseUrl, _path, "PUT", body);
     }
+    /** Portal Projects
+     *  GET /api/v1/portal/projects */
+    portal_projects() {
+        const _path = `/api/v1/portal/projects`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
     /** List Projects
      *  GET /api/v1/projects */
     list_projects(limit) {
@@ -489,6 +495,24 @@ export class IdentityClient {
         const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/events/replay`;
         const params = { "after_seq": after_seq, "limit": limit, "before_seq": before_seq };
         return this.http.request(this.baseUrl, _path, "GET", undefined, params);
+    }
+    /** List Guests
+     *  GET /api/v1/projects/{project_id}/guests */
+    list_guests(project_id) {
+        const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/guests`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
+    /** Grant Guest
+     *  PUT /api/v1/projects/{project_id}/guests/{user_id} */
+    grant_guest(project_id, user_id) {
+        const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/guests/${encodeURIComponent(user_id)}`;
+        return this.http.request(this.baseUrl, _path, "PUT", undefined);
+    }
+    /** Revoke Guest
+     *  DELETE /api/v1/projects/{project_id}/guests/{user_id} */
+    revoke_guest(project_id, user_id) {
+        const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/guests/${encodeURIComponent(user_id)}`;
+        return this.http.request(this.baseUrl, _path, "DELETE", undefined);
     }
     /** List Memory
      *  GET /api/v1/projects/{project_id}/memory */

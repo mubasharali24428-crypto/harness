@@ -108,6 +108,12 @@ export class GithubClient {
         const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/pulls/${encodeURIComponent(pr_number)}/diff`;
         return this.http.request(this.baseUrl, _path, "GET", undefined);
     }
+    /** Post Verdict Comment
+     *  POST /api/v1/projects/{project_id}/pulls/{pr_number}/verdict-comment */
+    post_verdict_comment(project_id, pr_number, body) {
+        const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/pulls/${encodeURIComponent(pr_number)}/verdict-comment`;
+        return this.http.request(this.baseUrl, _path, "POST", body);
+    }
     /** Connect Repo
      *  POST /api/v1/projects/{project_id}/repo/connect */
     connect_repo(project_id, body) {
@@ -148,5 +154,6 @@ export class GithubClient {
  * export interface/type HTTPValidationError
  * export interface/type IssueBody
  * export interface/type ValidationError
+ * export interface/type VerdictCommentBody
  * export interface/type WritesBody
  */
