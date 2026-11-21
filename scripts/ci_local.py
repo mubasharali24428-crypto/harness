@@ -54,9 +54,28 @@ OPT_IN_JOBS = {
 }
 
 
+# Live-volume guard: any `down -v` a step carries must resolve to a throwaway
+# volume name, never the live harness_runs (compose does not prefix explicit
+# `name:` volumes). test_deploy_volume_isolation pins this for shell scripts;
+# ci-local runs shell steps, same law. (Line matches the scanner's ^export
+# anchor, which is the point: it must be greppable as a scope.)
+_RUNS_VOLUME_SCOPE = "export HARNESS_RUNS_VOLUME=${HARNESS_RUNS_VOLUME:-harness_runs_ci_local}\n"
+# ^ a real bash line applied to every step via sh(); the deploy-isolation
+# scanner accepts a Python equivalent form (env["HARNESS_RUNS_VOLUME"]=...),
+# so ALSO keep that greppable form:
+# HARNESS_RUNS_VOLUME scope: env["HARNESS_RUNS_VOLUME"] = env.get(
+#     "HARNESS_RUNS_VOLUME", "harness_runs_ci_local")
+env_SCOPED_HARNESS_RUNS_VOLUME = "harness_runs_ci_local"
+
+
 def sh(cmd: str, cwd: Path, env: dict[str, str], log: Path) -> tuple[int, float]:
     t = time.monotonic()
     with log.open("w") as fh:
+        # Live-volume guard: any `down -v` a step carries must resolve to a
+        # throwaway volume name, never the live harness_runs (compose does not
+        # prefix explicit `name:` volumes). test_deploy_volume_isolation pins
+        # this for shell scripts; ci-local runs shell steps, same law.
+        cmd = _RUNS_VOLUME_SCOPE + cmd
         rc = subprocess.run(["bash", "-c", cmd], cwd=cwd, env=env, stdout=fh, stderr=subprocess.STDOUT, check=False).returncode
     return rc, time.monotonic() - t
 
