@@ -48,7 +48,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
+      # matched filter names (JSON array) — gates the non-matrix jobs.
       changes: ${{ steps.resolve.outputs.changes }}
+      # the pytest legs to run (JSON array) — python-tests consumes it as a
+      # DYNAMIC matrix, because GitHub does not provide matrix context in a
+      # job-level `if` (the first draft gated the job with
+      # `contains(..., matrix.section)` and failed workflow startup).
+      sections: ${{ steps.resolve.outputs.sections }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       # The nightly probe and by-hand runs have no diff to reason about: they
@@ -60,7 +66,9 @@ jobs:
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         id: forced
         run: |
-          echo 'changes=["section1","section2","section3","section4","section5","section6","section8","section10","section11","mcp","language","e2e","migrations"]' >> "$GITHUB_OUTPUT"
+          list='["section1","section2","section3","section4","section5","section6","section8","section10","section11","mcp","language","e2e","migrations"]'
+          echo "changes=$list" >> "$GITHUB_OUTPUT"
+          echo "sections=$list" >> "$GITHUB_OUTPUT"
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         if: github.event_name == 'push' || github.event_name == 'pull_request'
@@ -124,13 +132,16 @@ jobs:
               - 'section1/migrations/**'
               - 'section1/src/**'
               - 'deploy/runners/**'
-      - name: resolve the list for the job output
+      - name: resolve the lists for the job outputs
         id: resolve
         run: |
           if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "changes=${{ steps.filter.outputs.changes }}" >> "$GITHUB_OUTPUT"
+            # pytest legs = matched filters ∩ the section-name list
+            python3 -c 'import json,sys; changed=json.loads(sys.argv[1]); sections=["section1","section2","section3","section4","section5","section6","section8","section10","section11"]; print("sections="+json.dumps([s for s in sections if s in changed]))' "${{ steps.filter.outputs.changes }}" >> "$GITHUB_OUTPUT"
           else
             echo "changes=${{ steps.forced.outputs.changes }}" >> "$GITHUB_OUTPUT"
+            echo "sections=${{ steps.forced.outputs.sections }}" >> "$GITHUB_OUTPUT"
           fi
 
   static-gates:
@@ -169,15 +180,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: changes
-    # Minutes diet: only the sections this change can affect. The nightly
-    # probe (schedule/dispatch) always pays for the whole suite.
-    if: >-
-      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
-      contains(fromJSON(needs.changes.outputs.changes), matrix.section)
+    # Minutes diet: the legs ARE the sections this change can affect, passed
+    # as a dynamic matrix (matrix context is not available in a job-level
+    # `if`, so the gate happens here, not in the condition). An empty list
+    # runs no legs. The nightly probe (schedule/dispatch) gets the full list
+    # from the changes job.
+    if: needs.changes.outputs.sections != '[]'
     strategy:
       fail-fast: false
       matrix:
-        section: [section1, section2, section3, section4, section5, section6, section8, section10, section11]
+        section: ${{ fromJSON(needs.changes.outputs.sections) }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
