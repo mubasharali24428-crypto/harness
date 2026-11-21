@@ -36,6 +36,7 @@ import fnmatch
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -206,7 +207,8 @@ def main() -> int:
                     if "HARNESS_TEST_PG" not in env:  # bare `HARNESS_TEST_PG=1` steps default to 5499: pin the DSN
                         env["HARNESS_DATABASE_URL"] = env["PG_URL"]
                 junit = out / "pytest" / f"{label}-{i}.xml"
-                env["PYTEST_ADDOPTS"] = (env.get("PYTEST_ADDOPTS", "") + f" --junitxml={junit}").strip()
+                # pytest shlex-splits PYTEST_ADDOPTS: quote, the repo path may hold spaces
+                env["PYTEST_ADDOPTS"] = (env.get("PYTEST_ADDOPTS", "") + " --junitxml=" + shlex.quote(str(junit))).strip()
                 wd = ROOT / expand(step.get("working-directory", job.get("defaults", {}).get("run", {})
                                             .get("working-directory", ".")), ctx)
                 log = out / "logs" / f"{label}-{i}.log"
