@@ -46,10 +46,15 @@ if [ "${1:-}" = "--if-due" ]; then
     fi
 fi
 
+# Preflight: every step below needs the Docker daemon, and all but the store
+# snapshot need the db container. Name the root cause once, up front, instead of
+# letting four steps fail with four downstream symptoms.
+step preflight sh -c 'docker info >/dev/null 2>&1 || { echo "docker daemon not running — start Docker Desktop (or the compose stack), then re-run" >&2; exit 1; }
+    [ "$(docker inspect -f "{{.State.Running}}" "$1" 2>/dev/null)" = true ] || { echo "db container $1 not running — docker compose -f deploy/docker-compose.yml up -d" >&2; exit 1; }' preflight "$DB_CONTAINER"
 step logical-dump ./deploy/backup/backup.sh
 step walg-base docker compose -p harness -f deploy/docker-compose.yml --env-file .env --env-file deploy/.env \
     --profile walg run --rm --no-deps walg
-step store-snapshot sh -c 'OUT=$(./deploy/backup/store-backup.sh | tail -1) && ./deploy/backup/store_verify.py "$OUT"'
+step store-snapshot sh -c 'OUT=$(./deploy/backup/store-backup.sh) && ./deploy/backup/store_verify.py "$OUT"'
 # The mirror follows the prune (--delete) but only when the source still holds a base backup, so a
 # wiped or empty /tmp archive can never be propagated over the copy.
 step archive-mirror sh -c 'ls "$2"/basebackups_005/*_backup_stop_sentinel.json >/dev/null 2>&1 || { echo "source archive has no base backup; refusing to mirror" >&2; exit 1; }

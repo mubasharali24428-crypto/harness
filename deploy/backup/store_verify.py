@@ -18,7 +18,10 @@ a = ap.parse_args()
 tgz = Path(a.tgz)
 m = re.search(r"store-(\d{8}T\d{6}Z)", tgz.name)
 if not m:
-    sys.exit("cannot read the snapshot time from the file name")
+    sys.exit(f"argument is not a store-YYYYmmddTHHMMSSZ.tgz path: {a.tgz!r} "
+             "(did store-backup.sh fail? its stdout must be the path, nothing else)")
+if not tgz.is_file():
+    sys.exit(f"snapshot file not found: {tgz}")
 snap = datetime.strptime(m.group(1), "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
 
 sidecar = Path(str(tgz) + ".sha256")
