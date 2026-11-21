@@ -105,3 +105,75 @@ def test_load_attempts_reads_raw_and_skips_batch_index_and_names_junk(tmp_path):
     (tmp_path / "junk.json").write_text(json.dumps({"hello": 1}))
     attempts, skipped = lb.load_attempts(tmp_path)
     assert len(attempts) == 1 and sorted(skipped) == ["batch.json", "junk.json"]
+
+
+# ------------------------------------------------------- the HTML (public) form
+
+
+def _html_sections(doc: str) -> dict[str, str]:
+    """Split the page on its section markers (<h2> headers and the dry banner)
+    so an assertion names one section and cannot be satisfied by another."""
+    import re
+
+    parts = re.split(r'<h2>|<div class="dry">', doc)
+    sections: dict[str, str] = {"head": parts[0]}
+    for chunk in parts[1:]:
+        if "</h2>" in chunk:
+            name, body = chunk.split("</h2>", 1)
+        else:  # the dry banner ends at the </strong>…</div> of its own div
+            name, body = chunk.split("</div>", 1)[0], chunk.split("</div>", 1)[1]
+        sections[name.strip()] = body
+    return sections
+
+
+def test_html_dry_cells_never_in_the_ranked_table():
+    b = lb.board(_five(model="dry-fake-model", mode="dry") + _five(task="t2", model="other"))
+    doc = lb.render_html(b, label="x", manifest_sha=None)
+    sections = _html_sections(doc)
+    assert "dry-fake-model" not in sections["Ranked (claimable cells only — one row per task × model)"]
+    assert "other" in sections["Ranked (claimable cells only — one row per task × model)"]
+    assert lb.DRY_NOTE in doc and "excluded from ranking" in doc
+
+
+def test_html_unknown_cost_is_unknown_never_zero():
+    attempts = _five()
+    for a in attempts[:-1]:
+        a["costUsd"] = None
+    doc = lb.render_html(lb.board(attempts), label="x", manifest_sha=None)
+    assert "unknown" in doc and "$0.00" not in doc
+
+
+def test_html_no_claimable_banner_says_the_bar():
+    doc = lb.render_html(lb.board(_five()[:3]), label="x", manifest_sha=None)
+    assert "No claimable rows yet" in doc and "insufficient data" in doc
+
+
+def test_html_is_deterministic_and_escapes_model_names():
+    b = lb.board(_five(model="alpha<script>alert(1)</script>"))
+    doc1 = lb.render_html(b, label="x", manifest_sha=None, generated="2026-11-21T00:00:00+00:00")
+    doc2 = lb.render_html(b, label="x", manifest_sha=None, generated="2026-11-21T00:00:00+00:00")
+    assert doc1 == doc2, "same board + stamp -> byte-identical page"
+    assert "<script>" not in doc1, "a model name is data, not markup"
+    assert "&lt;script&gt;" in doc1, "escaped so a hostile model name cannot inject"
+
+
+def test_md_and_html_come_from_the_same_board():
+    """The no-second-arithmetic law, asserted across formats: both renderers
+    must rank the same set of cells in the same order."""
+    attempts = _five(task="t1", model="alpha") + _five(task="t2", model="beta", cost=0.02) \
+        + [_attempt(task="t3", model="gamma", trial=i) for i in range(1, 4)]
+    b = lb.board(attempts)
+    md = lb.render_markdown(b, label="x", manifest_sha=None, generated="s")
+    html = lb.render_html(b, label="x", manifest_sha=None, generated="s")
+    md_rows = [ln for ln in md.splitlines() if ln.startswith("| ") and ln.split("|")[1].strip().isdigit()]
+    assert [r.split("|")[2].strip() for r in md_rows] == ["alpha", "beta"], "md order"
+    ranked_html = _html_sections(html)["Ranked (claimable cells only — one row per task × model)"]
+    assert ranked_html.index("alpha") < ranked_html.index("beta") and "gamma" not in ranked_html, (
+        "html ranks the same cells, same order; gamma (3 trials) stays below the bar")
+
+
+def test_html_is_self_contained():
+    doc = lb.render_html(lb.board(_five()), label="x", manifest_sha=None)
+    assert "<script" not in doc and "http://" not in doc and "https://" not in doc, (
+        "no JS, no external assets — droppable on any static host")
+    assert doc.startswith("<!DOCTYPE html>") and doc.rstrip().endswith("</html>")

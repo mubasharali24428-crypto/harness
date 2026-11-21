@@ -116,9 +116,13 @@ spend, on `w28-s1-delegate`:
   `scripts/eval/bench_leaderboard.py` renders the public leaderboard as a
   presentation of `bench_stats.aggregate` (no second arithmetic); MIN_N/dry/
   unknown-cost honesty laws inherited; dry-only corpus correctly shows "No
-  claimable rows yet"; 9 tests (35/35 across the eval suite); committed at
-  `docs/briefs/evidence/w7-bench/leaderboard.md`. Week-08's verdict-bot wiring
-  row corrected to Implemented (verdict_post.py existed since the W4 wave).
+  claimable rows yet". Both formats (markdown + self-contained static HTML —
+  no JS, no external assets, escaped against hostile model names) render from
+  the SAME computed sections, so they cannot disagree; `make bench-leaderboard`
+  regenerates both; 15 tests (41/41 across the eval suite); committed at
+  `docs/briefs/evidence/w7-bench/leaderboard.md` + `.html`. Week-08's
+  verdict-bot wiring row corrected to Implemented (verdict_post.py existed
+  since the W4 wave).
 
 Owner-gated and untouched: vv90r5 redeploy (runbook ready), P-13 live benchmark
 (spend caps preregistered), P-14/P-16/P-18/P-20/P-22 revenue rows, F-05

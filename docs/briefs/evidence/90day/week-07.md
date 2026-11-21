@@ -125,11 +125,20 @@ mean cost asc, name), and every honesty law is inherited, not re-decided:
 - unknown cost renders `unknown`/`~`, never `$0`; failures appear as counts;
   batch files (`w7-bench-batch`) are skipped BY DESIGN as indexes — expanding
   them would double-count their attempt files (named in stderr either way);
-- deterministic for a given generation stamp; 9 offline tests
-  (`test_bench_leaderboard.py`), 35/35 across the eval suite.
+- deterministic for a given generation stamp; 15 offline tests
+  (`test_bench_leaderboard.py`), 41/41 across the eval suite.
 
-Committed artifact: `docs/briefs/evidence/w7-bench/leaderboard.md`. A live
-leaderboard still needs the owner-gated P-13 spend (≥5 trials per cell).
+**Public-page form (2026-11-21, same day — completing the I-04 slice):** the
+leaderboard now renders BOTH formats from the SAME computed sections
+(`board()` is the single ranking pass; the two renderers consume it, so the
+formats cannot disagree). The HTML is a self-contained static page — inline
+CSS, no JS, no external assets, all names `escape()`d so a hostile model name
+cannot inject — droppable on any static host when P-18/P-D5 publish it.
+`make bench-leaderboard` regenerates both after each P-13 batch lands.
+Committed artifacts: `docs/briefs/evidence/w7-bench/leaderboard.md` +
+`leaderboard.html`. A live leaderboard still needs the owner-gated P-13 spend
+(≥5 trials per cell); publication itself is the owner's (P-18, and P-D5 for
+public-repo context).
 
 ## 4. What was read (audit sources)
 
