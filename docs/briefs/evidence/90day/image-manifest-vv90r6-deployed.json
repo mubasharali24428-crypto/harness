@@ -28,5 +28,11 @@
     "week-03 \u00a75 RC drift finding (MIXED vv90i13/vv90r4/untagged) -> RESOLVED",
     "week-02 deployed-gate delta (vw24b1 failed 4 of 8 probe shapes) -> gate now byte-identical to HEAD",
     "A-06 'one reviewed image set' -> MET on the live stack"
-  ]
+  ],
+  "schema": {
+    "applied": 74,
+    "max_version": "0076",
+    "verified": "2026-11-21 live psql on harness-rc-db-1 (P0 re-baseline); written by the P1 readiness-drift work"
+  },
+  "shell_gate_sha256": "2d6337ce14bf3561d6e1cb1b6d087a1b857bebe067a9a94b32e504602060ef75"
 }

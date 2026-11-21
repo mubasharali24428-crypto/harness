@@ -356,6 +356,22 @@ pg-guard:
 pip-audit:
 	cd section1 && ./.venv/bin/pip install -q pip-audit && ./.venv/bin/pip-audit --progress-spinner off
 
+# ------------------------------------------------------- readiness drift (G-A)
+# Is the deployed image set still the reviewed set? CI mode (manifest vs HEAD,
+# no Docker) is the default; make readiness-drift-live compares the RUNNING
+# stack (default project harness-rc) against the same manifest. Exit 1 = drift.
+READINESS_MANIFEST := docs/briefs/evidence/90day/image-manifest-vv90r6-deployed.json
+READINESS_PROJECT ?= harness-rc
+
+readiness-drift:
+	python3 scripts/ops/readiness_drift.py --ci --manifest $(READINESS_MANIFEST)
+
+readiness-drift-live:
+	python3 scripts/ops/readiness_drift.py --manifest $(READINESS_MANIFEST) --project $(READINESS_PROJECT)
+
+readiness-manifest:
+	python3 scripts/ops/readiness_drift.py --write-manifest $(READINESS_MANIFEST) --project $(READINESS_PROJECT)
+
 # ------------------------------------------------------------- route law (M15-G6a)
 # W4-carryover architectural laws as CI gates: route modules export default
 # ONLY; sections import only contracts/. Both modes run in ONE static-gates
