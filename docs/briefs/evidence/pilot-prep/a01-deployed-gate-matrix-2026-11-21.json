@@ -1,0 +1,71 @@
+{
+  "drill": "A-01 shell argument/path-scope negative matrix: deployed gate (vw24b1) vs HEAD (160dd30)",
+  "executedAt": "2026-11-21T09:15:00+05:00",
+  "deployedGate": {
+    "image": "harness-worker-daemon:vw24b1",
+    "imageId": "sha256:e59ed0c64b9a8e09267d00fe424db811b7ffa499461375677037661038ebd9c3",
+    "gatePath": "/opt/harness-shell/shell_gate.py (149 lines; 138 diff lines vs HEAD)",
+    "runMode": "gate.run() invoked in-image with real confinement and real execution"
+  },
+  "headGate": {
+    "revision": "160dd30",
+    "runMode": "decision layer only, child stubbed (the repo's own test pattern), REAL existing workspace (the existence heuristic needs it — a non-existent cwd yields false ALLOWS)"
+  },
+  "cases": [
+    {
+      "case": "c1-direct-secret-read",
+      "cmd": "cat <ws>/.env (forbiddenPaths=[...])",
+      "deployed": "DENIED by policy",
+      "head": "DENIED COMMAND_REFUSED (policy)"
+    },
+    {
+      "case": "c2-dotdot-etc-passwd",
+      "cmd": "cat ../../etc/passwd",
+      "deployed": "DENIED by policy pattern",
+      "head": "DENIED COMMAND_REFUSED (policy pattern)"
+    },
+    {
+      "case": "c3-dotdot-etc-hosts",
+      "cmd": "cat ../../etc/hosts",
+      "deployed": "ALLOWED by decision layer; EXECUTED — /etc/hosts content printed (leak observed)",
+      "head": "DENIED OUT_OF_SCOPE",
+      "delta": true
+    },
+    {
+      "case": "c4-tilde-arg",
+      "cmd": "cat ~/x",
+      "deployed": "ALLOWED; executed (file missing)",
+      "head": "DENIED OUT_OF_SCOPE",
+      "delta": true
+    },
+    {
+      "case": "c5-parent-dir-arg",
+      "cmd": "ls ..",
+      "deployed": "ALLOWED; executed (read stopped by confinement: Permission denied)",
+      "head": "DENIED OUT_OF_SCOPE",
+      "delta": true
+    },
+    {
+      "case": "c6-outside-ws-read",
+      "cmd": "cat <canary outside workspace>",
+      "deployed": "ALLOWED; executed (read stopped by confinement: Permission denied)",
+      "head": "DENIED OUT_OF_SCOPE",
+      "delta": true
+    },
+    {
+      "case": "c7-traversal-write",
+      "cmd": "tar -cf ../out.tar docs",
+      "deployed": "DENIED (binary allow-list: tar not permitted)",
+      "head": "DENIED COMMAND_REFUSED (binary allow-list)"
+    },
+    {
+      "case": "c8-control-in-scope",
+      "cmd": "cat docs/y.txt",
+      "deployed": "ALLOWED but the confined child ALSO failed the in-scope read (Permission denied) — probe-environment artifact, see caveat",
+      "head": "ALLOWED (child stubbed)"
+    }
+  ],
+  "caveat": "The deployed-confinement verdicts in this probe are NOT representative of the real worker runtime: the probe mounts the workspace as a bind mount at /w and runs the image's default user, and even the in-scope control read (c8) was denied by the deployed confinement. The CI native-Linux drill (run 44882932634, at 19f5cae) proves in-scope write+read through the same mechanism works on the real worker path. The decision-layer rows (deny/allow before execution) are exact; treat the deployed EXECUTION rows as probe observations, not product truth.",
+  "dispositionSummary": "The deployed tag vw24b1 predates the A-01 argument checks (added at e24b830, 2026-11-14). Four argument-trick negatives (c3-c6) pass the deployed decision layer; c3 demonstrates an executed read of a system file outside the workspace. HEAD denies all four with OUT_OF_SCOPE, pinned by 25 argument tests + scope-edge tests + the real-boundary suite. Closing the deployed-tag gap = redeploy a newer tag set (owner A-06 action); the code-side A-01 surface is closed at HEAD.",
+  "confidence": "deployed decision-layer rows: exact (in-image run). head rows: exact (decision layer, real workspace, same shapes as the pinned tests). deployed execution rows: probe-only (see caveat)."
+}

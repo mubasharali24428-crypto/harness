@@ -153,7 +153,69 @@ turn a failing security assertion into a passing result by weakening its expecta
 
 ### Results to be supplied by test agent
 
-Not yet supplied. Record host/kernel/backend, timestamp, exact image IDs, source patch hashes,
+**Supplied 2026-11-21** (test lane; host macOS Darwin 25.6.0 arm64, Docker Desktop
+29.5.3, VM kernel 6.12.76-linuxkit; worktree at `160dd30`/`ff112dd`). Every command
+below ran with its own exit code; nothing was weakened to pass.
+
+#### Local regression checks (§5 block 1) — all green
+
+| Group | Command | Result |
+|---|---|---|
+| deploy volume isolation | `pytest section1/tests/test_deploy_volume_isolation.py -q` | **9 passed** |
+| stack tags | `pytest scripts/ops/test_stack_tags.py scripts/ops/test_stack_tags_exit.py -q -rxXs` | **13 passed** (0 xfail) |
+| shell gate boundary trio | `pytest section5/tests/unit/test_shell_gate_real_boundary.py test_shell_gate.py test_landlock_read_allowlist.py -q -rxXs` | **57 passed, 4 xfailed** — xfail causes recorded, not weakened: two printed rows are rule-7 expansion-form gaps (`grep -rn *` and `python3 -c` reads outside scope), pinned as known limitation |
+| agent tree + delegation | `pytest section4/tests/unit/test_agent_tree.py test_delegation.py -q` | **189 passed** |
+
+Cross-ref: full section suites at the same revision in week-02 §5 R1–R7
+(section1 1326/0, section4 2392/0, section5 542, section8 104, section7 1201 + build).
+
+#### Exact-deployment checks (§5 block 2)
+
+1. **Container image IDs vs `image-manifest-2026-11-12.json`: MISMATCH — the RC has drifted.**
+   `python3 scripts/ops/stack_tags.py --project harness-rc` now reports **`Agreement: MIXED`**:
+   `vv90i13` on 10 services, `vv90r4` on frontend + orchestrator, and **identity + review run an
+   untagged image** (`abdc28b02505` — same bytes as the manifest's `vv90dw3` identity/review,
+   but the tag no longer points at it). Only those two match the 2026-11-12 snapshot. The
+   manifest is superseded; a fresh one-tag-set deploy + new manifest is required for any
+   release claim (A-06, owner). All 14 RC containers healthy/up.
+2. **Isolation: verified.** Merged `rc config` resolves clean; **no RC service mounts the demo
+   run volume** (the overlay renames the logical volume — `name: harness_rc_runs`), **no
+   service attaches** `harness_default`/`harness_sandbox_egress`, and **every published port
+   carries `host_ip: 127.0.0.1`** (YAML-level check, not line grep).
+3. **Frontend wiring: verified (static half).** `harness-rc-frontend-1` serves HTTP 200; its
+   baked `NEXT_PUBLIC_*` endpoints are exactly the RC ports (18001/18002/18004/18006/18008/
+   28003, WS 18001) — no 8001–8008. A full browser origin/profile walk remains open.
+4. **Live-run checks: NOT RUN** — owner-gated (provider/budget/data approval per §4).
+5. **Schema state:** RC db `73 migrations, max 0075` — one behind HEAD (0076, P-17), consistent
+   with the drifted images. Cost ledger: no live RC runs (dry mode), so no spend to record.
+6. **Linux boundary probes: executed 2026-11-21** — see week-02 §5 drill rows (D1 native-Linux
+   PASS in CI at 19f5cae; G1/G2 gaps confirmed live with evidence JSONs). **Scratch
+   restore/rollback drill: not run** — owner-gated (separate scratch DB + approval per §4).
+
+#### A-01 independent negative-test results (P-06a)
+
+Executed against BOTH gates; matrix + dispositions:
+`docs/briefs/evidence/pilot-prep/a01-deployed-gate-matrix-2026-11-21.json` and
+`a01-dispositions-2026-11-21.md`. Headline: HEAD denies all 8 probe shapes
+(`OUT_OF_SCOPE`/policy) with the argument checks pinned by 25 tests; the deployed tag
+vw24b1 predates them — four shapes (traversal read, tilde, parent-dir, outside-workspace
+read) pass its decision layer, one demonstrably **executed** a read outside the workspace.
+Closing the deployed side = the A-06 redeploy from a post-`e24b830` revision.
+
+#### P-06 acceptance verdict (fleet)
+
+- **A-01**: negative tests executed on both gates; dispositions written per item. Code side
+  closed at HEAD. Deployed side open until the A-06 redeploy.
+- **A-06 one reviewed image set, digests recorded**: digests recorded (backend
+  `0cc42686…`, worker-daemon `e59ed0c6…`, frontend `380c2b98…`, db-walg `59c74c6f…` for the
+  demo set; RC set IDs captured in this section) — but the **one-set/no-drift requirement is
+  NOT satisfied today**: demo = AGREE `vw24b1` (an old set), RC = `MIXED`. The owner's
+  one-tag-set redeploy + fresh manifest is the remaining move.
+
+#### P-05 (owner, unchanged)
+
+SOW template exists as a counsel-review draft; signed SOWs, D-01 decision, qualified
+trademark clearance remain owner actions (§6) — no fleet lane can supply them. Record host/kernel/backend, timestamp, exact image IDs, source patch hashes,
 commands, exit codes, raw outputs, run IDs, spend, failures, skips and XFAIL/XPASS diagnostics.
 
 ## 6. Owner gates that engineering cannot complete
