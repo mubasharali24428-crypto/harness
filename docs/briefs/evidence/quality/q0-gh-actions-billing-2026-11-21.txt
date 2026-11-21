@@ -1,0 +1,50 @@
+# gh evidence captured 2026-11-21T18:22:01Z at local HEAD 8349f93
+
+$ gh run list --limit 12
+completed	failure	vv90r6 deployment record + step-3 ops checklist + checkpoint-1 redesign	CI	w28-s1-delegate	pull_request	44924965887	4s	2026-11-21T16:30:44Z
+completed	failure	Step-3 executed: UI browser walk on live vv90r6, Grafana import with …	CI	w28-s1-delegate	push	44924500849	0s	2026-11-21T16:25:30Z
+completed	failure	CI-minutes diet: path-gated jobs, cancel-in-progress, pip cache	CI	w28-s1-delegate	push	44921981769	0s	2026-11-21T15:58:20Z
+completed	failure	vv90r6 deployment record + step-3 ops checklist + checkpoint-1 redesign	CI	w28-s1-delegate	pull_request	44918292744	5s	2026-11-21T16:05:08Z
+completed	success	Merge pull request #24 from mubasharali24428-crypto/w28-s1-delegate	CI	master	push	44917358323	4m16s	2026-11-21T15:06:01Z
+completed	success	W25–W28 + W33: governance slices, delegation synthesis, benchmark, hy4 batches, docs reconciliation	CI	w28-s1-delegate	pull_request	44916364554	4m8s	2026-11-21T14:54:41Z
+completed	failure	CI	CI	master	schedule	44914915851	4m13s	2026-11-21T14:37:47Z
+completed	success	W25–W28 + W33: governance slices, delegation synthesis, benchmark, hy4 batches, docs reconciliation	CI	w28-s1-delegate	pull_request	44914054465	4m16s	2026-11-21T14:27:51Z
+completed	success	W25–W28 + W33: governance slices, delegation synthesis, benchmark, hy4 batches, docs reconciliation	CI	w28-s1-delegate	pull_request	44912596171	4m2s	2026-11-21T14:11:00Z
+completed	failure	W25–W28 + W33: governance slices, delegation synthesis, benchmark, hy4 batches, docs reconciliation	CI	w28-s1-delegate	pull_request	44912386675	4m36s	2026-11-21T14:08:34Z
+completed	failure	W25–W28 + W33: governance slices, delegation synthesis, benchmark, hy4 batches, docs reconciliation	CI	w28-s1-delegate	pull_request	44909389775	4m2s	2026-11-21T13:32:44Z
+completed	success	W25–W28 + W33: governance slices, delegation synthesis, benchmark, hy4 batches, docs reconciliation	CI	w28-s1-delegate	pull_request	44889429886	4m17s	2026-11-21T09:24:22Z
+
+$ gh run view 44924965887
+
+X w28-s1-delegate CI mubasharali24428-crypto/harness#26 · 44924965887
+Triggered via pull_request about 1 hour ago
+
+JOBS
+X security scan (pip-audit warn + gitleaks) in 2s (ID 136908935659)
+X static gates (shell parse, compose config) in 2s (ID 136908936048)
+X vitest + tsc (section7) in 2s (ID 136908936136)
+X which jobs does this change actually touch? in 2s (ID 136908936141)
+- nightly real-PG integration probe in 0s (ID 136908937216)
+- native linux container tool drill in 0s (ID 136908937224)
+- hx checker + workflow driver (pytest + ruff) (ID 136908949090)
+- pytest (${{ matrix.section }}) (ID 136908949292)
+- mcp server (pytest + ruff) (ID 136908949322)
+- e2e (compose journey, zero provider keys) (ID 136908949496)
+- migrations apply clean on real PG (migrate.py) (ID 136908949821)
+
+ANNOTATIONS
+X The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings
+security scan (pip-audit warn + gitleaks): .github#1
+
+X The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings
+static gates (shell parse, compose config): .github#1
+
+X The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings
+vitest + tsc (section7): .github#1
+
+X The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings
+which jobs does this change actually touch?: .github#1
+
+
+To see what failed, try: gh run view 44924965887 --log-failed
+View this run on GitHub: https://github.com/mubasharali24428-crypto/harness/actions/runs/44924965887
