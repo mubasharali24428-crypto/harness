@@ -247,7 +247,7 @@ async def test_role_matrix(runner_client, runner_factory):
     ).status_code == 200
     assert (
         await runner_client.get("/api/v1/team-runners", headers=_bearer(env["guest"]["token"]))
-    ).status_code == 200
+    ).status_code == 403  # P-17: guests reach only the client portal
     created = await _register(runner_client, env["admin"]["token"])
     assert (
         await runner_client.post(

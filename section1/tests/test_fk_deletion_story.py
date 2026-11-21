@@ -135,6 +135,9 @@ DELETION_MAP: dict[tuple[str, str], tuple[str, str]] = {
     ("github_connections", "user_id"): ("users.id", "CASCADE"),
     ("auth_sessions", "user_id"): ("users.id", "CASCADE"),
     ("user_settings", "user_id"): ("users.id", "CASCADE"),
+    # P-17: a guest grant dies with its project or its person
+    ("project_guest_grants", "project_id"): ("projects.id", "CASCADE"),
+    ("project_guest_grants", "user_id"): ("users.id", "CASCADE"),
     # optional back-references survive the referenced row
     ("team_members", "user_id"): ("users.id", "SET NULL"),
     ("meeting_messages", "sender_member_id"): ("team_members.id", "SET NULL"),
@@ -282,10 +285,10 @@ def test_fk_inventory_size_is_pinned():
     (team + user); 60 -> 62: M2-W16 slice 4's siem_sinks (team CASCADE, author
     RESTRICT — a live egress path keeps its human until erasure retires it). The
     out-of-models mirrors live in stripe_adapter.py / sso.py / scim.py /
-    siem_sink.py and are imported
+    siem_sink.py and are imported; 62 -> 64: P-17's project_guest_grants (project + user).
     HERE for their metadata side effect so enumeration is collection-order
     independent.)"""
-    assert len(_metadata_fks()) == 62
+    assert len(_metadata_fks()) == 64
 
 
 # --------------------------------------------------------------------------

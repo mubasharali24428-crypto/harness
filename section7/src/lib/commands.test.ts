@@ -30,7 +30,7 @@ describe("command shortcuts (U0)", () => {
     };
     walk(join(process.cwd(), "app"), "");
     // Not destinations a signed-in person navigates to.
-    const skip = ["/login", "/auth/sso/callback", "/notifications/unsubscribe"];
+    const skip = ["/login", "/auth/sso/callback", "/notifications/unsubscribe", "/portal"]; // /portal is the guest-only client view
     const reachable = new Set([...NAV_COMMANDS, ...SETTINGS_PAGES, ...OTHER_PAGES].map((c) => c.href));
     expect(pages.filter((p) => !skip.includes(p) && !reachable.has(p))).toEqual([]);
   });

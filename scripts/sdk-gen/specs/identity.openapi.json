@@ -6776,6 +6776,27 @@
     "summary": "Put Role"
    }
   },
+  "/api/v1/portal/projects": {
+   "get": {
+    "description": "Projects the portal may show the caller: a guest's grants, or the team's projects.",
+    "operationId": "portal_projects_api_v1_portal_projects_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Portal Projects Api V1 Portal Projects Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Portal Projects"
+   }
+  },
   "/api/v1/projects": {
    "get": {
     "operationId": "list_projects_api_v1_projects_get",
@@ -6959,6 +6980,137 @@
      }
     },
     "summary": "Replay Events"
+   }
+  },
+  "/api/v1/projects/{project_id}/guests": {
+   "get": {
+    "operationId": "list_guests_api_v1_projects__project_id__guests_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Guests Api V1 Projects  Project Id  Guests Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Guests"
+   }
+  },
+  "/api/v1/projects/{project_id}/guests/{user_id}": {
+   "delete": {
+    "operationId": "revoke_guest_api_v1_projects__project_id__guests__user_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Revoke Guest"
+   },
+   "put": {
+    "description": "Admin only. The target must already be a guest of this team (invite them as guest first).",
+    "operationId": "grant_guest_api_v1_projects__project_id__guests__user_id__put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Grant Guest Api V1 Projects  Project Id  Guests  User Id  Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Grant Guest"
    }
   },
   "/api/v1/projects/{project_id}/memory": {

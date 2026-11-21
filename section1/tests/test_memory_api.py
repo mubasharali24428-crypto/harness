@@ -191,7 +191,8 @@ async def test_authz_matrix_and_cross_project_no_oracle(memory_client, memory_fa
     # viewer/guest read their own project but cannot mutate
     for who in ("viewer", "guest"):
         hdrs = _bearer(env[who]["token"])
-        assert (await memory_client.get(url_a, headers=hdrs)).status_code == 200
+        expected = 200 if who == "viewer" else 403  # P-17: guests reach only the client portal
+        assert (await memory_client.get(url_a, headers=hdrs)).status_code == expected
         assert (await memory_client.post(url_a, json={"memoryText": "nope"},
                                          headers=hdrs)).status_code == 403
 

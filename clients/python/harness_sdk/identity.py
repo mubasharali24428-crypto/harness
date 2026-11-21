@@ -1242,6 +1242,14 @@ class IdentityClient:
         _path = f"/api/v1/policy/orgs/{org_id}/roles/{name}"
         return self._http.request(self.base_url, "PUT", _path, json_body=body)
 
+    def portal_projects(self) -> dict[str, typing.Any]:
+        """Portal Projects
+
+        GET /api/v1/portal/projects
+        """
+        _path = "/api/v1/portal/projects"
+        return self._http.request(self.base_url, "GET", _path)
+
     def list_projects(self, limit: int | None = None) -> ProjectListResponse:
         """List Projects
 
@@ -1267,6 +1275,30 @@ class IdentityClient:
         _path = f"/api/v1/projects/{project_id}/events/replay"
         _params: dict[str, typing.Any] = {"after_seq": after_seq, "limit": limit, "before_seq": before_seq}
         return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def list_guests(self, project_id: str) -> dict[str, typing.Any]:
+        """List Guests
+
+        GET /api/v1/projects/{project_id}/guests
+        """
+        _path = f"/api/v1/projects/{project_id}/guests"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def grant_guest(self, project_id: str, user_id: str) -> dict[str, typing.Any]:
+        """Grant Guest
+
+        PUT /api/v1/projects/{project_id}/guests/{user_id}
+        """
+        _path = f"/api/v1/projects/{project_id}/guests/{user_id}"
+        return self._http.request(self.base_url, "PUT", _path)
+
+    def revoke_guest(self, project_id: str, user_id: str) -> typing.Any:
+        """Revoke Guest
+
+        DELETE /api/v1/projects/{project_id}/guests/{user_id}
+        """
+        _path = f"/api/v1/projects/{project_id}/guests/{user_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
 
     def list_memory(self, project_id: str) -> dict[str, typing.Any]:
         """List Memory

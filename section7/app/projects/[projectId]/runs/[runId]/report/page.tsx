@@ -20,7 +20,13 @@ import { stateLabel } from "../../../../../runs/runsApi";
 export default function RunReportPage({ params }: { params: Promise<{ projectId: string; runId: string }> }) {
   const { projectId, runId } = use(params);
   const [token, setToken] = useState<string | null | undefined>(undefined);
-  useEffect(() => setToken(loadSession()?.token ?? null), []);
+  // P-17: a guest (a partner's end-client) reads this page from the portal.
+  const [guest, setGuest] = useState(false);
+  useEffect(() => {
+    const session = loadSession();
+    setToken(session?.token ?? null);
+    setGuest(session?.principal.role === "guest");
+  }, []);
   const view = useRun(runId, token ?? null);
   const { agg } = view;
 
@@ -64,13 +70,15 @@ export default function RunReportPage({ params }: { params: Promise<{ projectId:
           </dl>
 
           <h2>Cost and trace</h2>
-          <RunEvidence agg={agg} token={token} />
+          <RunEvidence agg={agg} token={token} canExport={!guest} />
 
           <h2>What changed</h2>
           <DiffPane view={view} />
 
           <p className="ws-evidence-links">
-            <a className="ws-foot-link" href={`/projects/${projectId}/runs/${runId}`}>Open the run →</a>
+            {guest
+              ? <a className="ws-foot-link" href="/portal">← All runs</a>
+              : <a className="ws-foot-link" href={`/projects/${projectId}/runs/${runId}`}>Open the run →</a>}
           </p>
         </>
       )}

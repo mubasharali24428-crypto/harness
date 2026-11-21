@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, HTTPException, Request
 from harness_contracts import Principal, error_body
+from harness_contracts.fastapi_auth import guest_gate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -138,6 +139,9 @@ async def get_principal(request: Request) -> Principal:
             # not act. Deliberately the SAME 401 and message as an expired
             # session: this is a bearer surface, so it gets no oracle about why.
             raise HTTPException(status_code=401, detail="invalid or expired session")
+        if DbRole(member.role) is DbRole.GUEST:
+            # P-17: a guest reaches only the client-portal reads of granted projects.
+            await guest_gate(db, request, row.user_id, row.team_id)
         return Principal(userId=row.user_id, teamId=row.team_id, role=DbRole(member.role))
 
 

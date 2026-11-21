@@ -23,7 +23,8 @@ interface ExportJob {
 const EXPORTS = `${PLAN_GATE_BASE}/api/v1/orchestrator/exports`;
 const isNum = (v: number | null): v is number => typeof v === "number" && Number.isFinite(v);
 
-export function RunEvidence({ agg, token }: { agg: RunAggregateDto; token: string }) {
+/** `canExport` is false for a portal guest: starting an export is a write they are refused. */
+export function RunEvidence({ agg, token, canExport = true }: { agg: RunAggregateDto; token: string; canExport?: boolean }) {
   const trace = React.useMemo(() => buildTrace(agg.steps), [agg.steps]);
   const [busy, setBusy] = React.useState(false);
   const [note, setNote] = React.useState<string | null>(null);
@@ -100,13 +101,15 @@ export function RunEvidence({ agg, token }: { agg: RunAggregateDto; token: strin
         </>
       )}
 
-      <div className="ws-evidence-export">
-        <Button size="sm" disabled={busy} onClick={() => void exportRun()} testId="evidence-export">
-          {busy ? "Preparing the export…" : "Export run history (JSON)"}
-        </Button>
-        {note && <span role="status">{note}</span>}
-        {error && <span role="alert">{error}</span>}
-      </div>
+      {canExport && (
+        <div className="ws-evidence-export">
+          <Button size="sm" disabled={busy} onClick={() => void exportRun()} testId="evidence-export">
+            {busy ? "Preparing the export…" : "Export run history (JSON)"}
+          </Button>
+          {note && <span role="status">{note}</span>}
+          {error && <span role="alert">{error}</span>}
+        </div>
+      )}
     </section>
   );
 }

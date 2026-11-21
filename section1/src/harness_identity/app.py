@@ -271,6 +271,11 @@ def make_app(session_factory, settings: Settings):
 
     app.include_router(teams_api_router)
 
+    # P-17 client trust portal: per-project guest grants.
+    from .portal_api import router as portal_router
+
+    app.include_router(portal_router)
+
     # Mission12-G10 merge wiring: user-authored project rules CRUD
     # (.cursorrules equivalent; advisory prompt block via S4 rules_loader).
     from .rules_api import router as rules_router

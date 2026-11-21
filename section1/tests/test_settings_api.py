@@ -172,9 +172,11 @@ async def test_authz_only_admin_writes_everyone_reads(settings_client, settings_
     url = _url(env)
 
     # every role may READ (defaults when empty)
-    for who in ("admin", "engineer", "viewer", "guest"):
+    for who in ("admin", "engineer", "viewer"):
         r = await settings_client.get(url, headers=_bearer(env[who]["token"]))
         assert r.status_code == 200, (who, r.text)
+    r = await settings_client.get(url, headers=_bearer(env["guest"]["token"]))
+    assert r.status_code == 403  # P-17: guests reach only the client portal
 
     # only admin may WRITE
     for who in ("engineer", "viewer", "guest"):
@@ -187,7 +189,8 @@ async def test_authz_only_admin_writes_everyone_reads(settings_client, settings_
             body.get("error", {}).get("code")
             or body.get("detail", {}).get("error", {}).get("code")
         )
-        assert code == "FORBIDDEN"
+        # P-17: a guest is stopped earlier, at the portal gate.
+        assert code == ("GUEST_PORTAL_ONLY" if who == "guest" else "FORBIDDEN")
         r = await settings_client.delete(url, headers=_bearer(env[who]["token"]))
         assert r.status_code == 403, who
 

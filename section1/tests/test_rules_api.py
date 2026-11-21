@@ -181,11 +181,12 @@ async def test_authz_matrix_write_gated_read_open(rules_client, rules_factory):
     env = await _seed_team_with_project(rules_factory)
     url = f"/api/v1/projects/{env['projectId']}/rules"
 
-    # viewer/guest may READ (empty doc) but never WRITE
+    # viewer/guest may READ (empty doc) but never WRITE; P-17 moves the
+    # guest's reads to the client portal, so the team API read is 403 now.
     for who in ("viewer", "guest"):
         hdrs = _bearer(env[who]["token"])
         r = await rules_client.get(url, headers=hdrs)
-        assert r.status_code == 200
+        assert r.status_code == (200 if who == "viewer" else 403)
         r = await rules_client.put(url, json={"rulesText": "nope"}, headers=hdrs)
         assert r.status_code == 403
         r = await rules_client.delete(url, headers=hdrs)

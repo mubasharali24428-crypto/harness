@@ -103,6 +103,20 @@ class Project(Base, TimestampMixin):
     repo_full_name: Mapped[str | None] = mapped_column(String(400), nullable=True)
 
 
+class ProjectGuestGrant(Base, TimestampMixin):
+    """P-17: a team guest may read this project through the client portal."""
+
+    __tablename__ = "project_guest_grants"
+
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+    granted_by: Mapped[str] = mapped_column(String(36), nullable=False)
+
+
 class GithubConnection(Base, TimestampMixin):
     __tablename__ = "github_connections"
 

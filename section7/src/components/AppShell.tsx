@@ -78,6 +78,11 @@ export default function AppShell({
       router.push("/login");
       return;
     }
+    if (loadSession()?.principal.role === "guest") {
+      // P-17: a guest is an outside reader; the workspace routes refuse them, the portal does not.
+      router.replace("/portal");
+      return;
+    }
     setRole(loadSession()?.principal.role ?? "viewer");
     // Goal 2: Working jumps to the latest project/run the browser remembers.
     const pid = getProjectId();

@@ -67,6 +67,9 @@ IDENTITY_RULES: tuple[tuple[str, str, str], ...] = (
     ("POST", r"/api/v1/audit/verify", "export"),
     ("GET", r"/api/v1/billing/state", "read"),
     ("PUT", r"/api/v1/billing/plan", "billing"),
+    # P-17 client trust portal: a guest lists their granted projects; admins manage grants.
+    ("GET", r"/api/v1/portal/projects", "read"),
+    ("GET|PUT|DELETE", r"/api/v1/projects/[^/]+/guests(/[^/]+)?", "administer"),
     ("GET", r"/api/v1/(keys|projects|projects/[^/]+/(rules|events/replay))", "read"),
     ("POST|DELETE", r"/api/v1/keys(/[^/]+)?", "steer"),
     ("POST", r"/api/v1/projects", "steer"),
