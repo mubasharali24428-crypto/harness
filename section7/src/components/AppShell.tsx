@@ -11,7 +11,7 @@ import { formatRelativeTime, formatTimestamp } from "@/lib/format";
 import { needsYouAction, needsYouHref } from "@/lib/triage";
 import { stateLabel } from "../../app/runs/runsApi";
 import { useRunList } from "@/components/workspace/useRunList";
-import { runRowTitle } from "@/components/workspace/previewData";
+import { runRowTitle } from "@/components/workspace/runRows";
 // M14-F1b (raw-03 P2): skip-link behavior + the shared main-content landmark id.
 import { MAIN_CONTENT_ID, useSkipTarget } from "@/lib/focus";
 // Part 47: unread badge as a plain link (no sound, no popup); renders nothing without a session.

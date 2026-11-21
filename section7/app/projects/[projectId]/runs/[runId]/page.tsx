@@ -22,7 +22,7 @@ import { useRun } from "@/components/workspace/useRun";
 import { Composer, COMPOSER_INPUT_ID } from "@/components/workspace/Composer";
 import { PlanPin } from "@/components/workspace/PlanPin";
 import { InlineApprovals, NextStepBox } from "@/components/workspace/RunPrompts";
-import { runRowTitle } from "@/components/workspace/previewData";
+import { runRowTitle } from "@/components/workspace/runRows";
 import { PANES, paneFromSearch, searchWithPane, type PaneId } from "@/components/workspace/panes";
 import { formatMoneyUsd, formatRelativeTime } from "@/lib/format";
 import { ErrorState, LoadingState } from "@/components/States";

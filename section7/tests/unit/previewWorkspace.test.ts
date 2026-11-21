@@ -1,15 +1,16 @@
 // R1 preview rules — grouping, titles, run picking, money, and the unified-diff
-// parser (src/components/workspace/previewData.ts + lib/format.formatMoneyUsd).
-// Node environment: pure functions only.
+// parser (src/components/workspace/runRows.ts, diffParse.ts + format.formatMoneyUsd).
+// Node environment: pure functions only. E0 2026-11-21: previewData.ts was a
+// misnamed module of pure helpers; its contents moved verbatim to runRows.ts /
+// diffParse.ts and the module was deleted (see no-preview-data-in-routes.test.ts).
 import { describe, expect, it } from "vitest";
 import {
-  fileStatLabel,
   groupForRun,
   groupRuns,
-  parseUnifiedDiff,
   pickRunId,
   runRowTitle,
-} from "../../src/components/workspace/previewData";
+} from "../../src/components/workspace/runRows";
+import { fileStatLabel, parseUnifiedDiff } from "../../src/components/workspace/diffParse";
 import { formatMoneyUsd } from "../../src/lib/format";
 import type { RunDto } from "../../app/runs/runsApi";
 
