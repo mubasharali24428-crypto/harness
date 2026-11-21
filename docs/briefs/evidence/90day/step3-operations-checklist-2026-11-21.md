@@ -23,6 +23,21 @@ Steps:
 
 Done when: both dashboards render against the live stack's metrics endpoint.
 
+**→ DONE 2026-11-21 (executed in-session):** `harness-rc-prometheus-1` booted
+(profile `observability`, 127.0.0.1:9090); **all 7 backend scrape targets UP**
+(identity/github/models/orchestrator/sandbox/meeting/review); a demo Grafana
+11.3 container on the RC network (127.0.0.1:3300, admin/harness-demo) imported
+both dashboards — first import showed "No data" because every panel references
+`${DS_PROMETHEUS}` (the JSONs carry no `__inputs`), so both were re-imported
+with the datasource UID bound; live data confirmed: scrape health **1** (green),
+p95 latency per backend rendering. Two gotchas recorded for the runbook: (a)
+the panel datasource binding must be passed at import, (b) Grafana 11 moved the
+datasource proxy to `/api/datasources/uid/<uid>/resources/...` (the old
+`/api/datasource/proxy/...` route 404s). **Alertmanager crash-loops by design**
+(`set HARNESS_ALERT_EMAIL_TO`): it refuses to start without an email target —
+set `HARNESS_ALERT_EMAIL_TO` in the env to bring alerting up (owner item; the
+address is their choice).
+
 ## 2. Offsite backup target (5 min, needs a second machine)
 
 `deploy/backup/nightly.sh:63` already rsyncs both backup roots when
@@ -57,6 +72,14 @@ Decision for the owner (pick one):
 Done when: both stacks run simultaneously and `docker inspect` shows no
 container with `"Networks": {}`.
 
+**→ RESOLVED 2026-11-21 (option a, implemented):** the base file now binds
+`127.0.0.1:${HARNESS_DB_HOST_PORT:-5499}:5432` — default unchanged (the live
+db keeps 5499 and was not touched), and any second coexisting stack sets
+`HARNESS_DB_HOST_PORT=5498` in its own env file. Verified: compose `config`
+renders 5499 default / 5498 with the override; the knob is documented in
+`.env.example`. (The RC stack never collides: its overlay already `!reset`s
+the db's ports.)
+
 ## 4. Scratch-restore drill (10 min, needs owner go)
 
 The restore path exists and is scripted: `deploy/backup/restore.sh` (live WAL-G
@@ -75,3 +98,10 @@ watchable, backups leave the machine and are provably restorable, and the port
 collision can't silently detach a stack again. That is the difference between
 "pilot-ready ~70%" and "~85%" in the readiness assessment — the rest is the
 first real team.
+
+**Status after 2026-11-21's session:** items 1 and 3 are DONE (above); item 2
+waits on the owner's second machine; item 4 waits on the owner's go. Item 1's
+remaining owner bit: `HARNESS_ALERT_EMAIL_TO` + deciding whether the demo
+Grafana container becomes the standing one (it is ephemeral `docker run` now —
+for a standing deployment, promote it into the observability profile of the
+compose file).
