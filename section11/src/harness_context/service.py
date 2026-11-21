@@ -253,17 +253,21 @@ class ContextService:
 
     async def _run_index(self, job: IndexJob, root, lock: asyncio.Lock) -> None:
         async with lock:
+            terminal = "completed"
             try:
                 await self.reindex(job, root)
-                job.status = "completed"
             except Exception as exc:  # noqa: BLE001 — job boundary; error goes to the wire
-                job.status = "failed"
                 job.error = f"{type(exc).__name__}: {exc}"
+                terminal = "failed"
             finally:
                 self._active_projects.discard(job.project_id)
                 # Free the durable lease only if THIS job still owns it (a reaped
-                # owner must not delete a fresh holder's reservation).
+                # owner must not delete a fresh holder's reservation). The release
+                # commits BEFORE the terminal status is visible: a consumer that
+                # observes completed/failed must never still see the lease held
+                # (the W19 release test polls exactly this seam and raced on CI).
                 await self._release_durable(job.project_id, job.id)
+                job.status = terminal
 
     # ------------------------------------------------------------- ingestion
 
