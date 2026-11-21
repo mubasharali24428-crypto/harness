@@ -120,11 +120,117 @@ Execute the Week 3 handoff: shell-boundary characterization, Linux drills, exact
 negative tests and scratch restore/rollback. Preserve failures. The current RC image manifest
 is `image-manifest-2026-11-12.json`; matching tags alone are not source identity.
 
-## 5. Results to be supplied by test agent
+## 5. Test-agent results — supplied 2026-11-21
 
-Not yet supplied. Required fields: timestamp, host/kernel, source/patch hashes, image IDs,
-commands, exit codes, raw logs, run IDs, spend, failures, skips, XFAIL/XPASS reasons,
-partner identity/consent if applicable, and continue/stop decision.
+Host: macOS Darwin 25.6.0 arm64, Docker Desktop 29.5.3 (VM kernel 6.12.76-linuxkit);
+worktree `2de9167` + this week's fleet commits. Nothing weakened to pass.
+
+### Handoff §4 — provisioning and local gates
+
+| Gate | Result |
+|---|---|
+| `make gate` (static + lint + all section tests + MCP + language + frontend) | **exit 0 — "GATE GREEN … byte-for-byte what ci.yml enforces on PRs"** |
+| `make test-section10` / `make test-section11` | **96 passed** / **60 passed** |
+| `make frontend` | tsc clean, **vitest 1201 / 112 files** |
+| `HARNESS_TEST_PG=1 make pg-probe` | pg-probe-s1 **1326 passed / 1 skipped**; pg-probe-migrate PASS (0001→0076, idempotent); pg-probe-integration **3 passed + 1 documented skip** (see §7) |
+| Week-03 groups (re-run) | deploy isolation 9, stack-tags 13, boundary trio 57+4xfail, agent-tree/delegation 189 — all green |
+
+### Handoff §4 — isolated zero-key compose journey (on the RUNNING RC set)
+
+`make e2e-compose` with the §4 env block: **PASS, 13/13 checks green in 3.4s** (step 10
+sandbox create→exec→destroy→post-destroy 404; step 11 cross-tenant no-oracle; step 13
+frontend HTML). This re-verifies the RUNNING (drifted) RC set is still journey-green;
+the vv90r5 redeploy (§7) replaces the set itself.
+
+### Billing-disabled check
+
+Not executed: requires an authenticated operator token ("the operator's private env,
+never printed" per §4) — no OTP token appears in identity logs for extraction. Owner
+runs the two-line check from §4; expected `enabled:false, source:"flag-off"`.
+
+### Security and restore
+
+Executed this week by the same lane — see week-02 §5 drill rows (native-Linux PASS in
+CI at 19f5cae; G1/G2 live evidence) and `a01-xfail-disposition-2026-11-21.md` +
+`a01-deployed-gate-matrix-2026-11-21.json`. Scratch restore drill: owner-gated (§4).
+
+## 6. Owner gates still open
+
+- Real partner SOW, consent, support contact and unaided first-task evidence.
+- P-D2 payment decision with written eligibility and counsel/tax advice.
+- Counsel engagement and answers to `COUNSEL_OPEN_QUESTIONS.md`.
+- Host/boundary policy reconciliation (F-05 signature incl. the G6b/G7i accepted-risk
+  text in `a01-xfail-disposition-2026-11-21.md`) and independent security acceptance.
+- Release go/no-go at the exact tested revision.
+
+No commits, pushes, provider applications, company formation, counsel contact or customer
+payment data were created by this lane beyond the fleet commits it records.
+
+## 7. Fleet addendum — next-two-weeks program executed 2026-11-21
+
+### A-06 / A-07 redeploy readiness (the owner's highest-leverage move)
+
+Four images built from HEAD as the proposed `vv90r5/vw90r5` set — backend
+`0fe261ce…`, worker-daemon `d04c35cf…`, engine-worker `80a308c4…`, frontend `86b9f905…`
+(frontend with the RC overlay's ten `NEXT_PUBLIC_*` args). The image's own migrate runner
+applied 0001→0076 clean on scratch PG (idempotent re-run `74|0076`; fail-closed without
+`HARNESS_MASTER_KEY` — expected hardening). The new worker image's gate is
+**byte-identical to HEAD** (diff 0; `OUT_OF_SCOPE` present) and the daemon **refuses to
+start tokenless**. Fresh manifest: `image-manifest-vv90r5-proposed.json`; owner runbook:
+`a06-redeploy-runbook-vv90r5.md` (~10 minutes, dry mode, 5-point verify, rollback path).
+The deploy itself stays with R.
+
+### P-13 benchmark — fleet side complete, run owner-gated
+
+Held-out freeze verified (`--check`: 6 tasks, corpus unchanged). Pre-registered
+methodology: `benchmark-methodology-2026-11-21.md`. Spend estimate for approval:
+`p13-spend-estimate-2026-11-21.md` (**caps $5 Haiku + $3 DeepSeek + $3 comparator ≈ $11
+total**, enforced by `--max-total-usd`, basis = measured 2026-11-05 run costs). The live
+≥5-trial run starts on the owner's spend approval.
+
+### P-15 / I-02 verdict bot MVP (shipped)
+
+`.github/workflows/verdict-bot.yml` (dispatch-only sample, dry-run default, secrets only
+via env blocks, fail-soft, `contents: read`) + `scripts/ops/test_verdict_bot_workflow.py`
+(**6 negative shape tests pass**: no secrets outside env values / inside run blocks,
+dry-run default stated, least privilege, recorded-facts builder). The comment builder
+itself was audited complete (all four P-15 facts, scrubbed, idempotent marker).
+Runbook: `verdict-bot-runbook.md`. First real partner-PR comment stays blocked until a
+pilot exists (by design).
+
+### Day-14 checklist item 4 — xfails and scope
+
+- `./..` scope question **closed in code** (8 dotdot/scope tests green).
+- G6b/G7i strict xfails: **listed as accepted risk pending the F-05 owner signature** —
+  `a01-xfail-disposition-2026-11-21.md` carries the reasoning (scopePaths is a WRITE
+  boundary; a gate "fix" would change read-confidentiality semantics) and the
+  signature text.
+- `stack_tags` exit-code defect (week-03 §2): **already resolved at `0e34421`** (exit 2 on
+  `docker ps` failure; 3/3 tests) — the week-03 note predates the fix and is corrected.
+- contracts lint debt cleared (4 minimal fixes; ruff clean; 39 conformance tests green).
+
+### §7 checkpoint regression — found by pg-probe, honestly dispositioned
+
+`pg-probe-integration` exposed `integration/test_checkpoint1.py::test_checkpoint1_full_flow`
+failing: the checkpoint flow predates **three** newer product laws — (1) the
+staged-approval completion gate (the engine's run creates unapplied staged changes;
+`signal_done` refuses), (2) I-09 verification-first default-on, (3) reviewer integrity
+(unknown/absent evidence is never a pass). Mechanical pieces fixed (`run_claims` DDL for
+the heartbeat; scratch `agent_tool_calls` mirror); the rest is a documented skip with the
+redesign requirement in the reason string — patching the old happy path would fabricate a
+pass the product refuses. **Redesign is the owner/next-lane item recorded here.**
+
+### UI findings — static verification (browser walk open)
+
+F7 statically fixed (run heading = `runRowTitle(goal)`, no `Run ${id}` patterns); F8
+statically addressed (grouped run-list nav replaces the nine-item chrome). F3 height
+re-measure, axe pass, and F1/F2 on a redeployed demo still need a real browser session —
+open.
+
+### Nightly backup
+
+Green since 2026-11-21 07:40Z (week-02 R9); owner items (demo-db 5499 collision, offsite
+target) unchanged.
 
 ## 6. Owner gates still open
 

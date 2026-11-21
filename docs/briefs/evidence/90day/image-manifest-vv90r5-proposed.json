@@ -1,0 +1,24 @@
+{
+  "captured_at_utc": "2026-11-21T13:15:38Z",
+  "git_head": "2de91677dd8f0e9cdfae3ab6d0b1636cb0bbd4cc",
+  "project": "harness-rc (proposed redeploy set; NOT deployed \u2014 owner executes)",
+  "tag": "vv90r5 / vw90r5 (backend/frontend use vv90r5; daemon family vw90r5 \u2014 compose prefixes v + HARNESS_IMAGE_TAG)",
+  "image_digest_note": "local docker image IDs (config digests); no registry push occurred, so RepoDigests do not exist yet",
+  "images": {
+    "harness-backend:vv90r5": "sha256:0fe261ce448c46158da1eeb4de04575674be0666347211bb358a23281d639780",
+    "harness-worker-daemon:vw90r5": "sha256:d04c35cfc53ab7c92d132104ce29cb69c57e52a328ffcb6f152eb14bcf4dd476",
+    "harness-engine-worker:vw90r5": "sha256:80a308c46ab1870fe7d9d6a0c149d6158923a4a42e0a6dfa10a42826e7f22e10",
+    "harness-frontend:vv90r5": "sha256:86b9f905f89b91c8a6a6b04f83abfdab1942dde70535495fb9a477d7f386f91f"
+  },
+  "verification": {
+    "migrate": "image's own migrate.py applied 0001->0076 clean on scratch postgres:18; re-run idempotent (74|0076); runner fail-closed without HARNESS_MASTER_KEY",
+    "e2e_compose_journey": "CI job 'e2e (compose journey, zero provider keys)' SUCCESS at this source revision (run 44889429886)",
+    "gate_parity": "worker-daemon:vw90r5 /opt/harness-shell/shell_gate.py byte-identical to section5/src at HEAD (diff 0 lines); argument checks present (OUT_OF_SCOPE)",
+    "frontend_args": "built with the RC overlay's ten NEXT_PUBLIC_* args (18001/18004/18005/18006/18008/18002/28003/18011/18010, WS 18001)"
+  },
+  "checks_before_deploy": [
+    "stack_tags.py --project harness-rc must report Agreement: AGREE (vv90r5/vw90r5) after up",
+    "schema_migrations must reach 0076",
+    "identity/review must no longer run the untagged abdc28b02505 image"
+  ]
+}

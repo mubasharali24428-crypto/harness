@@ -1,0 +1,76 @@
+# P-15 / I-02 verdict bot (MVP): post one run's RECORDED facts as an ADVISORY
+# GitHub comment on an agent PR. The comment is built by
+# section4/src/harness_orchestrator/verdict_comment.py from server-side facts
+# (plan approval, sandbox boundary, tests, cost, risk flags) — never from
+# caller-asserted strings — and a human still merges.
+#
+# MVP posture (deliberate):
+#   * workflow_dispatch ONLY — nothing runs automatically until the owner
+#     wires per-repo triggers; this file is the working sample the runbook
+#     (docs/briefs/evidence/90day/verdict-bot-runbook.md) tells a partner to
+#     copy.
+#   * --dry-run by default: the job prints the comment it WOULD post and
+#     refuses to post anything unless confirm_post is explicitly true.
+#   * Secrets reach the script only through env blocks; no `secrets.*`
+#     expansion ever lands in a command line or log. The negative test
+#     (scripts/ops/test_verdict_bot_workflow.py) pins that shape.
+#   * Fail-soft: without the three secrets the job prints instructions and
+#     exits 0 — a missing integration must not look like a failed verdict.
+
+name: verdict bot
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Harness run id whose recorded facts become the comment"
+        required: true
+      pr_number:
+        description: "PR the advisory comment is about"
+        required: true
+      confirm_post:
+        description: "false = print the comment only (dry-run)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  verdict:
+    name: advisory verdict comment (dry-run unless confirmed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install runtime deps (contracts + verdict_post are import-path only)
+        run: pip install -q httpx sqlalchemy asyncpg pydantic pydantic-settings
+      - name: advisory verdict (--dry-run unless confirm_post)
+        env:
+          HARNESS_DATABASE_URL: ${{ secrets.HARNESS_DATABASE_URL }}
+          HARNESS_GITHUB_URL: ${{ secrets.HARNESS_GITHUB_URL }}
+          HARNESS_REVIEW_URL: ${{ secrets.HARNESS_REVIEW_URL }}
+          HARNESS_API_TOKEN: ${{ secrets.HARNESS_API_TOKEN }}
+          RUN_ID: ${{ inputs.run_id }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          CONFIRM_POST: ${{ inputs.confirm_post }}
+        run: |
+          if [ -z "$HARNESS_API_TOKEN" ] || [ -z "$HARNESS_DATABASE_URL" ] \
+             || [ -z "$HARNESS_GITHUB_URL" ]; then
+            echo "verdict bot not configured: set HARNESS_DATABASE_URL, HARNESS_GITHUB_URL"
+            echo "and HARNESS_API_TOKEN as repository secrets (see the runbook). Nothing posted."
+            exit 0
+          fi
+          if [ "$CONFIRM_POST" = "true" ]; then
+            echo "confirm_post=true — posting the advisory comment"
+            FLAG=""
+          else
+            echo "confirm_post=false — dry run: printing the comment, posting nothing"
+            FLAG="--dry-run"
+          fi
+          PYTHONPATH="$GITHUB_WORKSPACE/contracts/src:$GITHUB_WORKSPACE/section4/src" \
+            python -m harness_orchestrator.verdict_post "$RUN_ID" $FLAG
+        working-directory: ${{ github.workspace }}
