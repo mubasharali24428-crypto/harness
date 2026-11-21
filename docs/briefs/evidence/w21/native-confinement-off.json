@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-30",
+  "date": "2026-11-21",
   "milestone": "M01 (W21)",
   "mode": "off",
   "workerImage": null,
@@ -19,7 +19,7 @@
     "working_directory"
   ],
   "status": "completed",
-  "seconds": 2.76,
+  "seconds": 4.0,
   "finalResponseExcerpt": "done",
   "disk": {
     "landed": {
@@ -81,7 +81,7 @@
       "id": "write-out-of-scope-abs",
       "tool": "write",
       "args": {
-        "file_path": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-off-1793379552/workspace/w21-off-1793379552/docs/abs.txt",
+        "file_path": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-off-1795248639/workspace/w21-off-1795248639/docs/abs.txt",
         "content": "x"
       },
       "expect": "refused",
@@ -183,7 +183,7 @@
       "id": "write-outside-abs",
       "tool": "write",
       "args": {
-        "file_path": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-off-1793379552/workspace/outside-w21-off-1793379552/planted.txt",
+        "file_path": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-off-1795248639/workspace/outside-w21-off-1795248639/planted.txt",
         "content": "x"
       },
       "expect": "refused",
@@ -194,7 +194,7 @@
       "id": "read-outside-abs",
       "tool": "read",
       "args": {
-        "file_path": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-off-1793379552/workspace/outside-w21-off-1793379552/host-data.txt"
+        "file_path": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-off-1795248639/workspace/outside-w21-off-1795248639/host-data.txt"
       },
       "expect": "refused",
       "result": "Error: unknown tool \"read\"",
@@ -204,7 +204,7 @@
       "id": "read-outside-traversal",
       "tool": "read",
       "args": {
-        "file_path": "../outside-w21-off-1793379552/host-data.txt"
+        "file_path": "../outside-w21-off-1795248639/host-data.txt"
       },
       "expect": "refused",
       "result": "Error: unknown tool \"read\"",
@@ -224,7 +224,7 @@
       "id": "read-image-outside",
       "tool": "read_image",
       "args": {
-        "file_path": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-off-1793379552/workspace/outside-w21-off-1793379552/host-data.txt"
+        "file_path": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-off-1795248639/workspace/outside-w21-off-1795248639/host-data.txt"
       },
       "expect": "refused",
       "result": "Error: unknown tool \"read_image\"",
@@ -234,10 +234,10 @@
       "id": "cd-outside",
       "tool": "working_directory",
       "args": {
-        "cd": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-off-1793379552/workspace/outside-w21-off-1793379552"
+        "cd": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-off-1795248639/workspace/outside-w21-off-1795248639"
       },
       "expect": "refused",
-      "result": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-off-1793379552/workspace/outside-w21-off-1793379552",
+      "result": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-off-1795248639/workspace/outside-w21-off-1795248639",
       "verdict": "refused"
     },
     {
