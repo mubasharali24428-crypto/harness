@@ -21,6 +21,7 @@ from harness_orchestrator.engine import DeepSeekHarnessWrapper
 from harness_orchestrator.planner import PlanNotApprovedError
 from harness_orchestrator.service import OrchestratorService
 from harness_orchestrator.state_machine import AgentState
+from tests.unit.test_s1_r05_resume_queue import _until_engine_started
 
 RUN = "run-resume"
 
@@ -65,7 +66,7 @@ async def test_pause_leaves_run_resumable_and_resume_respawns_engine(monkeypatch
     service, calls = _make_service(first_call_delay=0.5)
     await _approved_executing_run(service)
 
-    await asyncio.sleep(0.05)  # let the engine enter its slow first call
+    await _until_engine_started(calls)  # the engine is in its slow first call
     await service.pause_agent(RUN)
 
     rd = service.runs[RUN]
@@ -90,7 +91,7 @@ async def test_stop_is_terminal_and_resume_after_stop_is_noop():
     service, calls = _make_service(first_call_delay=0.5)
     await _approved_executing_run(service)
 
-    await asyncio.sleep(0.05)
+    await _until_engine_started(calls)
     live_task = service.runs[RUN]["task"]
     await service.stop_agent(RUN)
     await _settle(live_task)
@@ -117,7 +118,7 @@ async def test_resume_while_still_live_does_not_double_spawn():
     service, calls = _make_service(first_call_delay=0.5)
     await _approved_executing_run(service)
 
-    await asyncio.sleep(0.05)
+    await _until_engine_started(calls)
     live_task = service.runs[RUN]["task"]
     await service.resume_agent(RUN)  # engine genuinely running — must be ignored
     assert service.runs[RUN]["task"] is live_task

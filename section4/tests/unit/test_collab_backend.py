@@ -54,6 +54,13 @@ DDL = (
     " diff TEXT NOT NULL DEFAULT '', digest VARCHAR(64) NOT NULL,"
     " state VARCHAR(16) NOT NULL DEFAULT 'pending', decided_by VARCHAR(36),"
     " decided_at TIMESTAMP, expires_at TIMESTAMP NOT NULL, outcome TEXT, created_at TIMESTAMP)",
+    # 0049: signal_done records the done diff's files here (artifacts.record_done_changes).
+    "CREATE TABLE run_changes (id VARCHAR(36) PRIMARY KEY, run_id VARCHAR(36) NOT NULL,"
+    " team_id VARCHAR(36) NOT NULL, path VARCHAR(512) NOT NULL, change_kind VARCHAR(8) NOT NULL,"
+    " before_sha VARCHAR(64), after_sha VARCHAR(64), diff_sha VARCHAR(64) NOT NULL,"
+    " flags TEXT NOT NULL DEFAULT '{}', plan_version INTEGER,"
+    " review_state VARCHAR(8) NOT NULL DEFAULT 'pending', reviewed_by VARCHAR(64),"
+    " reviewed_at TIMESTAMP, superseded INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP NOT NULL)",
 )
 
 USERS = {  # user -> (team, role)

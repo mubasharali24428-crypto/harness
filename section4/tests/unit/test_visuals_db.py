@@ -92,6 +92,9 @@ def venv(tmp_path, monkeypatch):
 
     service = OrchestratorService(session_factory=factory, bus=Bus())
     monkeypatch.setattr(orch_api, "_service", service)
+    # configure_artifacts sets a module global; register it so teardown restores it
+    # (left set, later tests silently used this test's DB: Q1 2026-11-21).
+    monkeypatch.setattr(artifacts, "_service", None)
     artifacts.configure_artifacts(service)
     app = FastAPI()
     app.include_router(orch_router)
