@@ -1,0 +1,1617 @@
+..........................................................s.........ssss [  5%]
+sssssssssssssssssssss................................................... [ 11%]
+.....ss.............................................ss.................. [ 16%]
+........................................................................ [ 22%]
+......................................................................s. [ 27%]
+.............sss........................................................ [ 33%]
+.......................................................s...s............ [ 38%]
+........................................................................ [ 44%]
+........................................................................ [ 49%]
+......................ss................................................ [ 55%]
+..............ssssss.................................................... [ 60%]
+........................................................................ [ 66%]
+...........................................FFFFs........................ [ 71%]
+................................................ssssssssssss...s........ [ 77%]
+........................................................................ [ 82%]
+........................................................................ [ 88%]
+...................................................ssss................. [ 93%]
+..................................................................s..... [ 99%]
+............                                                             [100%]
+=================================== FAILURES ===================================
+_______________ test_request_statement_budget_no_per_row_probes ________________
+
+self = <sqlalchemy.engine.base.Connection object at 0x10fc2f4d0>
+dialect = <sqlalchemy.dialects.sqlite.aiosqlite.SQLiteDialect_aiosqlite object at 0x118de9bd0>
+context = <sqlalchemy.dialects.sqlite.aiosqlite.SQLiteExecutionContext_aiosqlite object at 0x10fc2e450>
+statement = <sqlalchemy.dialects.sqlite.base.SQLiteCompiler object at 0x1181be650>
+parameters = [('run-000000', 'run-000001', 'run-000002', 'run-000003', 'run-000004', 'run-000005', ...)]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:213: in execute
+    self._adapt_connection._handle_exception(error)
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:373: in _handle_exception
+    raise error
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:195: in execute
+    self.await_(_cursor.execute(operation, parameters))
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/aiosqlite/cursor.py:40: in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+.venv/lib/python3.13/site-packages/aiosqlite/cursor.py:32: in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/aiosqlite/core.py:160: in _execute
+    return await future
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tx = <_queue.SimpleQueue object at 0x10fce30a0>
+
+    def _connection_worker_thread(tx: _TxQueue):
+        """
+        Execute function calls on a separate thread.
+    
+        :meta private:
+        """
+        while True:
+            # Continues running until all queue items are processed,
+            # even after connection is closed (so we can finalize all
+            # futures)
+    
+            future, function = tx.get()
+    
+            try:
+                LOG.debug("executing %s", function)
+>               result = function()
+                         ^^^^^^^^^^
+E               sqlite3.OperationalError: no such column: e.payload
+
+.venv/lib/python3.13/site-packages/aiosqlite/core.py:63: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10fde2040>
+scale_db = namespace(engine=<sqlalchemy.ext.asyncio.engine.AsyncEngine object at 0x10b4bb0d0>, factory=async_sessionmaker(class_=...xt.asyncio.engine.AsyncEngine object at 0x10b4bb0d0>, autoflush=True, expire_on_commit=False), runs=2000, events=79000)
+captured = <function captured.<locals>.<lambda> at 0x11d166840>
+
+    def test_request_statement_budget_no_per_row_probes(monkeypatch, scale_db, captured):
+        client = _client(monkeypatch, scale_db.factory)
+        with captured() as cap:
+>           res = client.get("/api/v1/orchestrator/runs", params={"limit": 25})
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_runs_index_tuning.py:420: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.13/site-packages/starlette/testclient.py:483: in get
+    return super().get(
+.venv/lib/python3.13/site-packages/httpx/_client.py:1053: in get
+    return self.request(
+.venv/lib/python3.13/site-packages/starlette/testclient.py:455: in request
+    return super().request(
+.venv/lib/python3.13/site-packages/httpx/_client.py:825: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/httpx/_client.py:914: in send
+    response = self._send_handling_auth(
+.venv/lib/python3.13/site-packages/httpx/_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+.venv/lib/python3.13/site-packages/httpx/_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/httpx/_client.py:1014: in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/starlette/testclient.py:354: in handle_request
+    raise exc
+.venv/lib/python3.13/site-packages/starlette/testclient.py:351: in handle_request
+    portal.call(self.app, scope, receive, send)
+.venv/lib/python3.13/site-packages/anyio/from_thread.py:338: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../1/lib/python3.13/concurrent/futures/_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+../../../1/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+.venv/lib/python3.13/site-packages/anyio/from_thread.py:263: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/fastapi/applications.py:1163: in __call__
+    await super().__call__(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/applications.py:96: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/middleware/errors.py:186: in __call__
+    raise exc
+.venv/lib/python3.13/site-packages/starlette/middleware/errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+.venv/lib/python3.13/site-packages/starlette/middleware/exceptions.py:63: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    raise exc
+.venv/lib/python3.13/site-packages/starlette/_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+.venv/lib/python3.13/site-packages/fastapi/middleware/asyncexitstack.py:18: in __call__
+    await self.app(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/routing.py:670: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:2734: in app
+    await route.handle(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:1780: in handle
+    await self.original_router.handle(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:2789: in handle
+    await included_router._handle_selected(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:1800: in _handle_selected
+    await original_route.handle(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:1279: in handle
+    await app(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:158: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    raise exc
+.venv/lib/python3.13/site-packages/starlette/_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:144: in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/fastapi/routing.py:706: in app
+    raw_response = await run_endpoint_function(
+.venv/lib/python3.13/site-packages/fastapi/routing.py:352: in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../section4/src/harness_orchestrator/runs_index.py:401: in list_runs
+    states = await _replayed_states(db, rows)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../section4/src/harness_orchestrator/runs_index.py:205: in _replayed_states
+    for run_id, etype, payload in await db.execute(_STATE_EVENTS_SQL, {"page_run_ids": ids}):
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/sqlalchemy/ext/asyncio/session.py:448: in execute
+    result = await greenlet_spawn(
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:201: in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py:2373: in execute
+    return self._execute_internal(
+.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py:2280: in _execute_internal
+    result = conn.execute(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1421: in execute
+    return meth(
+.venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1643: in _execute_clauseelement
+    ret = self._execute_context(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:2365: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:213: in execute
+    self._adapt_connection._handle_exception(error)
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:373: in _handle_exception
+    raise error
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:195: in execute
+    self.await_(_cursor.execute(operation, parameters))
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/aiosqlite/cursor.py:40: in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+.venv/lib/python3.13/site-packages/aiosqlite/cursor.py:32: in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/aiosqlite/core.py:160: in _execute
+    return await future
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tx = <_queue.SimpleQueue object at 0x10fce30a0>
+
+    def _connection_worker_thread(tx: _TxQueue):
+        """
+        Execute function calls on a separate thread.
+    
+        :meta private:
+        """
+        while True:
+            # Continues running until all queue items are processed,
+            # even after connection is closed (so we can finalize all
+            # futures)
+    
+            future, function = tx.get()
+    
+            try:
+                LOG.debug("executing %s", function)
+>               result = function()
+                         ^^^^^^^^^^
+E               sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: e.payload
+E               [SQL: 
+E                   SELECT e.run_id AS run_id, e.type AS type, e.payload AS payload
+E                   FROM agent_events e
+E                   WHERE e.run_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) AND e.type IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+E                   ORDER BY e.run_id, e.seq
+E                   ]
+E               [parameters: ('run-000000', 'run-000001', 'run-000002', 'run-000003', 'run-000004', 'run-000005', 'run-000006', 'run-000007', 'run-000008', 'run-000009', 'run-000010', 'run-000011', 'run-000012', 'run-000013', 'run-000014', 'run-000015', 'run-000016', 'run-000017', 'run-000018', 'run-000019', 'run-000020', 'run-000021', 'run-000022', 'run-000023', 'run-000024', 'run-000025', 'plan_proposed', 'plan_approved', 'plan.rejected', 'execution_started', 'paused', 'resumed', 'blocked_awaiting_clarification', 'engine_completed', 'engine_failed', 'done_signal_received', 'review_passed', 'review_failed', 'pr_opened')]
+E               (Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+.venv/lib/python3.13/site-packages/aiosqlite/core.py:63: OperationalError
+_________________ test_derived_timestamps_survive_the_rewrite __________________
+
+self = <sqlalchemy.engine.base.Connection object at 0x10fc2d6d0>
+dialect = <sqlalchemy.dialects.sqlite.aiosqlite.SQLiteDialect_aiosqlite object at 0x118de9bd0>
+context = <sqlalchemy.dialects.sqlite.aiosqlite.SQLiteExecutionContext_aiosqlite object at 0x10fc2e150>
+statement = <sqlalchemy.dialects.sqlite.base.SQLiteCompiler object at 0x1181be650>
+parameters = [('run-000000', 'run-000001', 'run-000002', 'run-000003', 'run-000004', 'run-000005', ...)]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:213: in execute
+    self._adapt_connection._handle_exception(error)
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:373: in _handle_exception
+    raise error
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:195: in execute
+    self.await_(_cursor.execute(operation, parameters))
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/aiosqlite/cursor.py:40: in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+.venv/lib/python3.13/site-packages/aiosqlite/cursor.py:32: in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/aiosqlite/core.py:160: in _execute
+    return await future
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tx = <_queue.SimpleQueue object at 0x10f907b20>
+
+    def _connection_worker_thread(tx: _TxQueue):
+        """
+        Execute function calls on a separate thread.
+    
+        :meta private:
+        """
+        while True:
+            # Continues running until all queue items are processed,
+            # even after connection is closed (so we can finalize all
+            # futures)
+    
+            future, function = tx.get()
+    
+            try:
+                LOG.debug("executing %s", function)
+>               result = function()
+                         ^^^^^^^^^^
+E               sqlite3.OperationalError: no such column: e.payload
+
+.venv/lib/python3.13/site-packages/aiosqlite/core.py:63: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1190c3150>
+scale_db = namespace(engine=<sqlalchemy.ext.asyncio.engine.AsyncEngine object at 0x10b4bb0d0>, factory=async_sessionmaker(class_=...xt.asyncio.engine.AsyncEngine object at 0x10b4bb0d0>, autoflush=True, expire_on_commit=False), runs=2000, events=79000)
+
+    def test_derived_timestamps_survive_the_rewrite(monkeypatch, scale_db):
+        client = _client(monkeypatch, scale_db.factory)
+>       items = client.get("/api/v1/orchestrator/runs", params={"limit": 25}).json()["items"]
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_runs_index_tuning.py:438: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.13/site-packages/starlette/testclient.py:483: in get
+    return super().get(
+.venv/lib/python3.13/site-packages/httpx/_client.py:1053: in get
+    return self.request(
+.venv/lib/python3.13/site-packages/starlette/testclient.py:455: in request
+    return super().request(
+.venv/lib/python3.13/site-packages/httpx/_client.py:825: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/httpx/_client.py:914: in send
+    response = self._send_handling_auth(
+.venv/lib/python3.13/site-packages/httpx/_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+.venv/lib/python3.13/site-packages/httpx/_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/httpx/_client.py:1014: in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/starlette/testclient.py:354: in handle_request
+    raise exc
+.venv/lib/python3.13/site-packages/starlette/testclient.py:351: in handle_request
+    portal.call(self.app, scope, receive, send)
+.venv/lib/python3.13/site-packages/anyio/from_thread.py:338: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../1/lib/python3.13/concurrent/futures/_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+../../../1/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+.venv/lib/python3.13/site-packages/anyio/from_thread.py:263: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/fastapi/applications.py:1163: in __call__
+    await super().__call__(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/applications.py:96: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/middleware/errors.py:186: in __call__
+    raise exc
+.venv/lib/python3.13/site-packages/starlette/middleware/errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+.venv/lib/python3.13/site-packages/starlette/middleware/exceptions.py:63: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    raise exc
+.venv/lib/python3.13/site-packages/starlette/_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+.venv/lib/python3.13/site-packages/fastapi/middleware/asyncexitstack.py:18: in __call__
+    await self.app(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/routing.py:670: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:2734: in app
+    await route.handle(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:1780: in handle
+    await self.original_router.handle(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:2789: in handle
+    await included_router._handle_selected(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:1800: in _handle_selected
+    await original_route.handle(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:1279: in handle
+    await app(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:158: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    raise exc
+.venv/lib/python3.13/site-packages/starlette/_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:144: in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/fastapi/routing.py:706: in app
+    raw_response = await run_endpoint_function(
+.venv/lib/python3.13/site-packages/fastapi/routing.py:352: in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../section4/src/harness_orchestrator/runs_index.py:401: in list_runs
+    states = await _replayed_states(db, rows)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../section4/src/harness_orchestrator/runs_index.py:205: in _replayed_states
+    for run_id, etype, payload in await db.execute(_STATE_EVENTS_SQL, {"page_run_ids": ids}):
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/sqlalchemy/ext/asyncio/session.py:448: in execute
+    result = await greenlet_spawn(
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:201: in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py:2373: in execute
+    return self._execute_internal(
+.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py:2280: in _execute_internal
+    result = conn.execute(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1421: in execute
+    return meth(
+.venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1643: in _execute_clauseelement
+    ret = self._execute_context(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:2365: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:213: in execute
+    self._adapt_connection._handle_exception(error)
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:373: in _handle_exception
+    raise error
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:195: in execute
+    self.await_(_cursor.execute(operation, parameters))
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/aiosqlite/cursor.py:40: in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+.venv/lib/python3.13/site-packages/aiosqlite/cursor.py:32: in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/aiosqlite/core.py:160: in _execute
+    return await future
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tx = <_queue.SimpleQueue object at 0x10f907b20>
+
+    def _connection_worker_thread(tx: _TxQueue):
+        """
+        Execute function calls on a separate thread.
+    
+        :meta private:
+        """
+        while True:
+            # Continues running until all queue items are processed,
+            # even after connection is closed (so we can finalize all
+            # futures)
+    
+            future, function = tx.get()
+    
+            try:
+                LOG.debug("executing %s", function)
+>               result = function()
+                         ^^^^^^^^^^
+E               sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: e.payload
+E               [SQL: 
+E                   SELECT e.run_id AS run_id, e.type AS type, e.payload AS payload
+E                   FROM agent_events e
+E                   WHERE e.run_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) AND e.type IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+E                   ORDER BY e.run_id, e.seq
+E                   ]
+E               [parameters: ('run-000000', 'run-000001', 'run-000002', 'run-000003', 'run-000004', 'run-000005', 'run-000006', 'run-000007', 'run-000008', 'run-000009', 'run-000010', 'run-000011', 'run-000012', 'run-000013', 'run-000014', 'run-000015', 'run-000016', 'run-000017', 'run-000018', 'run-000019', 'run-000020', 'run-000021', 'run-000022', 'run-000023', 'run-000024', 'run-000025', 'plan_proposed', 'plan_approved', 'plan.rejected', 'execution_started', 'paused', 'resumed', 'blocked_awaiting_clarification', 'engine_completed', 'engine_failed', 'done_signal_received', 'review_passed', 'review_failed', 'pr_opened')]
+E               (Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+.venv/lib/python3.13/site-packages/aiosqlite/core.py:63: OperationalError
+___________________ test_cursor_walk_stays_correct_at_scale ____________________
+
+self = <sqlalchemy.engine.base.Connection object at 0x10fc2f7d0>
+dialect = <sqlalchemy.dialects.sqlite.aiosqlite.SQLiteDialect_aiosqlite object at 0x118de9bd0>
+context = <sqlalchemy.dialects.sqlite.aiosqlite.SQLiteExecutionContext_aiosqlite object at 0x10fc2ed50>
+statement = <sqlalchemy.dialects.sqlite.base.SQLiteCompiler object at 0x1181be650>
+parameters = [('run-000000', 'run-000001', 'run-000002', 'run-000003', 'run-000004', 'run-000005', ...)]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:213: in execute
+    self._adapt_connection._handle_exception(error)
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:373: in _handle_exception
+    raise error
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:195: in execute
+    self.await_(_cursor.execute(operation, parameters))
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/aiosqlite/cursor.py:40: in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+.venv/lib/python3.13/site-packages/aiosqlite/cursor.py:32: in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/aiosqlite/core.py:160: in _execute
+    return await future
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tx = <_queue.SimpleQueue object at 0x11b6e3ee0>
+
+    def _connection_worker_thread(tx: _TxQueue):
+        """
+        Execute function calls on a separate thread.
+    
+        :meta private:
+        """
+        while True:
+            # Continues running until all queue items are processed,
+            # even after connection is closed (so we can finalize all
+            # futures)
+    
+            future, function = tx.get()
+    
+            try:
+                LOG.debug("executing %s", function)
+>               result = function()
+                         ^^^^^^^^^^
+E               sqlite3.OperationalError: no such column: e.payload
+
+.venv/lib/python3.13/site-packages/aiosqlite/core.py:63: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x11b31f1c0>
+scale_db = namespace(engine=<sqlalchemy.ext.asyncio.engine.AsyncEngine object at 0x10b4bb0d0>, factory=async_sessionmaker(class_=...xt.asyncio.engine.AsyncEngine object at 0x10b4bb0d0>, autoflush=True, expire_on_commit=False), runs=2000, events=79000)
+
+    def test_cursor_walk_stays_correct_at_scale(monkeypatch, scale_db):
+        """Ordering/correctness invariant of the M14 contract, re-proven on the
+        rewritten query over 1500 team runs: pages chain without repeats."""
+        client = _client(monkeypatch, scale_db.factory)
+        seen: list[str] = []
+        cursor = None
+        for _ in range(4):  # 4 pages x 100 = 400 runs walked, then stop
+            params: dict = {"limit": 100}
+            if cursor:
+                params["cursor"] = cursor
+>           body = client.get("/api/v1/orchestrator/runs", params=params).json()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_runs_index_tuning.py:477: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.13/site-packages/starlette/testclient.py:483: in get
+    return super().get(
+.venv/lib/python3.13/site-packages/httpx/_client.py:1053: in get
+    return self.request(
+.venv/lib/python3.13/site-packages/starlette/testclient.py:455: in request
+    return super().request(
+.venv/lib/python3.13/site-packages/httpx/_client.py:825: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/httpx/_client.py:914: in send
+    response = self._send_handling_auth(
+.venv/lib/python3.13/site-packages/httpx/_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+.venv/lib/python3.13/site-packages/httpx/_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/httpx/_client.py:1014: in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/starlette/testclient.py:354: in handle_request
+    raise exc
+.venv/lib/python3.13/site-packages/starlette/testclient.py:351: in handle_request
+    portal.call(self.app, scope, receive, send)
+.venv/lib/python3.13/site-packages/anyio/from_thread.py:338: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../1/lib/python3.13/concurrent/futures/_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+../../../1/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+.venv/lib/python3.13/site-packages/anyio/from_thread.py:263: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/fastapi/applications.py:1163: in __call__
+    await super().__call__(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/applications.py:96: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/middleware/errors.py:186: in __call__
+    raise exc
+.venv/lib/python3.13/site-packages/starlette/middleware/errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+.venv/lib/python3.13/site-packages/starlette/middleware/exceptions.py:63: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    raise exc
+.venv/lib/python3.13/site-packages/starlette/_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+.venv/lib/python3.13/site-packages/fastapi/middleware/asyncexitstack.py:18: in __call__
+    await self.app(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/routing.py:670: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:2734: in app
+    await route.handle(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:1780: in handle
+    await self.original_router.handle(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:2789: in handle
+    await included_router._handle_selected(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:1800: in _handle_selected
+    await original_route.handle(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:1279: in handle
+    await app(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:158: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    raise exc
+.venv/lib/python3.13/site-packages/starlette/_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:144: in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/fastapi/routing.py:706: in app
+    raw_response = await run_endpoint_function(
+.venv/lib/python3.13/site-packages/fastapi/routing.py:352: in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../section4/src/harness_orchestrator/runs_index.py:401: in list_runs
+    states = await _replayed_states(db, rows)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../section4/src/harness_orchestrator/runs_index.py:205: in _replayed_states
+    for run_id, etype, payload in await db.execute(_STATE_EVENTS_SQL, {"page_run_ids": ids}):
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/sqlalchemy/ext/asyncio/session.py:448: in execute
+    result = await greenlet_spawn(
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:201: in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py:2373: in execute
+    return self._execute_internal(
+.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py:2280: in _execute_internal
+    result = conn.execute(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1421: in execute
+    return meth(
+.venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1643: in _execute_clauseelement
+    ret = self._execute_context(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:2365: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:213: in execute
+    self._adapt_connection._handle_exception(error)
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:373: in _handle_exception
+    raise error
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:195: in execute
+    self.await_(_cursor.execute(operation, parameters))
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/aiosqlite/cursor.py:40: in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+.venv/lib/python3.13/site-packages/aiosqlite/cursor.py:32: in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/aiosqlite/core.py:160: in _execute
+    return await future
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tx = <_queue.SimpleQueue object at 0x11b6e3ee0>
+
+    def _connection_worker_thread(tx: _TxQueue):
+        """
+        Execute function calls on a separate thread.
+    
+        :meta private:
+        """
+        while True:
+            # Continues running until all queue items are processed,
+            # even after connection is closed (so we can finalize all
+            # futures)
+    
+            future, function = tx.get()
+    
+            try:
+                LOG.debug("executing %s", function)
+>               result = function()
+                         ^^^^^^^^^^
+E               sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: e.payload
+E               [SQL: 
+E                   SELECT e.run_id AS run_id, e.type AS type, e.payload AS payload
+E                   FROM agent_events e
+E                   WHERE e.run_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) AND e.type IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+E                   ORDER BY e.run_id, e.seq
+E                   ]
+E               [parameters: ('run-000000', 'run-000001', 'run-000002', 'run-000003', 'run-000004', 'run-000005', 'run-000006', 'run-000007', 'run-000008', 'run-000009', 'run-000010', 'run-000011', 'run-000012', 'run-000013', 'run-000014', 'run-000015', 'run-000016', 'run-000017', 'run-000018', 'run-000019', 'run-000020', 'run-000021', 'run-000022', 'run-000023', 'run-000024', 'run-000025', 'run-000026', 'run-000027', 'run-000028', 'run-000029', 'run-000030', 'run-000031', 'run-000032', 'run-000033', 'run-000034', 'run-000035', 'run-000036', 'run-000037', 'run-000038', 'run-000039', 'run-000040', 'run-000041', 'run-000042', 'run-000043', 'run-000044', 'run-000045', 'run-000046', 'run-000047', 'run-000048', 'run-000049' ... 14 parameters truncated ... 'run-000064', 'run-000065', 'run-000066', 'run-000067', 'run-000068', 'run-000069', 'run-000070', 'run-000071', 'run-000072', 'run-000073', 'run-000074', 'run-000075', 'run-000076', 'run-000077', 'run-000078', 'run-000079', 'run-000080', 'run-000081', 'run-000082', 'run-000083', 'run-000084', 'run-000085', 'run-000086', 'run-000087', 'run-000088', 'run-000089', 'run-000090', 'run-000091', 'run-000092', 'run-000093', 'run-000094', 'run-000095', 'run-000096', 'run-000097', 'run-000098', 'run-000099', 'run-000100', 'plan_proposed', 'plan_approved', 'plan.rejected', 'execution_started', 'paused', 'resumed', 'blocked_awaiting_clarification', 'engine_completed', 'engine_failed', 'done_signal_received', 'review_passed', 'review_failed', 'pr_opened')]
+E               (Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+.venv/lib/python3.13/site-packages/aiosqlite/core.py:63: OperationalError
+_____________________ test_latency_sanity_under_one_second _____________________
+
+self = <sqlalchemy.engine.base.Connection object at 0x10fc2c710>
+dialect = <sqlalchemy.dialects.sqlite.aiosqlite.SQLiteDialect_aiosqlite object at 0x118de9bd0>
+context = <sqlalchemy.dialects.sqlite.aiosqlite.SQLiteExecutionContext_aiosqlite object at 0x10fc2ebd0>
+statement = <sqlalchemy.dialects.sqlite.base.SQLiteCompiler object at 0x1181be650>
+parameters = [('run-000000', 'run-000001', 'run-000002', 'run-000003', 'run-000004', 'run-000005', ...)]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1969: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:213: in execute
+    self._adapt_connection._handle_exception(error)
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:373: in _handle_exception
+    raise error
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:195: in execute
+    self.await_(_cursor.execute(operation, parameters))
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/aiosqlite/cursor.py:40: in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+.venv/lib/python3.13/site-packages/aiosqlite/cursor.py:32: in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/aiosqlite/core.py:160: in _execute
+    return await future
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tx = <_queue.SimpleQueue object at 0x11830a5c0>
+
+    def _connection_worker_thread(tx: _TxQueue):
+        """
+        Execute function calls on a separate thread.
+    
+        :meta private:
+        """
+        while True:
+            # Continues running until all queue items are processed,
+            # even after connection is closed (so we can finalize all
+            # futures)
+    
+            future, function = tx.get()
+    
+            try:
+                LOG.debug("executing %s", function)
+>               result = function()
+                         ^^^^^^^^^^
+E               sqlite3.OperationalError: no such column: e.payload
+
+.venv/lib/python3.13/site-packages/aiosqlite/core.py:63: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b437d90>
+scale_db = namespace(engine=<sqlalchemy.ext.asyncio.engine.AsyncEngine object at 0x10b4bb0d0>, factory=async_sessionmaker(class_=...xt.asyncio.engine.AsyncEngine object at 0x10b4bb0d0>, autoflush=True, expire_on_commit=False), runs=2000, events=79000)
+captured = <function captured.<locals>.<lambda> at 0x118885bc0>
+
+    def test_latency_sanity_under_one_second(monkeypatch, scale_db, captured):
+        client = _client(monkeypatch, scale_db.factory)
+        with captured():
+            start = time.perf_counter()
+>           res = client.get("/api/v1/orchestrator/runs")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_runs_index_tuning.py:496: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.13/site-packages/starlette/testclient.py:483: in get
+    return super().get(
+.venv/lib/python3.13/site-packages/httpx/_client.py:1053: in get
+    return self.request(
+.venv/lib/python3.13/site-packages/starlette/testclient.py:455: in request
+    return super().request(
+.venv/lib/python3.13/site-packages/httpx/_client.py:825: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/httpx/_client.py:914: in send
+    response = self._send_handling_auth(
+.venv/lib/python3.13/site-packages/httpx/_client.py:942: in _send_handling_auth
+    response = self._send_handling_redirects(
+.venv/lib/python3.13/site-packages/httpx/_client.py:979: in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/httpx/_client.py:1014: in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/starlette/testclient.py:354: in handle_request
+    raise exc
+.venv/lib/python3.13/site-packages/starlette/testclient.py:351: in handle_request
+    portal.call(self.app, scope, receive, send)
+.venv/lib/python3.13/site-packages/anyio/from_thread.py:338: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../1/lib/python3.13/concurrent/futures/_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+../../../1/lib/python3.13/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+.venv/lib/python3.13/site-packages/anyio/from_thread.py:263: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/fastapi/applications.py:1163: in __call__
+    await super().__call__(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/applications.py:96: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/middleware/errors.py:186: in __call__
+    raise exc
+.venv/lib/python3.13/site-packages/starlette/middleware/errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+.venv/lib/python3.13/site-packages/starlette/middleware/exceptions.py:63: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    raise exc
+.venv/lib/python3.13/site-packages/starlette/_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+.venv/lib/python3.13/site-packages/fastapi/middleware/asyncexitstack.py:18: in __call__
+    await self.app(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/routing.py:670: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:2734: in app
+    await route.handle(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:1780: in handle
+    await self.original_router.handle(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:2789: in handle
+    await included_router._handle_selected(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:1800: in _handle_selected
+    await original_route.handle(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:1279: in handle
+    await app(scope, receive, send)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:158: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv/lib/python3.13/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    raise exc
+.venv/lib/python3.13/site-packages/starlette/_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+.venv/lib/python3.13/site-packages/fastapi/routing.py:144: in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/fastapi/routing.py:706: in app
+    raw_response = await run_endpoint_function(
+.venv/lib/python3.13/site-packages/fastapi/routing.py:352: in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../section4/src/harness_orchestrator/runs_index.py:401: in list_runs
+    states = await _replayed_states(db, rows)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../section4/src/harness_orchestrator/runs_index.py:205: in _replayed_states
+    for run_id, etype, payload in await db.execute(_STATE_EVENTS_SQL, {"page_run_ids": ids}):
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/sqlalchemy/ext/asyncio/session.py:448: in execute
+    result = await greenlet_spawn(
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:201: in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py:2373: in execute
+    return self._execute_internal(
+.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py:2280: in _execute_internal
+    result = conn.execute(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1421: in execute
+    return meth(
+.venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py:526: in _execute_on_connection
+    return connection._execute_clauseelement(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1643: in _execute_clauseelement
+    ret = self._execute_context(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1848: in _execute_context
+    return self._exec_single_context(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1988: in _exec_single_context
+    self._handle_dbapi_exception(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:2365: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py:1969: in _exec_single_context
+    self.dialect.do_execute(
+.venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:213: in execute
+    self._adapt_connection._handle_exception(error)
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:373: in _handle_exception
+    raise error
+.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py:195: in execute
+    self.await_(_cursor.execute(operation, parameters))
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/aiosqlite/cursor.py:40: in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+.venv/lib/python3.13/site-packages/aiosqlite/cursor.py:32: in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/aiosqlite/core.py:160: in _execute
+    return await future
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tx = <_queue.SimpleQueue object at 0x11830a5c0>
+
+    def _connection_worker_thread(tx: _TxQueue):
+        """
+        Execute function calls on a separate thread.
+    
+        :meta private:
+        """
+        while True:
+            # Continues running until all queue items are processed,
+            # even after connection is closed (so we can finalize all
+            # futures)
+    
+            future, function = tx.get()
+    
+            try:
+                LOG.debug("executing %s", function)
+>               result = function()
+                         ^^^^^^^^^^
+E               sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: e.payload
+E               [SQL: 
+E                   SELECT e.run_id AS run_id, e.type AS type, e.payload AS payload
+E                   FROM agent_events e
+E                   WHERE e.run_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) AND e.type IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+E                   ORDER BY e.run_id, e.seq
+E                   ]
+E               [parameters: ('run-000000', 'run-000001', 'run-000002', 'run-000003', 'run-000004', 'run-000005', 'run-000006', 'run-000007', 'run-000008', 'run-000009', 'run-000010', 'run-000011', 'run-000012', 'run-000013', 'run-000014', 'run-000015', 'run-000016', 'run-000017', 'run-000018', 'run-000019', 'run-000020', 'run-000021', 'run-000022', 'run-000023', 'run-000024', 'run-000025', 'plan_proposed', 'plan_approved', 'plan.rejected', 'execution_started', 'paused', 'resumed', 'blocked_awaiting_clarification', 'engine_completed', 'engine_failed', 'done_signal_received', 'review_passed', 'review_failed', 'pr_opened')]
+E               (Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+.venv/lib/python3.13/site-packages/aiosqlite/core.py:63: OperationalError
+=============================== warnings summary ===============================
+tests/test_auth_verification.py:47
+  /Users/user/untitled folder 2/harness/section1/tests/test_auth_verification.py:47: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient
+
+tests/test_account_erasure.py: 281 warnings
+tests/test_agents.py: 46 warnings
+tests/test_audit_export_and_collab_push.py: 25 warnings
+tests/test_csp_rollout.py: 32 warnings
+tests/test_events_retention.py: 17 warnings
+tests/test_identity_expiry.py: 17 warnings
+tests/test_notifications_delivery.py: 190 warnings
+tests/test_notifications_inbox.py: 115 warnings
+tests/test_notifications_prefs.py: 93 warnings
+tests/test_orgs.py: 285 warnings
+tests/test_partitioned_retention.py: 13 warnings
+tests/test_policy_api.py: 37 warnings
+tests/test_policy_gate.py: 5 warnings
+tests/test_policy_sockets.py: 6 warnings
+tests/test_realtime.py: 43 warnings
+tests/test_session_owner_transfer.py: 14 warnings
+tests/test_sessions_core.py: 64 warnings
+tests/test_sessions_lifecycle.py: 168 warnings
+tests/test_team_budget.py: 8 warnings
+tests/test_workspaces_core.py: 105 warnings
+tests/test_workspaces_lifecycle.py: 128 warnings
+  /Users/user/untitled folder 2/harness/section1/.venv/lib/python3.13/site-packages/aiosqlite/core.py:63: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    result = function()
+
+tests/test_deploy_observability.py::test_identity_app_serves_request_ids_and_metrics_over_real_factory
+tests/test_deploy_observability.py::test_identity_assembly_taps_run_terminal_events_for_notifications
+  /Users/user/untitled folder 2/harness/deploy/runners/services.py:303: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+tests/test_deploy_observability.py: 10 warnings
+  /Users/user/untitled folder 2/harness/section1/.venv/lib/python3.13/site-packages/fastapi/applications.py:4681: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+tests/test_deploy_observability.py::test_identity_app_serves_request_ids_and_metrics_over_real_factory
+tests/test_deploy_observability.py::test_identity_assembly_taps_run_terminal_events_for_notifications
+  /Users/user/untitled folder 2/harness/deploy/runners/services.py:309: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+tests/test_deploy_observability.py::test_orchestrator_domain_gauges_render
+tests/test_deploy_observability.py::test_orchestrator_domain_poll_works_over_deployed_async_factory
+tests/test_deploy_observability.py::test_cost_and_call_gauges_render_from_ledger
+  /Users/user/untitled folder 2/harness/deploy/runners/observability.py:945: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+tests/test_deploy_observability.py::test_orchestrator_domain_gauges_render
+tests/test_deploy_observability.py::test_orchestrator_domain_poll_works_over_deployed_async_factory
+tests/test_deploy_observability.py::test_cost_and_call_gauges_render_from_ledger
+  /Users/user/untitled folder 2/harness/deploy/runners/observability.py:954: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+tests/test_version_pin_conformance.py::test_contracts_version_pinned_across_all_four_sources
+  /Users/user/untitled folder 2/harness/section1/tests/test_version_pin_conformance.py:212: UserWarning: harness-contracts installed dist metadata says 1.0.0rc6 but the source tree is at 1.0.0rc7. This is a stale EDITABLE install of this same contracts/ dir (pre-bump provisioning), NOT package rot. Heal locally with:
+    ./.venv/bin/pip install -q -e ../contracts   # from any section
+  (CI installs fresh each run and enforces strict equality.)
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [1] tests/test_alert_rules_load.py:134: promtool not installed
+SKIPPED [1] tests/test_audit_chain_pg.py:118: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:125: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:134: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:147: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:157: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:166: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:187: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:195: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:203: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:217: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:224: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:233: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:270: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:312: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:327: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:342: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:354: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:388: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:400: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:410: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:422: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:432: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:446: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:461: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_audit_chain_pg.py:476: HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+SKIPPED [1] tests/test_backup_metrics_pg.py:56: HARNESS_TEST_PG not set; live-PG backup metrics test skipped
+SKIPPED [1] tests/test_backup_metrics_pg.py:107: HARNESS_TEST_PG not set; live-PG backup metrics test skipped
+SKIPPED [1] tests/test_collab_push_pg.py:67: HARNESS_TEST_PG not set; live-PG collab push tests skipped
+SKIPPED [1] tests/test_collab_push_pg.py:81: HARNESS_TEST_PG not set; live-PG collab push tests skipped
+SKIPPED [1] tests/test_f1_envelope_idempotency.py:470: HARNESS_TEST_PG not set; live-PG probe skipped
+SKIPPED [1] tests/test_fk_deletion_story.py:640: HARNESS_TEST_PG not set; live-PG FK-migration probe skipped
+SKIPPED [1] tests/test_fk_deletion_story.py:666: HARNESS_TEST_PG not set; live-PG FK-migration probe skipped
+SKIPPED [1] tests/test_fk_deletion_story.py:704: HARNESS_TEST_PG not set; live-PG FK-migration probe skipped
+SKIPPED [1] tests/test_money_numeric.py:540: HARNESS_TEST_PG not set; live-PG money-migration probe skipped
+SKIPPED [1] tests/test_money_numeric.py:735: HARNESS_TEST_PG not set; live-PG money-migration probe skipped
+SKIPPED [1] tests/test_partitioned_retention.py:381: needs HARNESS_TEST_PG
+SKIPPED [1] tests/test_partitioned_retention.py:472: needs HARNESS_TEST_PG
+SKIPPED [1] tests/test_policy_sockets.py:165: HARNESS_TEST_PG not set; live-PG policy socket tests skipped
+SKIPPED [1] tests/test_policy_sockets.py:156: HARNESS_TEST_PG not set; live-PG policy socket tests skipped
+SKIPPED [1] tests/test_policy_sockets.py:146: HARNESS_TEST_PG not set; live-PG policy socket tests skipped
+SKIPPED [1] tests/test_policy_sockets.py:118: HARNESS_TEST_PG not set; live-PG policy socket tests skipped
+SKIPPED [1] tests/test_policy_sockets.py:192: HARNESS_TEST_PG not set; live-PG policy socket tests skipped
+SKIPPED [1] tests/test_policy_sockets.py:134: HARNESS_TEST_PG not set; live-PG policy socket tests skipped
+SKIPPED [1] tests/test_runs_index_tuning.py:530: HARNESS_TEST_PG not set; live-PG runs-index probe skipped
+SKIPPED [1] tests/test_session11_pg.py:115: HARNESS_TEST_PG not set; live-PG session 11 tests skipped
+SKIPPED [1] tests/test_session11_pg.py:213: HARNESS_TEST_PG not set; live-PG session 11 tests skipped
+SKIPPED [1] tests/test_session11_pg.py:243: HARNESS_TEST_PG not set; live-PG session 11 tests skipped
+SKIPPED [1] tests/test_session11_pg.py:260: HARNESS_TEST_PG not set; live-PG session 11 tests skipped
+SKIPPED [1] tests/test_session11_pg.py:266: HARNESS_TEST_PG not set; live-PG session 11 tests skipped
+SKIPPED [1] tests/test_session11_pg.py:293: HARNESS_TEST_PG not set; live-PG session 11 tests skipped
+SKIPPED [1] tests/test_session11_pg.py:352: HARNESS_TEST_PG not set; live-PG session 11 tests skipped
+SKIPPED [1] tests/test_session11_pg.py:362: HARNESS_TEST_PG not set; live-PG session 11 tests skipped
+SKIPPED [1] tests/test_session11_pg.py:375: HARNESS_TEST_PG not set; live-PG session 11 tests skipped
+SKIPPED [1] tests/test_session3_pg.py:86: HARNESS_TEST_PG not set; live-PG session 3 tests skipped
+SKIPPED [1] tests/test_session4_pg.py:82: HARNESS_TEST_PG not set; live-PG session 4 tests skipped
+SKIPPED [1] tests/test_session5_pg.py:101: HARNESS_TEST_PG not set; live-PG session 5 tests skipped
+SKIPPED [1] tests/test_session_owner_transfer_pg.py:18: HARNESS_TEST_PG not set; live-PG owner transfer test skipped
+SKIPPED [1] tests/test_upgrade_rehearsal_pg.py:198: HARNESS_TEST_PG not set; upgrade rehearsal skipped
+SKIPPED [1] tests/test_upgrade_rehearsal_pg.py:210: HARNESS_TEST_PG not set; upgrade rehearsal skipped
+SKIPPED [1] tests/test_upgrade_rehearsal_pg.py:232: HARNESS_TEST_PG not set; upgrade rehearsal skipped
+SKIPPED [1] tests/test_upgrade_rehearsal_pg.py:251: HARNESS_TEST_PG not set; upgrade rehearsal skipped
+SKIPPED [1] tests/test_ws_fingerprint.py:537: HARNESS_TEST_PG not set; live-PG fingerprint probe skipped
+FAILED tests/test_runs_index_tuning.py::test_request_statement_budget_no_per_row_probes - sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: e.payload
+[SQL: 
+    SELECT e.run_id AS run_id, e.type AS type, e.payload AS payload
+    FROM agent_events e
+    WHERE e.run_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) AND e.type IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ORDER BY e.run_id, e.seq
+    ]
+[parameters: ('run-000000', 'run-000001', 'run-000002', 'run-000003', 'run-000004', 'run-000005', 'run-000006', 'run-000007', 'run-000008', 'run-000009', 'run-000010', 'run-000011', 'run-000012', 'run-000013', 'run-000014', 'run-000015', 'run-000016', 'run-000017', 'run-000018', 'run-000019', 'run-000020', 'run-000021', 'run-000022', 'run-000023', 'run-000024', 'run-000025', 'plan_proposed', 'plan_approved', 'plan.rejected', 'execution_started', 'paused', 'resumed', 'blocked_awaiting_clarification', 'engine_completed', 'engine_failed', 'done_signal_received', 'review_passed', 'review_failed', 'pr_opened')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+FAILED tests/test_runs_index_tuning.py::test_derived_timestamps_survive_the_rewrite - sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: e.payload
+[SQL: 
+    SELECT e.run_id AS run_id, e.type AS type, e.payload AS payload
+    FROM agent_events e
+    WHERE e.run_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) AND e.type IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ORDER BY e.run_id, e.seq
+    ]
+[parameters: ('run-000000', 'run-000001', 'run-000002', 'run-000003', 'run-000004', 'run-000005', 'run-000006', 'run-000007', 'run-000008', 'run-000009', 'run-000010', 'run-000011', 'run-000012', 'run-000013', 'run-000014', 'run-000015', 'run-000016', 'run-000017', 'run-000018', 'run-000019', 'run-000020', 'run-000021', 'run-000022', 'run-000023', 'run-000024', 'run-000025', 'plan_proposed', 'plan_approved', 'plan.rejected', 'execution_started', 'paused', 'resumed', 'blocked_awaiting_clarification', 'engine_completed', 'engine_failed', 'done_signal_received', 'review_passed', 'review_failed', 'pr_opened')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+FAILED tests/test_runs_index_tuning.py::test_cursor_walk_stays_correct_at_scale - sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: e.payload
+[SQL: 
+    SELECT e.run_id AS run_id, e.type AS type, e.payload AS payload
+    FROM agent_events e
+    WHERE e.run_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) AND e.type IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ORDER BY e.run_id, e.seq
+    ]
+[parameters: ('run-000000', 'run-000001', 'run-000002', 'run-000003', 'run-000004', 'run-000005', 'run-000006', 'run-000007', 'run-000008', 'run-000009', 'run-000010', 'run-000011', 'run-000012', 'run-000013', 'run-000014', 'run-000015', 'run-000016', 'run-000017', 'run-000018', 'run-000019', 'run-000020', 'run-000021', 'run-000022', 'run-000023', 'run-000024', 'run-000025', 'run-000026', 'run-000027', 'run-000028', 'run-000029', 'run-000030', 'run-000031', 'run-000032', 'run-000033', 'run-000034', 'run-000035', 'run-000036', 'run-000037', 'run-000038', 'run-000039', 'run-000040', 'run-000041', 'run-000042', 'run-000043', 'run-000044', 'run-000045', 'run-000046', 'run-000047', 'run-000048', 'run-000049' ... 14 parameters truncated ... 'run-000064', 'run-000065', 'run-000066', 'run-000067', 'run-000068', 'run-000069', 'run-000070', 'run-000071', 'run-000072', 'run-000073', 'run-000074', 'run-000075', 'run-000076', 'run-000077', 'run-000078', 'run-000079', 'run-000080', 'run-000081', 'run-000082', 'run-000083', 'run-000084', 'run-000085', 'run-000086', 'run-000087', 'run-000088', 'run-000089', 'run-000090', 'run-000091', 'run-000092', 'run-000093', 'run-000094', 'run-000095', 'run-000096', 'run-000097', 'run-000098', 'run-000099', 'run-000100', 'plan_proposed', 'plan_approved', 'plan.rejected', 'execution_started', 'paused', 'resumed', 'blocked_awaiting_clarification', 'engine_completed', 'engine_failed', 'done_signal_received', 'review_passed', 'review_failed', 'pr_opened')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+FAILED tests/test_runs_index_tuning.py::test_latency_sanity_under_one_second - sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: e.payload
+[SQL: 
+    SELECT e.run_id AS run_id, e.type AS type, e.payload AS payload
+    FROM agent_events e
+    WHERE e.run_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) AND e.type IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ORDER BY e.run_id, e.seq
+    ]
+[parameters: ('run-000000', 'run-000001', 'run-000002', 'run-000003', 'run-000004', 'run-000005', 'run-000006', 'run-000007', 'run-000008', 'run-000009', 'run-000010', 'run-000011', 'run-000012', 'run-000013', 'run-000014', 'run-000015', 'run-000016', 'run-000017', 'run-000018', 'run-000019', 'run-000020', 'run-000021', 'run-000022', 'run-000023', 'run-000024', 'run-000025', 'plan_proposed', 'plan_approved', 'plan.rejected', 'execution_started', 'paused', 'resumed', 'blocked_awaiting_clarification', 'engine_completed', 'engine_failed', 'done_signal_received', 'review_passed', 'review_failed', 'pr_opened')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+4 failed, 1241 passed, 63 skipped, 1714 warnings in 104.57s (0:01:44)

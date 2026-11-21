@@ -1,6 +1,8 @@
 # UI overhaul plan: research and phased build (2026-11-13)
 
-Status: **proposal, nothing built.** Owner decisions are listed in §6. This plan is separate from the 90-day
+Status: **U0–U3 built and committed on 2026-11-13 (d491121..04b819b); U4–U6 not built. §8 (2026-11-14) records
+a hands-on test of what was built and revises the direction; where §8 and §4–§5 disagree, §8 wins.** Owner
+decisions are listed in §6. This plan is separate from the 90-day
 plan's weekly rows; §5 says where it touches them. Source quality is stated in §7: most public writing on these
 products is vendor pages and roundup blogs, not user studies, so "people praise X" below means "several
 independent write-ups say X", not a measured result.
@@ -150,3 +152,109 @@ Third-party analysis (directional only): [The Decoder on Cursor 3](https://the-d
 
 Not found: independent, measured comparisons of these UIs; Zed's agent panel; Arc. I did not use any of these
 products hands-on for this report.
+
+## 8. Revision 2026-11-14: hands-on test and a simpler target
+
+### 8.1 What was tested
+
+Built-in browser, 1440×900 and 375×812, dark theme, on the stacks already running: demo (`:3010`) and RC
+(`:3011`). Walked: login, demo entry, run page (all five tabs), Command Center, Runs, Review, Cost, Settings,
+command palette. Not tested: light theme, a live (non-replay) run, plan approval, the verdict card with real
+data, screen reader, the meeting and onboarding pages. Motion could not be judged: the browser pane did not
+tick animation frames, so nothing here is a finding about smoothness.
+
+### 8.2 Findings
+
+| # | Where | What happened | Severity |
+|---|---|---|---|
+| F1 | Demo, Review page | "Review data … could not be loaded: github not connected for this user; complete the OAuth flow first". The demo card promises a "real review verdict". The header pill still says "loading…" beside the error | High: the demo's main promise fails |
+| F2 | Demo, Changes tab | "No snapshots yet". The demo card promises a "real diff" | High |
+| F3 | Run page, Plan & work tab | 3,607 px tall, 27 inputs, 28 buttons: task form, raw "Plan content (JSON)", "Proposed plan edit (JSON patch)", "Owner user ID", search, export and "Request deletion of your data" all on one tab of one run | High: reads as an admin console |
+| F4 | `:3010` demo stack | Runs frontend image `vw24b2` built 2026-11-01, so it shows none of U0–U3. Anyone opening the demo port sees the old UI. First visit took three clicks and an email, and landed back on the demo card | High if `:3010` is what gets shown |
+| F5 | Command Center | Model picker is one `<select>` with 127 options, many duplicated names (`DeepSeek-V3` ×5, `Llama-3.3-70B-Instruct` ×6) | Medium |
+| F6 | Runs | Footer says "Showing 0–0 of 0" under two rows; project column shows a UUID for one row and a slug for the other | Medium |
+| F7 | Everywhere | Internal ids are the headings: "Run demo-run-d905253a49fa", "Project demo-proj-c218de75541b", `prId: demo-pr-…`, raw event names (`plan_proposed`) under their labels | Medium |
+| F8 | Shell | Fake window traffic-lights and a clock in a web page; grid background; nine sidebar items plus team, project, "Go to…", theme and sign-out; breadcrumb + banner + tab bar above every run | Medium: chrome competes with content |
+| F9 | Cost | "$0.000057" as a headline; "BY DAY" heading twice over an empty chart area | Low |
+| F10 | Settings | A bullet list of nine links | Low |
+
+Worked: RC demo opens a finished run in one click when signed in; palette opens on ⌘K, filters, shows `g`-then-key
+hints; run timeline has a scrubber and Follow; "Needs you" names the action in plain words; phone width has no
+horizontal scroll.
+
+### 8.3 Analysis
+
+U0–U3 added the right parts (inbox, timeline, palette) **on top of** the old pages. Nothing was removed, so the
+product now has more surface, not less. The owner's complaint is about feel, and feel here is decided by three
+things the phases did not address: too many places (nine nav items, five run tabs), backend vocabulary on screen
+(ids, JSON, state names), and a demo that breaks its own promise.
+
+### 8.4 Target: one workspace, three panes
+
+Taken from the Claude Code desktop app (how much it does without leaving one window) and the Codex app (how
+little it shows). I have not measured either; this is from their public docs and from using Claude Code.
+
+```
+┌ sidebar ────┬ run (centre) ───────────────┬ pane (right, optional) ┐
+│ Needs you   │ goal                        │ Diff | Plan | Terminal │
+│ Working     │ step blocks, collapsible    │ | Evidence             │
+│ Done        │ …                           │                        │
+│ (per project)│ verdict card at the end    │                        │
+│             │ composer: steer / comment   │                        │
+└─────────────┴─────────────────────────────┴────────────────────────┘
+```
+
+- **Sidebar = the run list**, grouped Needs you / Working / Done. It replaces Command Center's two cards, the
+  Runs table as a destination, and the "Working" nav item. Cost, Meeting, Settings move to the palette and a
+  small footer menu.
+- **Centre = the run as one scrolling column** of step blocks (the U2 timeline becomes the page, not a widget
+  on the Overview tab). Each block is one line when collapsed: verb, target, duration, cost. Approval requests
+  appear inline where they happen, with the buttons on them.
+- **Right pane = one thing at a time**: diff, plan, terminal or evidence, opened by click or shortcut, closable.
+  This replaces the five tabs. Review is the same pane on the diff with the verdict card above it, so `/review`
+  stops being a separate page.
+- **Composer at the bottom** is the only input on the run: new goal on an empty run, direction or a comment on a
+  live one. Model and reasoning effort are two small controls on the composer. Model picker becomes a searchable
+  list grouped by provider, showing only models with a configured key (fixes F5).
+
+**From Claude Code, as features (adapted to what Harness has):**
+
+| Feature | Harness form | Backend today |
+|---|---|---|
+| Pinned task list under the latest message | Plan steps pinned above the composer, ticking as steps complete | plan + `agent_events` |
+| Collapsible tool calls with one-line summaries | Step blocks; receipts inside | `agent_tool_calls` (built in U2) |
+| Permission modes | Autonomy dial on the composer: ask every step / ask on risk / plan only. Turning up needs confirmation | **needs P-D6** (D-U4); show, do not auto-approve |
+| Plan mode | Plan opens in the right pane as an editable list with Approve; no JSON on screen | plan gate, plan versions |
+| End-of-turn "next step" box | When a run stops: two-sentence recap, one question, one or two buttons | run state + "Needs you" copy (04b819b) |
+| Queue a message while it works | Direction typed mid-run is shown as queued until it takes effect | W23 slice 3 already reports when guidance takes effect |
+| Slash commands, @-file mentions | `/pause`, `/stop`, `/retry`, `/checkpoint` in the composer; `@path` from the file tree | Controls, tree endpoint |
+| Side panes: diff, terminal, preview | Right pane | DiffPanel, TerminalPanel exist |
+| Background sessions with status | Sidebar rows with a state dot and spend; tab title shows count needing you | runs list, event stream |
+
+**From Codex, as rules:** neutral greys and one accent used only for the primary action and focus; no grid
+background, no fake window chrome, no clock; borders instead of stacked cards (at most one card level); ids only
+in a "Copy id" menu and the evidence pane, with runs titled by their goal; monospace only for code, paths and
+terminal; one type scale of four sizes; every empty state says what to do next.
+
+**Ours, kept and made central:** the verdict card and evidence links (the differentiator), the plan gate, honest
+"unknown", REPLAY labelling, spend per run, the palette and shortcuts.
+
+**Moved off the run page:** task-statement form, raw JSON editors, search, export, data-deletion request, git
+lineage → an "Advanced" drawer or Settings. They stay reachable by palette.
+
+### 8.5 Revised phases (replace the U4–U6 order)
+
+| Phase | Build | Done when |
+|---|---|---|
+| **R0 Demo truth** (first) | Fix F1, F2 so the replay shows its diff and verdict without GitHub; rebuild `:3010` on current code or retire it (F4); F6 | Signed-out visitor reaches a run with a visible diff and verdict card in ≤ 2 clicks; Playwright asserts both are non-empty |
+| **R1 Look** | Three static mock screens (sidebar + run, run + diff pane, review) in the real token set; strip chrome per the Codex rules | Owner approves the mocks before R2 starts (this is D-U2) |
+| **R2 Shell** | Three-pane layout, sidebar run list, right pane, tabs removed; old routes redirect | Every former tab's content reachable in ≤ 1 click or shortcut from the run; axe clean; run page has ≤ 3 visible inputs |
+| **R3 Composer + plan** | Composer, searchable model picker, pinned plan, plan editor without JSON, inline approvals, next-step box | Propose → edit plan → approve → steer → stop done keyboard-only on a live run |
+| **R4 Review in pane** | Verdict card + diff in the right pane, inline comment → direction, "since last iteration" | As U3's exit, inside the workspace |
+| **R5 Evidence + portal** | Was U4 (P-17, P-19) | Unchanged |
+| Later | First-run tour, presence (was U5 tour, U6) | After P-D7 |
+
+Motion is checked in R2 on a real browser window with a recording, since §8.1 could not judge it.
+
+**New owner decision D-U5:** adopt the three-pane workspace (drops Command Center, Runs and Review as separate
+destinations) or keep the current page set and only restyle it. Recommended: adopt.
