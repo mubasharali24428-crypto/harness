@@ -94,3 +94,25 @@ was not independently checked.
 
 Evidence state: manifest **Implemented—unverified** (compose-derived, owner review pending);
 live capture **Blocked** (daemon down — owner action §5.1). No readiness claim is made here.
+## 6. Live capture addendum — 2026-11-21 (the §5.1 blocker is gone)
+
+Docker Desktop 29.5.3 up; `python3 scripts/ops/stack_tags.py` re-run (read-only) the same day:
+
+- Backend services: **11 of 11 expected running, Missing: none, Agreement: AGREE** — all on
+  `harness-backend:vw24b1` (project `harness-demo`), worker-daemon `vw24b1` (separate image).
+- Frontend: `harness-frontend:vv90r4` (project `harness-rc`).
+- Two Postgres primaries are up simultaneously: the live `harness-db-1` (project `harness`,
+  force-recreated today during the nightly repair after a failed port bind left it detached
+  from every network) and the RC `harness-rc-db-1` (`harness-db-walg:v3.0.9`). The report's
+  `db` role maps to the RC container; both are healthy.
+- The **live** (`harness`) backend services are still not running — the running stacks are
+  `harness-demo` and `harness-rc`. Restoring the live tag set is the owner deploy call (§5.3),
+  unchanged by this addendum.
+- New collision for the owner: the demo stack's db binds `127.0.0.1:5499`, which is also the
+  live db's published port — the two db containers cannot run at the same time until the demo
+  compose drops or moves that binding (observed live today; `docker start harness-demo-db-1`
+  will fail while `harness-db-1` holds the port).
+
+Evidence state: live capture **Implemented—verified today at the revision above**; the §5.3
+one-tag-set redeploy and digest recording remain the owner's, so the manifest is still not
+the release manifest — it is the drift report the owner needs to make that call.
