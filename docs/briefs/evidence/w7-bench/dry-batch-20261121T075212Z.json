@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "kind": "w7-bench-batch",
+  "mode": "dry",
+  "model": "dry-fake-model",
+  "trialsPerTask": 5,
+  "tasks": [
+    "stale-edit"
+  ],
+  "startedAt": "2026-11-21T07:52:12.415656+00:00",
+  "finishedAt": "2026-11-21T07:52:12.484693+00:00",
+  "manifestSha256": "e02dc7bc8aed9a5b095429654c34f203a108702b270b83c498f0ccb6b5da8286",
+  "git": {
+    "head": "c8f2c9a313f5687545c271f10084314b34129455",
+    "branch": "w28-s1-delegate",
+    "dirty": true
+  },
+  "attemptFiles": [
+    "/Users/user/untitled folder 2/harness/docs/briefs/evidence/w7-bench/dry-stale-edit-dry-fake-model-trial1-20261121T075212Z.json",
+    "/Users/user/untitled folder 2/harness/docs/briefs/evidence/w7-bench/dry-stale-edit-dry-fake-model-trial2-20261121T075212Z.json",
+    "/Users/user/untitled folder 2/harness/docs/briefs/evidence/w7-bench/dry-stale-edit-dry-fake-model-trial3-20261121T075212Z.json",
+    "/Users/user/untitled folder 2/harness/docs/briefs/evidence/w7-bench/dry-stale-edit-dry-fake-model-trial4-20261121T075212Z.json",
+    "/Users/user/untitled folder 2/harness/docs/briefs/evidence/w7-bench/dry-stale-edit-dry-fake-model-trial5-20261121T075212Z.json"
+  ],
+  "counts": {
+    "attempts": 5,
+    "pass": 2,
+    "fail": 2,
+    "timeout": 1,
+    "error": 0,
+    "denied": 1
+  },
+  "stoppedByCap": null,
+  "maxTotalUsd": null,
+  "spentUsdConservative": 0,
+  "claimable": false,
+  "note": "DRY pipeline exercise: fake model, zero spend, no Docker/network; not a capability claim."
+}
