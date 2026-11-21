@@ -22,6 +22,16 @@ from pathlib import Path
 
 from w25_metrics import pct, stats  # nearest-rank percentiles, reused
 
+# F5 (Plan 8.1, S-01): wall-time split per run over the agent_events log.
+# Mirrors w25_metrics.run_rows: the engine's billed spans are the timestamps
+# of these event types (section4/src/harness_orchestrator/service.py:3077).
+MODEL_START = "plan_approved"
+MODEL_STOP = "execution_started"
+TOOL_START = "tool_call"
+TOOL_STOP = "tool_result"
+TURN_STOP = "engine_completed"
+TURN_START = "execution_started"
+
 REPO = Path(__file__).resolve().parents[2]
 BENCH = REPO / "docs" / "briefs" / "evidence" / "w7-bench"
 MIN_N = 5  # same rule as section4 pilot_metrics.MIN_N
@@ -65,6 +75,9 @@ def cell_stats(task: str, model: str, mode: str, attempts: list[dict]) -> dict:
     else:
         out["successRate"] = {"passes": passes, "n": valid, "rate": round(passes / valid, 4)}
         out["comparison"] = "descriptive only; no superiority claim"
+    # F5: additive only. Cells without per-run event logs keep the old shape.
+    if any(isinstance(a.get("events"), list) for a in attempts):
+        out["split"] = split_stats(attempts)
     return out
 
 
@@ -73,6 +86,104 @@ def aggregate(attempts: list[dict]) -> list[dict]:
     for a in attempts:
         groups.setdefault((a["taskId"], a["model"], a.get("mode", "live")), []).append(a)
     return [cell_stats(t, m, mode, xs) for (t, m, mode), xs in sorted(groups.items())]
+
+
+def split_run(events: list[dict] | None) -> dict:
+    """F5: pure wall-time split of ONE run from its ordered agent_events.
+
+    Intervals (closed only; no now-clamp, unlike execution.executing_seconds):
+      model   — plan_approved -> execution_started (the LLM call span w25 reads)
+      tool    — each tool_call -> the next tool_result
+      human   — engine_completed/.../engine_failed -> the next turn's
+                execution_started (a gap with no events is a human wait)
+      overhead — the remaining wall time inside the run
+    Open intervals are dropped (a truncated log must not invent time).
+    Missing timestamps, equal seq, or a stop without a start are skipped.
+    cacheReadTokens sum payload["usage"]["cacheReadTokens"] / payload["cacheReadTokens"].
+    """
+    ev = sorted(
+        (e for e in (events or []) if isinstance(e, dict) and isinstance(e.get("ts"), (int, float))),
+        key=lambda e: (e["ts"], e.get("seq") or 0),
+    )
+    n = len(ev)
+    model = tool = human = 0.0
+    cache_tokens = 0
+    turns = 0
+    open_model: float | None = None
+    open_tool: float | None = None
+    open_turn: float | None = None  # turn in progress (started, not yet completed)
+    stop_ts: dict[str, float] = {}
+    saw_stop = False
+    prev_ts: float | None = None
+    for e in ev:
+        ts = e["ts"]
+        typ = e.get("type")
+        pay = e.get("payload")
+        if isinstance(pay, dict):
+            u = pay.get("usage")
+            tok = u.get("cacheReadTokens") if isinstance(u, dict) else pay.get("cacheReadTokens")
+            if isinstance(tok, (int, float)):
+                cache_tokens += int(tok)
+        if typ == TOOL_STOP and open_tool is not None:
+            tool += max(0.0, ts - open_tool)
+            open_tool = None
+        elif typ == TOOL_START and open_tool is None:
+            open_tool = ts
+        if typ == MODEL_STOP and open_model is not None:
+            model += max(0.0, ts - open_model)
+            open_model = None
+        elif typ == MODEL_START and open_model is None:
+            open_model = ts
+        if typ in (TURN_STOP, "engine_failed"):
+            if open_turn is not None:
+                turns += 1
+                open_turn = None
+            stop_ts[typ] = ts  # human wait opens here, not at the previous event
+            saw_stop = True
+        elif typ == TURN_START:
+            if saw_stop:
+                # gap with NO events between turn end and next start = human wait
+                human += max(0.0, ts - stop_ts.get(
+                    "engine_completed", stop_ts.get("engine_failed", ts)))
+                saw_stop = False
+            open_turn = ts
+        prev_ts = ts
+    wall = (ev[-1]["ts"] - ev[0]["ts"]) if n else 0.0
+    accounted = model + tool + human
+    overhead = max(0.0, wall - accounted)
+    return {
+        "modelSeconds": round(model, 3),
+        "toolSeconds": round(tool, 3),
+        "overheadSeconds": round(overhead, 3),
+        "humanWaitSeconds": round(human, 3),
+        "wallSeconds": round(wall, 3),
+        "turns": turns,
+        "cacheReadTokens": cache_tokens,
+        "nEvents": n,
+    }
+
+
+def split_stats(attempts: list[dict]) -> dict:
+    """Per-cell stats over per-run splits. attempts are {"events": [...]} or already-split dicts."""
+    runs: list[dict] = []
+    for a in attempts or []:
+        if isinstance(a, dict) and isinstance(a.get("events"), list):
+            runs.append(split_run(a["events"]))
+        elif isinstance(a, dict) and "modelSeconds" in a:
+            runs.append(a)
+    if not runs:
+        return {"n": 0, "modelSeconds": stats([]), "toolSeconds": stats([]),
+                "overheadSeconds": stats([]), "humanWaitSeconds": stats([]),
+                "turns": stats([]), "cacheReadTokens": stats([])}
+    return {
+        "n": len(runs),
+        "modelSeconds": stats([r["modelSeconds"] for r in runs]),
+        "toolSeconds": stats([r["toolSeconds"] for r in runs]),
+        "overheadSeconds": stats([r["overheadSeconds"] for r in runs]),
+        "humanWaitSeconds": stats([r["humanWaitSeconds"] for r in runs]),
+        "turns": stats([r["turns"] for r in runs]),
+        "cacheReadTokens": stats([r["cacheReadTokens"] for r in runs]),
+    }
 
 
 def load_attempts(dir_path: Path) -> list[dict]:
