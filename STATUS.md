@@ -85,6 +85,52 @@ it recorded but cannot undo one; a module is only as trustworthy as the resolver
 host hands it; Section 4 still cannot pin a multi-file program until `WorkflowRequest`
 carries a program digest; and the track adds no approval surface of its own.
 
+## 2026-11-21 — The Nov 13–16 wave landed: P-17 portal verified, I-09 default-on, UI overhaul evidence
+
+The Nov 13–16 work sat as 39 modified + ~30 untracked files on `w28-s1-delegate`
+after its lanes stopped mid-stream (last commit `01fa370`, 2026-11-16). This entry
+records that wave landing as 7 commits (`1433b5c`…`efb5238`) after a verification
+pass; evidence-first details live in the cited docs, not here.
+
+* **P-17 client trust portal landed and was independently verified** (`5eea0d4`).
+  Per-project guests: migration 0076 + the gate inside both principal resolvers,
+  default deny, one no-oracle 403. The author's verification packet
+  (`docs/briefs/evidence/90day/p17-verification-packet-2026-11-16.md`) was re-run
+  end to end and the result recorded
+  (`docs/briefs/evidence/90day/p17-verification-result.md`): 8/8 checks reproduced,
+  migration selftest 0001→0076 clean on real PostgreSQL, gate SQL planned on the
+  migrated schema, mutation test bites 8/14. Verifier hardening: the four guest
+  path regexes anchor with `\Z` (re's `$` matches before a trailing newline), and
+  new tests pin path-shape exactness, repeated-`projectId` consistency (gate and
+  handler both read the last value), trailing-slash redirect semantics, and the
+  old team-wide guest read is now a 403 in the team API suites. **Not met:**
+  P-17's acceptance ("end-client completes a review session") — no browser run,
+  no deployment, no admin grant screen.
+* **I-09 verification-first is default-on** (`1433b5c`; decision
+  `docs/decisions/2026-11-14-verification-first-default-on.md`): a done-signal
+  without a recorded green test run is refused (400 VERIFICATION_REQUIRED);
+  `HARNESS_VERIFICATION_FIRST=false` is the explicit opt-out for dry/demo/golden
+  flows, pinned by the suites. The same commit repairs `test_done_signal.py`'s
+  known global-state trap: `configure_orchestrator` leaked the module-global
+  service, so the stress/conformance REST suites 404'd whenever they ran after it
+  (reproduced at `01fa370` — pre-existing, order-dependent; `_wired_service` now
+  restores the wiring).
+* **Reviewer integrity** (`ea724a9`): the deterministic verdict sentence is
+  authoritative; a model reply rides as a control-char-cleansed, bounded
+  "Reviewer note:" suffix; unknown/absent test evidence is an issue, not a pass.
+* **Bench groundwork** (`78dd8b8`): `scripts/eval/bench_stats.py` + 13 tests —
+  P-13's summary math over raw eval runs.
+* **UI overhaul wave** (`72724af`): plan §8 (hands-on test F1–F10, target "one
+  workspace, three panes"), build prompts, DU2/DU3/DU4 decisions, before/after
+  evidence at five widths in both themes, UI baseline/a11y/palette e2e specs.
+* Suites at `efb5238`: section1 **1256 passed / 63 skipped / 4 failed** (the 4 are
+  pre-existing `test_runs_index_tuning.py` SQLite-column failures from `9d4fab2`,
+  unowned here), section4 **2392 passed / 0 failed / 60 skipped**, section8 **104
+  passed**, section7 **tsc clean, vitest 1201 passed, `npm run build` exit 0**,
+  spec_drift clean, sdk-gen reproduces the generated files byte-for-byte, ruff
+  clean on sections 1 and 4 (contracts carries pre-existing F401/E501 debt,
+  untouched). Verdict unchanged: **NOT READY**.
+
 ## 2026-11-06 — Reconciliation: what was local-only, what is deployed, what is open
 
 Written from git, `gh pr list` and `docker ps`; no test suite was run for this entry. It supersedes the entry below where they differ (that entry is kept as the record of its day).
