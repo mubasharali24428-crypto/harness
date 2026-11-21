@@ -85,6 +85,46 @@ it recorded but cannot undo one; a module is only as trustworthy as the resolver
 host hands it; Section 4 still cannot pin a multi-file program until `WorkflowRequest`
 carries a program digest; and the track adds no approval surface of its own.
 
+## 2026-11-21 (later) — pushed to origin, weeks 2–3 of the 90-day plan executed, measured data
+
+`w28-s1-delegate` is fully pushed: `19f5cae..c286d22` (75 commits) on origin; **0 commits
+ahead of its upstream** for the first time since 2026-11-06. PR #24 carries it; CI runs at
+the pushed SHA. The first push caught a real defect: `vitest + tsc (section7)` failed on
+`make check-ts-dist` because the P-17 commit updated `clients/ts/src/identity.ts` without
+rebuilding `clients/ts/dist` — fixed at `c286d22` (fresh build, 26 files, check green).
+
+**Week 2 (P-04 drills) — all executed and recorded (week-02 §5):** native-Linux container
+drill **PASS in CI** on ubuntu-latest (kernel 7.0.0-1020-azure, run 44882932634, at
+`19f5cae`); Landlock pytest subset 42/42 on a real Linux VM kernel including both October
+regressions; **G1 gap confirmed live** (Landlock-confined `allow_network=False` child
+connected out — documented ABI-v1 limitation, `confinement.py:446`; pilot unaffected);
+**G2 macOS halves split** (environ side-channel absent on macOS; `$HOME` canary read-gap
+confirmed through Seatbelt). Evidence JSONs + probes committed under
+`docs/briefs/evidence/pilot-prep/`. The named holes now wait on **owner risk-acceptance
+(G1/G2, week-02 §2)** — that is the acceptance's remaining move.
+
+**Week 3 (P-06) — the Nov-12 handoff executed (week-03 §5):** all four regression groups
+green (9 + 13 + 57+4xfail + 189). Isolation verified at YAML level (volume renamed
+`harness_rc_runs`, no demo networks, every port loopback). **The RC stack has drifted from
+its reviewed manifest**: `stack_tags.py --project harness-rc` reports **MIXED** — `vv90i13`
+×10, `vv90r4` ×2, identity + review on an **untagged** image (`abdc28b02505`); RC schema at
+0075 vs HEAD's 0076. The A-06 "one reviewed image set, no drift" acceptance is **not met
+today**; the A-01 argument checks are code-side closed at HEAD but four shapes pass the
+deployed tag's decision layer (one demonstrably executed an out-of-workspace read).
+Closing both = **one redeploy from a post-`e24b830` revision + a fresh manifest (owner)**.
+
+**Measured data (2026-11-21, `c286d22`):** 800 commits on the branch since 2026-08-22
+(795 Mubashar Ali, 5 Claude); 3,525 tracked files; ~256k lines Python, ~55k TS/TSX,
+~69k lines of Markdown; 1,724 docs files of which 1,223 evidence, 15 decision records,
+15 runbooks; 74 migrations (0001→0076, no 0014/0074); collected tests: section1 1,327,
+section4 2,452, section5 554, section8 104 (+ section7 1,201 vitest) — all measured green
+today except the skipped/xfail rows noted above. Open PRs: #24 (this integration) and
+#25 (perf). The 61-part matrix counts (50 verified / 1 / 8 / 0 / 2) still date from
+2026-10-21 and remain unaudited row-by-row.
+
+Verdict unchanged: **NOT READY** — the distance to pilot is owner actions (outreach,
+SOWs, D-01/rename/payment decisions, redeploy, pen test, counsel), not engineering.
+
 ## 2026-11-21 — The Nov 13–16 wave landed: P-17 portal verified, I-09 default-on, UI overhaul evidence
 
 The Nov 13–16 work sat as 39 modified + ~30 untracked files on `w28-s1-delegate`

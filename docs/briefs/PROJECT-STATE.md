@@ -26,6 +26,15 @@ Partial: 4 benchmark (W25/W26 run 2026-11-05: 5 sequential runs per task on each
 child runs with own approval and cancel cascade built and live-drilled; synthesis S1b-2 built (read-only; deployed as vw28s4 with live drills 12/12 and 9/9 per commits `41fc733`, `eb53563`); W13 exec leg built), 9 W32 (seam analysis only, gated on W28).
 Partial: 5 governance W27 (slice 1: gate denials carry reason, alternative and the scope to request, drilled on Haiku and deployed; slice 2: denial circuit breaker, timeout marked apart from denial, `scopeRequest` object, tested without a model, deployed on vw27s2; slice 3: the orchestrator ends a run on repeated denials, the scope request rides the tool-result event, and the run read returns `estimatedCostUsd`, deployed on vw27s3 and proved live for the stop). All 23 live eval tasks pass at n=1 on 2026-11-05. W29 capability review first pass written (`docs/capability-review-2026-11-05.md`, summary-derived facts tagged). W33 readiness pack prepared for an independent reviewer (`docs/reviews/w33-readiness-pack-2026-11-05.md`), not reviewed; candidate measurement not done. Verdict unchanged: NOT READY. Newer detail is in `STATUS.md`.
 
+2026-11-21 update: the branch is **fully pushed** — `w28-s1-delegate` at `c286d22` on
+origin, 0 commits ahead of upstream (the 2026-11-06 note below is historical). Weeks 2–3
+of the 90-day plan executed and recorded in `docs/briefs/evidence/90day/week-02.md` /
+`week-03.md`: P-04 drills done (native-Linux PASS in CI; G1/G2 gaps live-confirmed, owner
+risk-acceptance standing), P-06 handoff executed (A-01 dispositions for both gates).
+**Live-state drift measured 2026-11-21:** the RC stack is MIXED (`vv90i13` ×10, `vv90r4`
+×2, identity + review untagged; schema 0075 vs HEAD 0076) and the deployed gate predates
+the A-01 argument checks — one redeploy from a post-`e24b830` revision + fresh manifest
+closes both (owner). §3's matrix counts remain dated 2026-10-21.
 2026-11-06 reconciliation (see the `STATUS.md` entry of that date): the work above sat as 41 local-only commits on `w28-s1-delegate` until this PR.
 The live stack runs mixed image tags (orchestrator `vw27s3`, worker-daemon `vw27s2`, other backends `vw28s6`, frontend `vw24b2`), so the
 frontend lacks the synthesis panel and scope-request editor; redeploy one tag set and run `scripts/ops/stack_tags.py` before any claim about the running system.
