@@ -37,7 +37,7 @@ PG_URL ?= postgresql+asyncpg://harness:harness@localhost:5499/harness
         lint test lint-mcp test-mcp lint-language test-language frontend frontend-tsc frontend-vitest check-ts-dist static-gates e2e e2e-compose \
         pg-probe pg-probe-integration pg-probe-s1 pg-probe-migrate pg-up pip-audit \
         guard-routes guard-isolation guard-route-law \
-        drill-oidc drill-pitr drill-native drill-fairness drill-rate-limit drill-routing drill-seat-revocation drill-scim drill-siem
+        drill-oidc drill-pitr drill-native drill-fairness drill-rate-limit drill-routing drill-seat-revocation drill-scim drill-siem ci-local
 
 help:
 	@echo "Harness gates — single source of truth shared by CI (.github/workflows/ci.yml):"
@@ -401,3 +401,15 @@ gate: static-gates lint lint-mcp test test-mcp lint-language test-language front
 	@echo ""
 	@echo "GATE GREEN — static-gates + lint + test + lint-mcp/test-mcp + lint-language/test-language + frontend all passed."
 	@echo "This is byte-for-byte what ci.yml enforces on PRs."
+
+# ------------------------------------------------------------------- ci-local
+# TE-1: run ci.yml's gate steps on this machine when GitHub Actions cannot
+# (2026-11-21: account billing). The job list is READ from ci.yml by
+# scripts/ci_local.py, never copied: same jobs, same order, same `if`s and
+# path filters; skipped jobs/steps are reported as skipped with a reason.
+# Writes a dated junit + markdown summary under docs/briefs/evidence/quality/ci-local/.
+# Service-Postgres jobs need a throwaway container, never the compose db:
+#   make ci-local CI_LOCAL_ARGS="--pg-container <name> --pg-port <port>"
+# PR mode: CI_LOCAL_ARGS="--event pull_request --base origin/master"
+ci-local:
+	section4/.venv/bin/python scripts/ci_local.py $(CI_LOCAL_ARGS)
