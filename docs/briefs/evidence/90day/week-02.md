@@ -76,10 +76,30 @@ verification lane; R marks nothing here Verified.
 | R9 | Nightly backup repair | first green run since 2026-11-09: `nightly-backup RESULT=ok offsite=NONE 2026-11-21T07:40:45Z` (store verify ok=174/0/0). Root causes were environmental (daemon down, live db stopped then network-detached by a failed 5499 bind — force-recreate fixed it); nightly.sh now fails with the root cause. OPEN owner items: demo db binds 127.0.0.1:5499 (live db's port — cannot run simultaneously), `OFFSITE_RSYNC_TARGET` still unset (every backup copy is on this machine) |
 | R10 | Env manifest live capture (was Blocked 2026-11-11) | addendum written: 11/11 demo services AGREE on vw24b1, RC frontend vv90r4, live backend services still down (owner redeploy call) |
 
-Drill status vs §3: **D4 done** (R5; the untracked `test_shell_gate_real_boundary.py`
-named by the review is still not in the tree — its result cannot be recorded).
-D1–D3 need a Linux host and a macOS BYO-path pass; not run here, states unchanged.
-D5 (demo re-rehearsal) not run this week.
+Drill status vs §3 — **D1–D4 executed 2026-11-21** (P-04 acceptance evidence):
+
+| Drill | Host / kernel | Revision | Verdict | Evidence |
+|---|---|---|---|---|
+| D1 native-Linux container drill | ubuntu-latest, **kernel 7.0.0-1020-azure**, image `harness-backend:drill` built in CI from `deploy/backend.Dockerfile` (base python:3.13-slim@sha256:e48f59…) | **19f5cae** (pushed branch tip; CI workflow run 44882932634, dispatched by hand) | **PASS** — `"result": "pass"`, all four checks green (write through shell gate, workspace read, sibling read denied, outside write denied); CI run overall **completed / success** | `native-linux-container-drill` artifact (docs/briefs/evidence/pilot-prep/native-linux-container-drill.json on CI) |
+| D1b Landlock pytest subset on Linux | Docker Desktop VM, **kernel 6.12.76-linuxkit** (real Linux kernel, `landlock_supported: True`) | 160dd30 | **42 passed** — the Landlock halves actually executed; the two October regressions `test_exec_read_roots_never_grant_the_filesystem_root` and `test_home_root_never_grants_the_filesystem_root` ran and **passed** | this run; command = review §7.1 block 2 |
+| D2 G1 negative (Landlock allow-network) | Docker Desktop VM, kernel 6.12.76-linuxkit | 160dd30 | **GAP CONFIRMED live**: production `confine_argv(allow_network=False)` child connected to example.com:443. Documented limitation (`confinement.py:446`); pilot unaffected (macOS Seatbelt denies network); G1 owner decision standing | `pilot-prep/g1-landlock-network-noop-2026-11-21.json` + `probes/g1_probe.py` |
+| D3 G2 negative, macOS halves | macOS Darwin 25.6.0, Seatbelt via production `confine_argv` | 160dd30 | **Split**: environ side-channel `ps eww` = PROTECTED-BY-ABSENCE (confined and unconfined control both empty — Linux `/proc` half still needs the Linux host); **$HOME canary READ-GAP confirmed** — a workspace-confined, network-denied child read `$HOME/.harness-g2-canary` in full (Seatbelt read list grants HOME, `confinement.py:335`). G2 owner decision standing (BYO host policy) | `pilot-prep/g2-process-mode-macos-2026-11-21.json` + `probes/g2_probe.py` |
+| D3b w21 `--mode off` baseline | macOS | 160dd30 | baseline captured: every outside-write probe false, "outside workspace changed": false | `pilot-prep/w21-mode-off-baseline-2026-11-21.json` |
+| D4 confinement + real boundary suite | macOS | 160dd30 (test committed at e24b830) | **34 passed, 1 skipped, 4 xfailed** (`test_confinement.py` + `test_shell_gate_real_boundary.py`); sibling workspace neither readable nor writable, shared system temp not writable | R5 + this run |
+| D5 demo hero journey | — | 2026-11-11 runs (run-2, run-3) | **Already verified 2026-11-11** (web journey + pause/resume, ledger costs recorded in §4); the VS Code segment re-rehearsal remains open | §4 rows |
+
+**Correction to the R5 note of 2026-11-21 (morning):** `test_shell_gate_real_boundary.py`
+was never untracked-and-missing — it is tracked, committed at `e24b830` (2026-11-14);
+the "not in the tree" wording came from the review's pre-commit state. D4 runs green.
+
+**P-04 acceptance state:** the review's drills are executed and recorded; the named
+holes (G1, G2) are now **confirmed live**, not just argued — both remain
+**risk-acceptance decisions for R by name** (week-02 §2), which is what the
+acceptance line ("holes fixed or risk-accepted by name") requires of the owner.
+The Linux `/proc` half of D3 and the D5 VS Code re-rehearsal remain open; the
+intended-host (cloud box) D1 rerun is unnecessary for the drill itself (CI =
+native Linux at the exact revision) but the §7.2 live-stack drills still need the
+owner-approved compose `worker` stack.
 
 ## 6. UI overhaul F1–F10 audit (2026-11-21, code-level; no browser run)
 

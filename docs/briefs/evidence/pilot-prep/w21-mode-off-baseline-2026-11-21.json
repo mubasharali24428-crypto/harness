@@ -1,0 +1,51 @@
+engine worker for w21-off-1795248639 runs UNCONFINED (no OS confinement on this host)
+
+PASS - native confinement, mode off
+    refused  expect refused  write-in-scope
+    refused  expect refused  edit-in-scope
+    refused  expect refused  write-out-of-scope
+    refused  expect refused  write-out-of-scope-abs
+    refused  expect refused  edit-out-of-scope
+    refused  expect refused  write-traversal
+    refused  expect refused  write-forbidden-in-scope
+    refused  expect refused  edit-forbidden-in-scope
+    refused  expect refused  write-forbidden-dir
+    refused  expect refused  write-via-dir-symlink
+    refused  expect refused  edit-via-file-symlink
+    refused  expect refused  write-via-forbidden-symlink
+    refused  expect refused  write-outside-abs
+    refused  expect refused  read-outside-abs
+    refused  expect refused  read-outside-traversal
+    refused  expect refused  read-outside-symlink
+    refused  expect refused  read-image-outside
+    refused  expect refused  cd-outside
+    refused  expect refused  write-after-cd
+    refused  expect refused  read-after-cd
+    refused  expect refused  write-via-symlink-out
+    refused  expect refused  read-secret-file
+{
+  "mode": "off",
+  "status": "completed",
+  "seconds": 4.0,
+  "disk": {
+    "landed": {
+      "write-in-scope": false,
+      "edit-in-scope": false,
+      "write-out-of-scope": false,
+      "write-out-of-scope-abs": false,
+      "edit-out-of-scope": false,
+      "write-traversal": false,
+      "write-forbidden-in-scope": false,
+      "edit-forbidden-in-scope": false,
+      "write-forbidden-dir": false,
+      "write-via-dir-symlink": false,
+      "edit-via-file-symlink": false,
+      "write-via-forbidden-symlink": false,
+      "write-outside-abs": false,
+      "write-after-cd": false,
+      "write-via-symlink-out": false
+    },
+    "outside workspace changed": false,
+    "changed outside src/ok.txt and src/app.py": []
+  }
+}
