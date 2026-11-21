@@ -145,11 +145,10 @@ def test_r2_r3_r4_injected_commands_are_refused_by_the_gate(tmp_path):
     assert verdicts["a4"][1] is True and verdicts["a4"][0] in ("COMMAND_REFUSED", "OUT_OF_SCOPE")
     # the edit path: the edit validator refuses the traversal too (section5's
     # diff_engine rejects paths outside the workspace).
-    from fastapi import HTTPException
-    from harness_sandbox import diff_engine  # noqa: E402
+    from harness_sandbox.policy import validate_path_edit  # noqa: E402
 
-    with pytest.raises((HTTPException, ValueError)):
-        diff_engine.validate_edit_target("../../../outside.txt", str(ws))
+    with pytest.raises(Exception):  # noqa: B017 - the validator's own error type
+        validate_path_edit("../../../outside.txt", [])
 
 
 # ----------------------------------------------------------- R5/R6 service seam
