@@ -176,9 +176,13 @@ def main() -> int:
                 tagged = bool(re.search(r"\[[^\]]+\]", sname))
                 uses = step.get("uses", "")
                 if "gitleaks" in uses:
-                    cmd = ("docker run --rm -v \"$PWD:/repo\" zricethezav/gitleaks:latest "
-                           "detect --source /repo --redact --no-banner")
-                    adapt.append("gitleaks: local zricethezav/gitleaks image instead of gitleaks-action")
+                    # The full history reachable from HEAD, like CI's fetch-depth 0 scan. The
+                    # common git dir's parent is mounted so a worktree checkout scans too.
+                    cmd = ("top=$(cd \"$(git rev-parse --path-format=absolute --git-common-dir)/..\" && pwd); "
+                           "docker run --rm -v \"$top:/repo:ro\" zricethezav/gitleaks:latest "
+                           f"detect --source /repo --redact --no-banner --log-opts {sha}")
+                    adapt.append("gitleaks: local zricethezav/gitleaks image (history reachable from HEAD) "
+                                 "instead of gitleaks-action")
                 elif not tagged or "run" not in step:
                     ET.SubElement(tc, "skipped", message="provisioning (local venvs/node_modules stand in)")
                     rows.append((label, sname, "provisioning", "0", "not a gate step"))
