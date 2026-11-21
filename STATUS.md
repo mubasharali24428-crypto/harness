@@ -112,10 +112,20 @@ spend, on `w28-s1-delegate`:
   evidence ledgers now exist for every plan-week's fleet scope.
 - **P-21 / I-05**: policy DRAFT only (`i05-approval-envelope-policy-draft.md`);
   enablement stays owner-gated (P-D6, default off); no gate code changed.
+- **I-04 benchmark leaderboard** (the last scheduled fleet-buildable idea):
+  `scripts/eval/bench_leaderboard.py` renders the public leaderboard as a
+  presentation of `bench_stats.aggregate` (no second arithmetic); MIN_N/dry/
+  unknown-cost honesty laws inherited; dry-only corpus correctly shows "No
+  claimable rows yet"; 9 tests (35/35 across the eval suite); committed at
+  `docs/briefs/evidence/w7-bench/leaderboard.md`. Week-08's verdict-bot wiring
+  row corrected to Implemented (verdict_post.py existed since the W4 wave).
 
 Owner-gated and untouched: vv90r5 redeploy (runbook ready), P-13 live benchmark
 (spend caps preregistered), P-14/P-16/P-18/P-20/P-22 revenue rows, F-05
-signature, Day-90 gate (P-24).
+signature, Day-90 gate (P-24). With I-04 done, every fleet-buildable item in
+the 90-day plan (W1–W13 + scheduled ideas I-01…I-05, I-09, I-10) now has a
+dated evidence entry; what remains is owner lane (outreach, SOW signatures,
+spend, deploys, revenue).
 
 ## 2026-11-21 (later) — pushed to origin, weeks 2–3 of the 90-day plan executed, measured data
 

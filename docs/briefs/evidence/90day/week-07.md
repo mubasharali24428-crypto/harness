@@ -109,6 +109,28 @@ What existed before this pass, with file:line evidence. "Present" = reusable as-
   (non-superiority) verdict are unchanged. Record only — no enforcement change.
 - **Not run** (paid; needs `OPENROUTER_API_KEY` + opencode + spend). py_compile only.
 
+### 3.5 I-04 leaderboard renderer — `scripts/eval/bench_leaderboard.py` (added 2026-11-21)
+
+The plan's I-04 ("public benchmark leaderboard — raw intervention/cost data as
+marketing", effort S, scheduled P-13/P-18) had no artifact. This is the
+presentation layer over `bench_stats.aggregate` — **no second aggregation
+arithmetic**: rows are cells, ranking is a stated key (success rate desc, known
+mean cost asc, name), and every honesty law is inherited, not re-decided:
+
+- MIN_N=5 / zero-environment-error / not-dry gates a "claimable" row; anything
+  else prints `insufficient data; no claim` and stays out of the ranked table;
+- dry cells render, labelled `dry: simulated — not a measurement`, and never
+  rank (the current corpus is dry-only, so the committed leaderboard correctly
+  shows **"No claimable rows yet"** rather than ranking simulations);
+- unknown cost renders `unknown`/`~`, never `$0`; failures appear as counts;
+  batch files (`w7-bench-batch`) are skipped BY DESIGN as indexes — expanding
+  them would double-count their attempt files (named in stderr either way);
+- deterministic for a given generation stamp; 9 offline tests
+  (`test_bench_leaderboard.py`), 35/35 across the eval suite.
+
+Committed artifact: `docs/briefs/evidence/w7-bench/leaderboard.md`. A live
+leaderboard still needs the owner-gated P-13 spend (≥5 trials per cell).
+
 ## 4. What was read (audit sources)
 
 `docs/eval/PROTOCOL.md`, `docs/eval/corpus.json` (41 tasks, revision m2-w8),
