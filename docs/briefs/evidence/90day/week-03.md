@@ -178,6 +178,11 @@ Cross-ref: full section suites at the same revision in week-02 §5 R1–R7
    but the tag no longer points at it). Only those two match the 2026-11-12 snapshot. The
    manifest is superseded; a fresh one-tag-set deploy + new manifest is required for any
    release claim (A-06, owner). All 14 RC containers healthy/up.
+   **→ RESOLVED 2026-11-21 (same day, vv90r6):** PR #24 merged to master (`11d2e7a`), the
+   stack was rebuilt and redeployed from the post-merge tip, and `stack_tags.py --project
+   harness-rc` now reports **`Agreement: AGREE (vv90r6)`, Missing: none**, schema `74|0076`,
+   identity on `harness-backend:vv90r6` (untagged image gone), guest gate 401 live, frontend
+   200. Manifest: `image-manifest-vv90r6-deployed.json`. This finding is closed.
 2. **Isolation: verified.** Merged `rc config` resolves clean; **no RC service mounts the demo
    run volume** (the overlay renames the logical volume — `name: harness_rc_runs`), **no
    service attaches** `harness_default`/`harness_sandbox_egress`, and **every published port
@@ -211,6 +216,10 @@ Closing the deployed side = the A-06 redeploy from a post-`e24b830` revision.
   demo set; RC set IDs captured in this section) — but the **one-set/no-drift requirement is
   NOT satisfied today**: demo = AGREE `vw24b1` (an old set), RC = `MIXED`. The owner's
   one-tag-set redeploy + fresh manifest is the remaining move.
+  **→ MET 2026-11-21 (vv90r6):** the RC runs one reviewed set (`harness-{backend,frontend,
+  engine-worker,worker-daemon}:vv90r6`, IDs in `image-manifest-vv90r6-deployed.json`), AGREE,
+  schema 0076, gate byte-identical to HEAD, pack route live. The 5-point verification is in
+  that manifest; week-03 finding #1 above is closed.
 
 #### P-05 (owner, unchanged)
 
