@@ -45,10 +45,11 @@ async function scrubVolatileText(page: Page) {
       el.removeAttribute("datetime");
     });
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
-    let node = walker.currentNode as Element;
+    let node: Node | null = walker.currentNode;
     while (node) {
-      if (node.children.length === 0 && (node.textContent ?? "").length > 0) scrubText(node);
-      node = walker.nextNode() as Element | null;
+      const el = node as Element;
+      if (el.children && el.children.length === 0 && (el.textContent ?? "").length > 0) scrubText(el);
+      node = walker.nextNode();
     }
   });
 }
