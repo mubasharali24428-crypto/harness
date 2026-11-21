@@ -70,6 +70,13 @@ export class IdentityClient {
         const params = { "stream": stream, "afterSeq": after_seq, "limit": limit, "runId": run_id, "format": format };
         return this.http.request(this.baseUrl, _path, "GET", undefined, params);
     }
+    /** Export Audit Pack
+     *  GET /api/v1/audit/pack */
+    export_audit_pack(max_rows) {
+        const _path = `/api/v1/audit/pack`;
+        const params = { "maxRows": max_rows };
+        return this.http.request(this.baseUrl, _path, "GET", undefined, params);
+    }
     /** Verify Audit
      *  POST /api/v1/audit/verify */
     verify_audit(body) {
@@ -1170,9 +1177,10 @@ export class IdentityClient {
     }
     /** Health
      *  GET /health */
-    health() {
+    health(deep) {
         const _path = `/health`;
-        return this.http.request(this.baseUrl, _path, "GET", undefined);
+        const params = { "deep": deep };
+        return this.http.request(this.baseUrl, _path, "GET", undefined, params);
     }
     /** Ready
      *  GET /ready */

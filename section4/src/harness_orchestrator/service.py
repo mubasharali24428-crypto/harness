@@ -39,6 +39,11 @@ from harness_orchestrator.context_resolver import (
     resolve_context,
     seed_files_from_bundle,
 )
+from harness_orchestrator.denial_learning import (
+    append_learning,
+    collect_scope_request,
+    suggested_rule_text,
+)
 from harness_orchestrator.diffstore import resolve_diff, save_diff
 from harness_orchestrator.engine import DeepSeekHarnessWrapper
 from harness_orchestrator.engine_runtime import (
@@ -50,6 +55,7 @@ from harness_orchestrator.engine_runtime import (
 from harness_orchestrator.goal_images import GoalImages, resolve_goal_images
 from harness_orchestrator.lifecycle import lifecycle_view
 from harness_orchestrator.loop_guard import (
+    DENIALS_REPEATED,
     LoopGuard,
     denial_run_limit,
     denial_window_limit,
@@ -344,6 +350,15 @@ class OrchestratorService(Orchestrator):
             return
         run_data["_guard_stopped"] = reason
         detail = f"{reason} after {guard.calls_seen} tool calls"
+        # I-08: a denial stop carries its lesson — the paths whose addition
+        # would unblock the run, phrased as a project rule the human can save
+        # through the rules API. Suggestion only; nothing auto-saves.
+        if reason == DENIALS_REPEATED:
+            suggestion = suggested_rule_text(
+                run_id, run_data.get("_denial_scope_requests") or []
+            )
+            run_data["_suggested_rule"] = suggestion
+            detail = append_learning(detail, suggestion)
         if set_shell_policy is not None and shell_policy is not None:
             set_shell_policy(run_id, {**shell_policy, "maxToolCalls": 0})
         killed = await self._kill_engine(run_id)
@@ -487,6 +502,12 @@ class OrchestratorService(Orchestrator):
                 },
             )
             return
+        # W27: a denial that names the one path whose addition would unblock it.
+        # I-08: the same request is remembered on the run, so a denial stop can
+        # offer the correction as a project rule (denial_learning).
+        scope_req = scope_request_of(record)
+        if scope_req is not None:
+            collect_scope_request(self.runs.get(run_id) or {}, record)
         self._emit(
             EventType.TOOL_RESULT,
             {
@@ -498,8 +519,7 @@ class OrchestratorService(Orchestrator):
                 "turn": record.get("turn"),
                 "step": record.get("step"),
                 "finishedAt": record.get("at"),
-                # W27: a denial that names the one path whose addition would unblock it
-                **({"scopeRequest": req} if (req := scope_request_of(record)) else {}),
+                **({"scopeRequest": scope_req} if scope_req else {}),
             },
         )
 

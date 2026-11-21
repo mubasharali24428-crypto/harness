@@ -789,6 +789,14 @@ export class IdentityClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
   }
 
+  /** Export Audit Pack
+   *  GET /api/v1/audit/pack */
+  export_audit_pack(max_rows?: number): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/audit/pack`;
+    const params: Record<string, unknown> = {"maxRows": max_rows};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
   /** Verify Audit
    *  POST /api/v1/audit/verify */
   verify_audit(body: AuditVerifyRequest): Promise<Record<string, unknown>> {
@@ -2070,9 +2078,10 @@ export class IdentityClient {
 
   /** Health
    *  GET /health */
-  health(): Promise<unknown> {
+  health(deep?: number): Promise<unknown> {
     const _path = `/health`;
-    return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined);
+    const params: Record<string, unknown> = {"deep": deep};
+    return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined, params);
   }
 
   /** Ready

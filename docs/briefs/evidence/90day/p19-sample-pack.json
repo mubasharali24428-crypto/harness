@@ -1,0 +1,123 @@
+{
+ "auditTrail": [
+  {
+   "action": "plan.approved",
+   "actorKind": "human",
+   "actorMemberId": "m1",
+   "chainPos": null,
+   "detail": {
+    "planId": "pl-1",
+    "teamId": "t1"
+   },
+   "prevHash": null,
+   "rowHash": null,
+   "seq": 1,
+   "targetId": "t1",
+   "targetType": "team",
+   "ts": "2026-11-21 14:05:12.543462"
+  },
+  {
+   "action": "run.started",
+   "actorKind": "human",
+   "actorMemberId": "m1",
+   "chainPos": null,
+   "detail": {
+    "runId": "run-7",
+    "teamId": "t1"
+   },
+   "prevHash": null,
+   "rowHash": null,
+   "seq": 2,
+   "targetId": "t1",
+   "targetType": "team",
+   "ts": "2026-11-21 14:05:12.546957"
+  },
+  {
+   "action": "audit.exported",
+   "actorKind": "human",
+   "actorMemberId": "m1",
+   "chainPos": null,
+   "detail": {
+    "stream": "audit",
+    "teamId": "t1"
+   },
+   "prevHash": null,
+   "rowHash": null,
+   "seq": 3,
+   "targetId": "t1",
+   "targetType": "team",
+   "ts": "2026-11-21 14:05:12.548107"
+  }
+ ],
+ "chainVerification": {
+  "performed": false,
+  "reason": "chain verification needs the deployment's PostgreSQL database"
+ },
+ "collabEvents": [
+  {
+   "actor": "u1",
+   "kind": "plan.proposed",
+   "payload": {
+    "seq": 0,
+    "teamId": "t1"
+   },
+   "requestId": null,
+   "runId": "run-7",
+   "seq": 1,
+   "ts": null
+  },
+  {
+   "actor": "u1",
+   "kind": "plan.approved",
+   "payload": {
+    "seq": 1,
+    "teamId": "t1"
+   },
+   "requestId": null,
+   "runId": "run-7",
+   "seq": 2,
+   "ts": null
+  },
+  {
+   "actor": "u1",
+   "kind": "run.shared",
+   "payload": {
+    "seq": 2,
+    "teamId": "t1"
+   },
+   "requestId": null,
+   "runId": "run-7",
+   "seq": 3,
+   "ts": null
+  }
+ ],
+ "manifest": {
+  "generatedAt": "2026-11-21T14:05:12.551691+00:00",
+  "maxRowsPerStream": 2000,
+  "packId": "975387caadb040708345b571eb4350bb",
+  "ranges": {
+   "auditTrailSeq": [
+    1,
+    3
+   ],
+   "collabSeq": [
+    1,
+    3
+   ]
+  },
+  "retention": {
+   "chain": "every audit row is sealed at commit by the audit_row_hash trigger and the trail is forward-only; edits and deletions break the chain",
+   "erasure": "a person's erasure pseudonymises, never deletes: audit_log and collab evidence keep opaque ids so held evidence stays intact",
+   "retentionHold": "a person who took part in a run under retention hold cannot be erased until the hold releases \u2014 the hold preserves that run's evidence"
+  },
+  "revision": null,
+  "rowCounts": {
+   "auditTrailAvailable": 3,
+   "auditTrailDelivered": 3,
+   "collabEventsAvailable": 3,
+   "collabEventsDelivered": 3
+  },
+  "teamId": "t1",
+  "truncated": false
+ }
+}

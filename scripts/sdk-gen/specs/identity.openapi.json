@@ -3860,6 +3860,49 @@
     "summary": "Export Audit"
    }
   },
+  "/api/v1/audit/pack": {
+   "get": {
+    "description": "Admin-only compliance pack for the CALLER's team (no team parameter, so a\nforeign team's evidence can never be requested). Assembles the manifest\n(ranges, counts, explicit truncation, retention statements), the hash-chain\nverdict re-derived the way POST /audit/verify does it (honest ``performed:\nfalse`` on a lane without the PostgreSQL chain functions), the team-scoped\naudit trail, and the collaboration event history. Generating a pack is\nitself audited.",
+    "operationId": "export_audit_pack_api_v1_audit_pack_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "maxRows",
+      "required": false,
+      "schema": {
+       "default": 2000,
+       "title": "Maxrows",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Export Audit Pack Api V1 Audit Pack Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Export Audit Pack"
+   }
+  },
   "/api/v1/audit/verify": {
    "post": {
     "description": "W16 slice 4: verify the hash chain over a window of the trail, so a\ncustomer holding an export can be told \u2014 row by row \u2014 whether it is still\nwhat the database sealed. Admin only, like every other evidence door.\n\nThe verdict can only come from re-deriving the hashes with the same trigger\nfunction the chain was sealed by. That function is PostgreSQL-only; on a lane\nwithout it the endpoint refuses (503) rather than reporting a check it did not\nperform, because ``ok: true`` from a code path that verified nothing is the\nmost dangerous answer this endpoint could give.",
@@ -12148,6 +12191,18 @@
   "/health": {
    "get": {
     "operationId": "health_health_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "deep",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "title": "Deep",
+       "type": "integer"
+      }
+     }
+    ],
     "responses": {
      "200": {
       "content": {
@@ -12156,6 +12211,16 @@
        }
       },
       "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
      }
     },
     "summary": "Health"

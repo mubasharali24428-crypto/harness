@@ -85,6 +85,38 @@ it recorded but cannot undo one; a module is only as trustworthy as the resolver
 host hands it; Section 4 still cannot pin a multi-file program until `WorkflowRequest`
 carries a program digest; and the track adds no approval surface of its own.
 
+## 2026-11-21 (latest) — weeks 9–13 fleet scope shipped: compliance pack, denial-learning loop, CI race fix, ledgers complete
+
+Engineering slices from the 90-day plan's Month-3 fleet rows, all offline, zero
+spend, on `w28-s1-delegate`:
+
+- **P-19 / I-03 compliance evidence pack**: new
+  `section1/src/harness_identity/audit_pack.py` + `GET /api/v1/audit/pack` —
+  one bounded document = manifest (ranges/counts/explicit truncation/retention
+  statements) + hash-chain verdict + team audit trail + collab events. Same
+  admin+step-up door as `/audit/export` (classified `"export"` in
+  `contracts/policy_enforce.py`), pack generation itself audited, no-drift with
+  `/audit/export` via the shared `audit_rows` reader, honest `performed: false`
+  chain verdict on non-PG lanes. 5/5 pack tests; section1 suite **1269 passed,
+  63 skipped**; identity spec now 148 paths, python+TS SDK and dist rebuilt,
+  `spec_drift.py` and `make check-ts-dist` green; sample pack committed as
+  `docs/briefs/evidence/90day/p19-sample-pack.json`.
+- **P-23 / I-08 denial-learning loop**: `section4` `denial_learning.py` — a W27
+  `denials_repeated` stop now carries a deterministic bounded SUGGESTED project
+  rule (the denied paths → include them in `scopePaths`) in the durable
+  `engine_failed` reason; the human saves it through the existing rules API;
+  `repeat_denial_stops` is the metric the plan's "repeat-denial count → 0"
+  acceptance needs. 6/6 tests; section4 suite **2398 passed, 60 skipped**.
+- **P-25 stabilization**: root-cause fixed the CI section11 race (`2ddf03b`,
+  lease release before terminal status, W19 suite 5× green, 60/60); week-09…13
+  evidence ledgers now exist for every plan-week's fleet scope.
+- **P-21 / I-05**: policy DRAFT only (`i05-approval-envelope-policy-draft.md`);
+  enablement stays owner-gated (P-D6, default off); no gate code changed.
+
+Owner-gated and untouched: vv90r5 redeploy (runbook ready), P-13 live benchmark
+(spend caps preregistered), P-14/P-16/P-18/P-20/P-22 revenue rows, F-05
+signature, Day-90 gate (P-24).
+
 ## 2026-11-21 (later) — pushed to origin, weeks 2–3 of the 90-day plan executed, measured data
 
 `w28-s1-delegate` is fully pushed: `19f5cae..c286d22` (75 commits) on origin; **0 commits

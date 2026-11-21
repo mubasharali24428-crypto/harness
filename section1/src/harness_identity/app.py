@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from . import domain_metrics, realtime_metrics
 from .audit import register_append_only_guard
 from .audit_chain import verify_window
+from .audit_pack import PACK_ROWS_DEFAULT, PACK_ROWS_MAX, build_audit_pack
 from .audit_rows import read_audit_page
 from .auth import get_principal, hash_token, issue_otp, login_or_register, verify_otp
 from .config import Settings
@@ -947,6 +948,45 @@ async def verify_audit(
         checked=True,
     )
     return verdict
+
+
+# Part P-19 (90-day plan W10): the one-click compliance evidence pack. One
+# bounded document = manifest + chain verdict + audit trail + collab events.
+# The guards mirror GET /audit/export exactly, because the pack IS an export —
+# more evidence in one response than any single export page — so it earns the
+# same admin + step-up door and the same "reading evidence is consequential" row.
+@router.get("/audit/pack")
+async def export_audit_pack(
+    request: Request,
+    principal: Annotated[object, Depends(get_principal)],
+    maxRows: int = PACK_ROWS_DEFAULT,
+) -> dict:
+    """Admin-only compliance pack for the CALLER's team (no team parameter, so a
+    foreign team's evidence can never be requested). Assembles the manifest
+    (ranges, counts, explicit truncation, retention statements), the hash-chain
+    verdict re-derived the way POST /audit/verify does it (honest ``performed:
+    false`` on a lane without the PostgreSQL chain functions), the team-scoped
+    audit trail, and the collaboration event history. Generating a pack is
+    itself audited."""
+    if principal.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail=error_body("FORBIDDEN", "admin only"))
+    max_rows = max(1, min(int(maxRows), PACK_ROWS_MAX))
+    factory = request.app.state.session_factory
+    async with factory() as db:
+        from .policy import require_team_stepup
+
+        await require_team_stepup(db, request, principal, principal.teamId, "export")
+        try:
+            pack = await build_audit_pack(db, principal.teamId, max_rows=max_rows)
+        except Exception as exc:  # noqa: BLE001 - absent stream table: fail closed
+            raise HTTPException(
+                status_code=503,
+                detail=f"compliance pack unavailable: {type(exc).__name__}",
+            ) from exc
+    await _audit_export_access(
+        request, principal, "pack", 0, pack["manifest"]["rowCounts"]["auditTrailDelivered"]
+    )
+    return pack
 
 
 async def _audit_verify_access(

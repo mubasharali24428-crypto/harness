@@ -710,6 +710,15 @@ class IdentityClient:
         _params: dict[str, typing.Any] = {"stream": stream, "afterSeq": after_seq, "limit": limit, "runId": run_id, "format": format}
         return self._http.request(self.base_url, "GET", _path, params=_params)
 
+    def export_audit_pack(self, max_rows: int | None = None) -> dict[str, typing.Any]:
+        """Export Audit Pack
+
+        GET /api/v1/audit/pack
+        """
+        _path = "/api/v1/audit/pack"
+        _params: dict[str, typing.Any] = {"maxRows": max_rows}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
+
     def verify_audit(self, body: AuditVerifyRequest) -> dict[str, typing.Any]:
         """Verify Audit
 
@@ -2170,13 +2179,14 @@ class IdentityClient:
         _path = "/api/v1/ws-ticket"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
-    def health(self) -> typing.Any:
+    def health(self, deep: int | None = None) -> typing.Any:
         """Health
 
         GET /health
         """
         _path = "/health"
-        return self._http.request(self.base_url, "GET", _path)
+        _params: dict[str, typing.Any] = {"deep": deep}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
 
     def ready_ready_get(self) -> typing.Any:
         """Ready
