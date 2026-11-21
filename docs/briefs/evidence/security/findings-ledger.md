@@ -86,6 +86,24 @@ session-state change ≤30 s sweep (40); timed-out engine call's tool calls
 unrecorded (44); store volume not in backup scripts (P7); offsite backup not
 configured (owner).
 
+## Session update (2026-11-21, after P1–P10)
+
+| ID | Change |
+|---|---|
+| F-SEC-01 | ROOT-CAUSED: GitHub billing refusal ("recent account payments have failed or your spending limit needs to be increased" — check-run annotations). Owner action; the code was never the bug. |
+| F-SEC-02 | **CLOSED** (275aef0e): stack_tags per-project agreement; 18 tests + live rc+demo output verified. |
+| F-SEC-03 | Still OPEN (owner env value HARNESS_ALERT_EMAIL_TO); re-flagged by the tabletop as the top owner action. |
+| F-SEC-04 | **CLOSED** (4bac7d46): A-01 behavioral re-probe on live vv90r6 — c3/c4/c5/c6 DENIED, control executes. |
+| G2 | **FIXED at HEAD + live-proven on Linux**: credential-dir denies (Seatbelt+Landlock) + gate self-sanitization; token probe BYPASS-LEAKED → gate-env-clean; /etc/ssh canary Permission denied. BYO policy decision doc prepared. |
+| G1, G3 | Decision docs prepared (docs/security/byo-host-policy.md, worker-daemon-isolation-design.md); owner decides. |
+| G9 | **FIXED**: proxy caps + denial sampling. G12 **FIXED**: /version healthcheck. G6 **FIXED**: post-launch forbidden-path guard. |
+| A-01/3–6,9–10 | **CLOSED on deployed tag** (byte-identity + behavioral probe). |
+| New: OTP lockout audit event | verify_otp consumes the row on cap but emits no audit event — recorded; P4 follow-up. |
+| Fuzz exit check | **DONE**: 100,000 cases, 0 violations (shell-gate-fuzz-drill.json). |
+| S-03 | verified fixed at HEAD (providers.py filters model/messages). S-02/S-04 verification still owed. |
+| down -v hazard | guard suite landed (test_pitr_drill_volume_guard.py, 5 tests). |
+| Retention | verified unattended on live RC (partitions through 2027_01). |
+
 ## Sorted by severity (what to fix first)
 
 1. F-SEC-01 (CI startup) — unblocks scanners + drift check + native drill.
