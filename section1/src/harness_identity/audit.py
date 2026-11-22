@@ -260,6 +260,10 @@ APPEND_ONLY_ACTIONS = frozenset(
         "approval.rejected",
         "approval.amended",
         "approval.invalidated",
+        # Findings-ledger P4 follow-up (2026-11-21): verify_otp consumed the
+        # login-OTP row when the attempt cap was reached without recording it.
+        # The row carries the address and counts only — never the code itself.
+        "auth.otp_locked",
         "approval.expired",
         "approval.claimed",
         "approval.completed",

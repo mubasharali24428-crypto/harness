@@ -21,9 +21,9 @@ CVSS-style reasoning in one line. Evidence paths are repo-relative.
 | ID | Sev | Finding | Status | Owner | Evidence / next action |
 |---|---|---|---|---|---|
 | S-01 | High | forbidden_paths read-confidentiality bypass via allow-listed interpreters. Closed for **modify** at OS level (bind RO mounts + Seatbelt deny + gate refuse + post-run hash). Read half = separate hiddenPaths concept, not built. | PARTIAL (modify closed; read = G2) | agent | startup-audit-2026-10-21.md §S-01 + status update; P2 G2 closure + native-Linux re-drill on deployed tag. |
-| S-02 | Med | Any writer mutates process-wide role→model default. | OPEN (fix not re-located at HEAD this session; grep empty in s1/s4) | agent | Re-verify whether fixed; if not, P3: per-team role models + two-team regression test. |
+| S-02 | Med | Any writer mutates process-wide role→model default. | **CLOSED** (verified 2026-11-22 at HEAD `d98bf832`): `/models/config` and `/models/prefs` pass `team_id=principal.teamId` (`section3/src/harness_router/api.py:578`, `:623-624`) — the process-wide `role_models` dict is unreachable from the API; only the in-process per-team override is written. | — | Two-team regression test the audit asked for exists and passes: `section3/tests/unit/test_s02_s03_model_integrity.py::test_team_config_does_not_change_another_teams_model` (team A's override leaves team B and the global default untouched); 2/2 passed. |
 | S-03 | Med | `opts.extra` overrode the model sent; response/cost billed the requested model. | FIXED (verified at HEAD: providers.py:283-285 filters `model`/`messages` from extra) | — | Regression test to confirm exists in P3; matrix pins it. |
-| S-04 | Med | MCP start_run auto-approves plans. | OPEN (unverified this session) | agent | P3: test MCP start leaves run AWAITING_PLAN_APPROVAL; flag-gated only. |
+| S-04 | Med | MCP start_run auto-approves plans. | **CLOSED** (verified 2026-11-22 at HEAD `d98bf832`): `_tool_start_run` is propose-only — it calls `POST /plans`, returns `state: AWAITING_PLAN_APPROVAL, approvalRequired: true` and never touches approve/start (`mcp/src/harness_mcp/tools.py:40-71`). Stricter than the planned flag-gate: no auto-approve path exists at all. | — | Pinned by `mcp/tests/test_tools.py::test_start_run_stops_at_human_approval_gate` (asserts the only upstream URL is `/plans` and no `/approve`/`/start` is ever called); MCP suite 18/18 passed. |
 
 ## Sandbox review G1–G14 (p04-sandbox-review-2026-11-11.md §5)
 
@@ -104,10 +104,18 @@ configured (owner).
 | down -v hazard | guard suite landed (test_pitr_drill_volume_guard.py, 5 tests). |
 | Retention | verified unattended on live RC (partitions through 2027_01). |
 
+## Session update (2026-11-22 — FUTURE PLAN 2.0 "next tasks" lane)
+
+| ID | Change |
+|---|---|
+| S-02 | **CLOSED by verification** (row above): fix confirmed at HEAD; the audit's two-team regression test exists and passes (2/2 in `section3`). |
+| S-04 | **CLOSED by verification** (row above): propose-only MCP gate confirmed; suite 18/18. |
+| OTP lockout audit event | **IMPLEMENTED**: `verify_otp` now emits `auth.otp_locked` (new action in `APPEND_ONLY_ACTIONS`, helper `emit_auth_otp_locked` in `audit_emit.py`) on both cap refusals — the already-at-cap LOCKED path (reason `already_at_cap`, attempts read before the consume commit) and the wrong guess that reaches the cap (reason `cap_reached`). Emission happens after the consume commit so a failed audit write can never un-consume the row; `_scrub` keeps the code out and no code value is passed at all. Tests: `test_otp_atomic.py` 5/5 (two new lockout-audit cases + a no-event case for wrong-under-cap / rival-consumed / success), `test_audit_emission.py` 13/13, auth/ratelimit/authz-matrix 22/22, sso/session11 30 passed + 9 live-PG skips (environmental). |
+
 ## Sorted by severity (what to fix first)
 
 1. F-SEC-01 (CI startup) — unblocks scanners + drift check + native drill.
 2. G1, G2, G3 (+ A-01 behavioral confirmation, F-SEC-04) — the sandbox core.
-3. S-02/S-04 verification + OTP caps + authz matrix build (G-C).
+3. ~~S-02/S-04 verification + OTP caps + authz matrix build (G-C)~~ — **DONE**: S-02/S-04 verified closed 2026-11-22 (session update above); OTP lockout pins landed in P3 and the lockout now emits `auth.otp_locked`; the 157-path matrix landed in P3.
 4. F-SEC-02/F-SEC-03 — cheap, same-session fixes with owner's one-liners.
 5. Everything routed to P4–P10 as phased.

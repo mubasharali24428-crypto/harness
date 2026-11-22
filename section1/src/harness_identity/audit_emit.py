@@ -1286,3 +1286,32 @@ async def emit_routing_deleted(
         actor_kind=actor_kind,
         session_owner=session_owner,
     )
+
+
+async def emit_auth_otp_locked(
+    session: AsyncSession,
+    *,
+    email: str,
+    attempts: int,
+    max_attempts: int,
+    reason: str,
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """auth.otp_locked — the login-OTP row is consumed because the attempt cap
+    was reached (findings-ledger P4 follow-up). Pre-auth: no user or team is
+    known, so the record carries the address and the counters only. The code
+    itself must never appear here (``_scrub`` is the belt; the call site is
+    the braces — no code value is passed at all)."""
+    return await _emit(
+        session,
+        "auth.otp_locked",
+        target_type="login_otp",
+        target_id=email,
+        detail={
+            "email": email,
+            "attempts": attempts,
+            "maxAttempts": max_attempts,
+            "reason": reason,
+        },
+        session_owner=session_owner,
+    )
