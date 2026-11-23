@@ -6,7 +6,7 @@ or acting on any option requires a decision record and, for options B/C, the W28
 delegation gate plus owner approval for a contract change.
 **Recorded by:** the coding agent (post PR #19 merge, after the owner ratified
 the W31 pilot ADR).
-**Related:** [`roadmap-3.0.md`](../roadmap-3.0.md) stage 9,
+**Related:** [`roadmap-3.0.md`](../archive/roadmap-3.0.md) stage 9,
 [`m2-continuation-plan.md`](../m2-continuation-plan.md) (W32),
 [`hx-execution-architecture.md`](../hx-execution-architecture.md),
 [`agents.md`](../agents.md),

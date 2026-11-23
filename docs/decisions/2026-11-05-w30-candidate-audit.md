@@ -7,7 +7,7 @@ owner's next ruling. Deferrals are decisions, not limbo.
 **Decision owner:** Mubashar Ali (repo commit identity; the operator directing
 this session). The agent inventoried and verified; it adopted nothing.
 **Recorded by:** the coding agent.
-**Related:** [`roadmap-3.0.md`](../roadmap-3.0.md) (stage 7),
+**Related:** [`roadmap-3.0.md`](../archive/roadmap-3.0.md) (stage 7),
 [`m2-continuation-plan.md`](../m2-continuation-plan.md) (W30),
 [`m2-continuation-plan.md`](../m2-continuation-plan.md) (W33),
 [`hx-execution-architecture.md`](../hx-execution-architecture.md),

@@ -1,7 +1,7 @@
 # Roadmap 3.0 Stage 2 — reliability and ownership: close-out (R3-S2)
 
 Started 2026-10-31 at HEAD `9a636b4`, after Stage 1's first slice. Scope and exit are the
-Stage 2 row of [Roadmap 3.0](roadmap-3.0.md); the engineering work is W17 and was recorded on
+Stage 2 row of [Roadmap 3.0](archive/roadmap-3.0.md); the engineering work is W17 and was recorded on
 2026-10-31 in [`reviews/stage2-reliability-2026-10-31.md`](reviews/stage2-reliability-2026-10-31.md)
 (Units A–I). The owner worksheet is
 [`reviews/stage2-owner-decisions-2026-10-31.md`](reviews/stage2-owner-decisions-2026-10-31.md).
