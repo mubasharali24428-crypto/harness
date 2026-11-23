@@ -19,7 +19,7 @@ auxiliary · section4 orchestrator · section5 sandbox · section7 Next.js UI an
 
 ## 2. Where the work is now: Roadmap 3.0 (2026-11-05)
 
-The live plan is `docs/roadmap-3.0.md` (stages 0 to 10); the path-to-9 sessions table moved to `evidence/s11/state-history.md`.
+The live plan is `FUTURE PLAN 2.0.md` (repo root); the superseded `docs/roadmap-3.0.md` (stages 0 to 10) is archived at `docs/archive/roadmap-3.0.md`; the path-to-9 sessions table moved to `evidence/s11/state-history.md`.
 Done: 0 stabilize (PR #7), 1 trust and recovery (code side), 2 reliability W17 (code side), 3 daily loop W23/W24/W7, 7 W30 audit
 (`docs/decisions/2026-11-05-w30-candidate-audit.md`), 8 W31 Scheduler pilot (`docs/decisions/2026-11-04-w31-scheduler.md`).
 Partial: 4 benchmark (W25/W26 run 2026-11-05: 5 sequential runs per task on each of two models, 3 concurrent; Haiku is the stack default; the three formerly local-model tasks now pass on Haiku; the other-harness comparison is open), 6 delegation (W28 S1a delegate verb behind `HARNESS_SUBAGENTS`; S1b-1

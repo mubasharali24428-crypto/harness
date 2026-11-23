@@ -75,13 +75,41 @@ macOS read row runs as a normal test and passes. `_xfail` in `test_shell_gate_sc
 is defined but applied to no row: all its fail-open rows pass. Leftover helper; the security
 lane owns that file (named here, not removed).
 
+## 2b. Q1 resolutions (2026-11-21)
+
+| Row (§1 / §2) | Resolution | Evidence |
+|---|---|---|
+| Live PostgreSQL (section1 62 skips, section4 42) | **Ran.** Every live-PG module executed against a throwaway `pgvector/pgvector:pg18` (127.0.0.1:55499, migrated 74/0076) in all 10 random-order runs; section1 then reports 0 skips, section4 19 (the opt-in Docker/model rows only) | `q1/random*/section{1,4}/run*.xml`; Q1 report §3 |
+| Live-PG helpers pointed at 5499 | **Defect, fixed** (`2fda5bd8`): 22 helpers ignored `HARNESS_TEST_PG_DSN` under `HARNESS_TEST_PG=1` and defaulted to 5499 (the demo DB on this Mac). Pinned by `scripts/test_ci_local.py` (22 offenders at the parent, 0 now) | commit `2fda5bd8` |
+| Linux Landlock (section5 8 skips) | **Ran on Linux** (Docker Desktop VM kernel 6.12.76-linuxkit, `landlock_supported: True`, code fed as a tar stream, not a bind mount, uid 10001, `HOME` on its own tmpfs): **542 passed, 10 skipped, 4 xfailed, 0 failed**. All 8 Landlock rows passed. The 10 skips there are the Seatbelt rows (macOS-only by design) | `q1/linux/section5.log` |
+| section11 live PG | **Ran** (spins its own pgvector container); order-dependence found and fixed (`c509a4dc`, §3) | §3 |
+| promtool, Docker-mount, node, Seatbelt rows | Ran on this Mac (no skip at runtime) | Q0 §2 |
+| Opt-in real model (`test_engine.py:86`, `test_container_p0.py:217`) | **Justified, by-design opt-in**: paid/real-model calls never run without an owner budget (prompt §2). Run under Q5/Q7 budgets | — |
+| `test_container_p0.py` opt-in Docker (17) | **Justified, env opt-in**: needs `harness-engine-worker:p0` and `:p0-tests` built from the revision under test (the local ones date from 14:53Z, pre-Q1). Not built in Q1 (CPU shared with the 10× runs); command in the Q1 report §7 | — |
+| checkpoint-1 (`integration/test_checkpoint1.py:111`) | **Justified defect, owned by Q4** (faithful flow per `checkpoint1-redesign-2026-11-21.md`). Its live-PG sibling (`:260`) needs `HARNESS_TEST_PG=1` exactly and runs under `make pg-probe-integration` in ci-local | — |
+| Playwright `journey.e2e.ts:165` | **Justified, unreachable guard**: the previous step asserts `expect(runId).not.toBe("")`, so an empty run id fails there first; the skip cannot mask a failure | `section7/e2e/journey.e2e.ts:155-165` |
+| Playwright `journey.e2e.ts:211` | **Justified, env**: OTP capture needs `E2E_IDENTITY_URL` (a stack) | — |
+| G-row xfails (4) | **By-design pending owner**: the A-01 disposition now names all four (correction §5 appended); signature still open | `90day/a01-xfail-disposition-2026-11-21.md` §5 |
+
 ## 3. Flake suspects
 
 | Test | Q0 evidence | Reproduction rate | Suspected cause | Owner / phase |
 |---|---|---|---|---|
-| section4 `tests/unit/test_s1_r05_resume_queue.py::test_resume_after_restart_on_done_run_stays_noop` | Failed in the pinned full-suite run (`assert len(calls) == 1`, got 0); passed in the first Q0 full run at `8349f93` | 1/2 full-suite runs; 0/20 module-alone runs | Test sleeps 50 ms after `_dispatch_claim` and then stops, assuming the engine call has happened; under full-suite load the dispatch has not called the engine yet. Timing assumption in the test, not yet shown to be a product bug | Q1: root-cause (wait on the dispatch, not a sleep); no retry |
-| section4 random-order failure (named by the prompt) | Not reproduced: no random-order plugin installed | — | Unknown | Q1, after the owner OKs `pytest-randomly` or `pytest-random-order` |
-| section1 `test_ratelimit_expensive_ops.py::test_model_call_burst_over_limit_429` (named by the prompt) | Passed in both Q0 runs | 0/2 | Unknown | Q1 repeat runs |
+All four found in Q1 are **fixed at the root in `c509a4dc`** (no retry, no skip, no loosened assertion):
+
+| Test | Reproduction (before) | Root cause | Fix | After |
+|---|---|---|---|---|
+| section4 `test_s1_r05_resume_queue.py` ×2 and `test_resume.py` ×3 (the sleep-then-stop/pause tests) | Q0 pinned run + random seeds 2 and 6; under 8× parallel load **29/40** and **18/40** module runs failed | A fixed 50 ms sleep assumed the spawned engine task had started; under load the stop/pause landed first, so the runner never ran (`assert 0 == 1`) | Wait for the runner's recorded call (`_until_engine_started`, then the stub still sleeps `delay`, so the engine is genuinely mid-flight) | **0/40** and **0/40** under the same load |
+| section4 `test_staging_e2e.py::test_done_is_blocked_until_staged_deletion_is_applied` | Random seed 4; **fails every time run alone** | (a) `artifacts.configure_artifacts()` in two fixtures (`test_artifacts_support`, `test_visuals_db`) set a module global and never reset it, so later tests' artifacts calls used an earlier test's DB; (b) that masked a real fixture gap: the shared collab `env` DDL lacked `run_changes`, which `signal_done` needs since `record_done_changes`. Found by bisection (`test_artifacts.py` is the module that made it pass) | Global registered with `monkeypatch` (restored at teardown); `run_changes` added from migration 0049 | Passes alone and with neighbours (176 passed); section4 full 2398 passed |
+| section11 `test_live_pg.py::test_full_migration_walk_then_real_vector_search` | **6/10** random seeds | Two tests share one module-scoped container; the fresh-install walk asserted it was the first migration. Order-dependent | The walk gets an empty database of its own on the same server; assertions unchanged | Seeds 1, 3, 4, 7, 8 (failing) and 2 all pass |
+| language `test_host_contract_runner.py::test_a_replay_reproduces_the_digest_without_touching_the_host` | 1/10 seeds (seed 10) | Compared wall-clock `durationMs` (0 vs 1 ms); the digest excludes wall-clock by design (`contract_runner.py` docstring) | Compare operations minus that one field; digest equality still asserted | 0/30 seeds |
+
+Named by the prompt, not reproduced in Q1:
+
+| Test | Q1 evidence |
+|---|---|
+| section4 random-order failure | The section4 random-order failures found are the three rows above; no other section4 test failed in 10 seeds (see §3b) |
+| section1 `test_ratelimit_expensive_ops.py::test_model_call_burst_over_limit_429` | Passed in every Q0 and Q1 run (2 + 10 + 10 random) |
 
 ## 4. Coverage of the ledger itself
 

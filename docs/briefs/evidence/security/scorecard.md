@@ -12,11 +12,28 @@ AND zero open High/Critical). The informal "~60%" that circulated counted
 implemented-at-HEAD work; this rubric deliberately counts only deployed-set
 evidence, so the scored number is lower until phases P1–P10 produce it.
 
+**Update 2026-11-22 (10X Wave A):** G1 and G3 dispositioned by owner decision
+(`docs/decisions/2026-11-22-g1-g3-sandbox-dispositions.md`); the first-ever gitleaks
+execution ran (ci-local 2026-11-22T0451Z) and all 7 findings were dispositioned as
+synthetic fixtures (allowlist extended, exit 0). Score: **55 / 100 → verdict unchanged
+NOT READY**. Owner actions still pending: F-SEC-01 GitHub billing, F-SEC-05 RC redeploy
+from current tip, HARNESS_ALERT_EMAIL_TO.
+
+**Update 2026-11-23 (X-02 unblock):** **F-SEC-06 CLOSED** — the PG-gated authz matrix
+was red because the walk probed `DELETE /orgs/me/identity` with its own actors, and that
+route deactivates the caller and kills their sessions (the later org-route 401s were the
+session layer working correctly); the foreign-200 reads are team/user-scoped own-data.
+Fixed with per-actor throwaway twins + own-data pins, **no product change**; matrix green
+unskipped 3/3 PG and 3/3 sqlite, section1 full PG 1351 passed with only Docker-dependent
+rows red (daemon absent). **Score unchanged at 55** — G-C's remaining condition is the
+matrix over the DEPLOYED surface, and the deployed set still predates the P2 sandbox
+fixes until F-SEC-05's redeploy. Evidence: `10x/fsec06-authz-matrix-2026-11-23.md`.
+
 | Gate | Pts | Score | Basis for the score (evidence) |
 |---|---|---|---|
 | G-A Deployed = reviewed | 6 | **5** | One tag set on RC + digest manifest match + schema = HEAD + live gate byte-identical: all re-verified live 2026-11-21 (`90day/image-manifest-vv90r6-deployed.json`, deploy commit `daeface`). Missing: automated CI drift check (CI startup broken, F-SEC-01) and a `make readiness-drift` target; `stack_tags.py` AGREE is ambiguous while demo+RC run together (F-SEC-02). |
-| G-B Sandbox boundary | 16 | **7** | G1 live-confirmed open (`pilot-prep/g1-landlock-network-noop-2026-11-21.json`); G2 fixed+live-proven on Linux at HEAD, **but not yet in the deployed set** (F-SEC-05: vv90r6 predates `188fef36`, cred-dir canary leaks through the deployed gate); G3 root-equivalent daemon undispositioned. G4–G13 dispositioned in `90day/p04-sandbox-review-2026-11-11.md` §5. A-01 decision-layer closed at HEAD and pinned (`test_shell_gate_args.py` 25 passed) and behaviorally re-probed live (4bac7d46). **S-01 native-Linux re-drill executed on the deployed tag 2026-11-22** (`pilot-prep/native-linux-drill-deployed.json`): digest verified vs manifest, Landlock ABI usable, the four boundary checks 4/4 PASS (workspace write/read, sibling read denied on a read-write mount, /tmp escape write denied) — kernel is the Docker Desktop Linux VM (linuxkit), so the bare-metal CI native row stays owed behind F-SEC-01. |
-| G-C AuthN/AuthZ | 10 | **6** | R-01 authz isolation fixed fail-closed with suites (`pilot-remediation/RISK_REGISTER.md` R-01). No route×role×tenant matrix over the deployed 148 paths (committed per-service specs sum to 134: s4 122 + s5 12 — the matrix must be generated from `app.openapi()`). No OTP attempt caps/lockout found (grep, section1). S-03 verified fixed at HEAD (`section3/src/harness_router/providers.py:283-285` filters `model`/`messages` from `opts.extra`); S-02 and S-04 verified closed 2026-11-22 (findings-ledger session update: two-team regression + propose-only MCP gate, suites green); S-04-adjacent lockout now emits `auth.otp_locked`. |
+| G-B Sandbox boundary | 16 | **10** | G1 **dispositioned** (owner decision 2026-11-22: policy-layer network boundary accepted for pilot — macOS Seatbelt denies network; Linux keeps per-run internal network + DNS kill + allow-list proxy; no Landlock network claim) after the drill confirmed the ABI limit (`pilot-prep/g1-landlock-network-noop-2026-11-21.json`). G2 fixed+live-proven on Linux at HEAD, **but not yet in the deployed set** (F-SEC-05: vv90r6 predates `188fef36`, cred-dir canary leaks through the deployed gate). G3 **risk-accepted** by name (same decision: pilot daemon on a single-purpose host; rootless/isolated daemon still required before production). G4–G13 dispositioned in `90day/p04-sandbox-review-2026-11-11.md` §5. A-01 decision-layer closed at HEAD and pinned (`test_shell_gate_args.py` 25 passed) and behaviorally re-probed live (4bac7d46). **S-01 native-Linux re-drill executed on the deployed tag 2026-11-22** (`pilot-prep/native-linux-drill-deployed.json`): digest verified vs manifest, Landlock ABI usable, the four boundary checks 4/4 PASS (workspace write/read, sibling read denied on a read-write mount, /tmp escape write denied) — kernel is the Docker Desktop Linux VM (linuxkit), so the bare-metal CI native row stays owed behind F-SEC-01. |
+| G-C AuthN/AuthZ | 10 | **6** | R-01 authz isolation fixed fail-closed with suites (`pilot-remediation/RISK_REGISTER.md` R-01). No route×role×tenant matrix over the deployed 148 paths (committed per-service specs sum to 134: s4 122 + s5 12 — the matrix must be generated from `app.openapi()`). The HEAD matrix is now **green unskipped** (F-SEC-06 closed 2026-11-23: 3/3 on real PG, 3/3 sqlite); the deployed-surface run is what still holds the row at 6. No OTP attempt caps/lockout found (grep, section1). S-03 verified fixed at HEAD (`section3/src/harness_router/providers.py:283-285` filters `model`/`messages` from `opts.extra`); S-02 and S-04 verified closed 2026-11-22 (findings-ledger session update: two-team regression + propose-only MCP gate, suites green); S-04-adjacent lockout now emits `auth.otp_locked`. |
 | G-D Secrets & keys | 8 | **6** | Dual-read KDF + `scripts/rotate_master_key.py` + rotation runbook exist (`docs/runbooks/secret-rotation.md`); rotation not drilled on a throwaway DB. Redaction drills exist for run surfaces (`pilot-prep/w4-credential-leak-*.json`); full sweep over logs/exports/UI unevidenced. CI secret scanning (gitleaks) is wired as a job but never runs (CI startup broken, F-SEC-01). |
 | G-E Supply chain | 8 | **3** | GitHub Actions pinned by SHA (22/22 `uses:` lines, verified today). No SBOMs, no image scanner, no digest-pinned base images evidenced; the existing `security scan (pip-audit warn + gitleaks)` job has never executed (CI startup broken, F-SEC-01). |
 | G-F AppSec hardening | 8 | **4** | Sandbox egress allow-list proxy with drills (`pilot-prep/w4-egress-network-*.json`) covers one outbound surface. No security-header/CSP evidence, no SSRF guard library across all outbound fetches, no ZAP/DAST run. |
@@ -55,3 +72,8 @@ You (owner) sign the verdict; the agent writes and maintains this score.
 2. **Redeploy the RC set from the current tip (F-SEC-05, found 2026-11-22)** — the deployed vv90r6 gate predates the P2 sandbox fixes and the cred-dir canary leaks through it live; the fix is at HEAD, and the drill (`scripts/native_linux_drill_deployed.sh`) exiting 0 after the redeploy is the closure test.
 3. P2 decisions already waiting on you: G1 route/container boundary, G3 acceptance-or-rootless.
 4. The one-command items: HARNESS_ALERT_EMAIL_TO (G-I), worker-image pytest (P1), IdP tenant (G-J), cloud bucket (G-H).
+
+Closed since this list was written: F-SEC-02 (275aef0e), F-SEC-04 (4bac7d46), S-02/S-04
+(verified 2026-11-22), G1/G3 (owner decision 2026-11-22), and F-SEC-06 (2026-11-23,
+test-semantics fix — no product change). F-SEC-01, F-SEC-03 and F-SEC-05 remain owner
+actions; nothing on the engineering lane blocks a redeploy.

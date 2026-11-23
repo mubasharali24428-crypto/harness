@@ -37,7 +37,8 @@ PG_URL ?= postgresql+asyncpg://harness:harness@localhost:5499/harness
         lint test lint-mcp test-mcp lint-language test-language frontend frontend-tsc frontend-vitest check-ts-dist static-gates e2e e2e-compose \
         pg-probe pg-probe-integration pg-probe-s1 pg-probe-migrate pg-up pip-audit \
         guard-routes guard-isolation guard-route-law \
-        drill-oidc drill-pitr drill-native drill-fairness drill-rate-limit drill-routing drill-seat-revocation drill-scim drill-siem ci-local
+        drill-oidc drill-pitr drill-native drill-fairness drill-rate-limit drill-routing drill-seat-revocation drill-scim drill-siem ci-local \
+        dev-otp test-all
 
 help:
 	@echo "Harness gates — single source of truth shared by CI (.github/workflows/ci.yml):"
@@ -62,6 +63,8 @@ help:
 	@echo "  make e2e             section7 Playwright suite (specs land via lane H3a)"
 	@echo "  make e2e-compose     zero-key compose journey, 12 checks (needs stack + master key)"
 	@echo "  make pg-probe        real-PG probes: integration checkpoint + S1 suite + migrate runner (needs PG :5499)"
+	@echo "  make dev-otp         print the latest dev login codes from the identity logs (X-03)"
+	@echo "  make test-all        provision + run the flag-gated test groups (PG, Docker P0, promtool, landlock); live/paid stay opt-in (X-02)"
 	@echo "  make pip-audit       dependency audit (WARN-posture parity with CI)"
 	@echo "  make gate            static-gates + lint + test + lint-mcp/test-mcp + lint-language/test-language + frontend"
 	@echo "  make lint-section<N> / test-section<N>   one section, exactly CI's command"
@@ -252,6 +255,25 @@ e2e:
 e2e-compose:
 	python3 scripts/e2e/compose_journey.py
 
+# ------------------------------------------------------------- dev OTP (X-03)
+# 10X Wave A: the README documents `docker compose logs identity | grep
+# HARNESS-OTP`; this target is that, guarded, so nobody greps logs by hand.
+# Needs the compose stack running and no SMTP configured (codes print to logs).
+DEV_OTP_TAIL ?= 5
+dev-otp:
+	@cid="$$(docker compose -f "$(CURDIR)/deploy/docker-compose.yml" ps -q identity 2>/dev/null)"; \
+	if [ -z "$$cid" ]; then \
+		echo "dev-otp: identity service is not running — start the stack first:"; \
+		echo "  docker compose --env-file .env -f deploy/docker-compose.yml up -d"; \
+		exit 1; \
+	fi; \
+	codes="$$(docker compose -f "$(CURDIR)/deploy/docker-compose.yml" logs identity 2>&1 | grep HARNESS-OTP | tail -n "$(DEV_OTP_TAIL)")"; \
+	if [ -z "$$codes" ]; then \
+		echo "dev-otp: no HARNESS-OTP codes in the logs yet — request a login code on the UI first."; \
+		exit 1; \
+	fi; \
+	printf '%s\n' "$$codes"
+
 # -------------------------------------------------------------------- drills
 # External-validation drills. Each writes evidence under
 # docs/briefs/evidence/pilot-prep/ and requires the dev compose stack unless
@@ -350,6 +372,50 @@ pg-guard:
 		echo "  Then: HARNESS_TEST_PG=1 make pg-probe"; \
 		exit 2; \
 	}
+
+# ------------------------------------------------------------- test-all (X-02)
+# 10X Wave A: one command for the flag-gated (skipped-by-default) test groups.
+# Provisions what it can (compose db, P0 images), runs what is available, and
+# prints an honest skip ledger for the rest — it never fakes parity. Explicitly
+# opt-in groups are NOT run here, by design: HARNESS_P0_LIVE needs a ~7.6GB
+# local model; HARNESS_LIVE_OPENROUTER spends money and needs a key file.
+TEST_ALL_DOCKER ?= 1
+test-all: pg-probe
+	@echo ""
+	@echo "== test-all: section4 suite against real PG (PG-gated tests unskipped) =="
+	@HARNESS_TEST_PG=1 $(MAKE) --no-print-directory pg-guard
+	cd section4 && $(PG_ENV) ./.venv/bin/python -m pytest tests/ -q
+	@echo ""
+	@echo "== test-all: Docker P0 isolation tests (section4) =="
+	@if [ "$(TEST_ALL_DOCKER)" != "1" ]; then \
+		echo "SKIP Docker P0 (TEST_ALL_DOCKER=0)"; \
+	elif ! docker info >/dev/null 2>&1; then \
+		echo "SKIP Docker P0: docker daemon not reachable"; \
+	else \
+		echo "-- building harness-engine-worker:p0 and :p0-tests (repo-root context) --"; \
+		docker build -q -f section4/worker.Dockerfile -t harness-engine-worker:p0 . && \
+		docker build -q -f section4/worker.Dockerfile --target isolation-tests -t harness-engine-worker:p0-tests . && \
+		cd section4 && HARNESS_P0_DOCKER=1 ./.venv/bin/python -m pytest tests/integration/test_container_p0.py -q; \
+	fi
+	@echo ""
+	@echo "== test-all: promtool-gated section1 tests =="
+	@if command -v promtool >/dev/null 2>&1; then \
+		cd section1 && ./.venv/bin/python -m pytest tests/test_alert_rules_load.py tests/test_deploy_observability.py -q; \
+	else \
+		echo "SKIP promtool tests (install: brew install prometheus)"; \
+	fi
+	@echo ""
+	@echo "== test-all: landlock (section5) =="
+	@if [ "$$(uname -s)" = "Linux" ]; then \
+		cd section5 && ./.venv/bin/python -m pytest tests/unit/test_landlock_confinement.py tests/unit/test_landlock_read_isolation.py tests/unit/test_confinement.py -q; \
+	else \
+		echo "SKIP landlock tests: linux-only on this host (they do run inside a Linux container; see docs/briefs/evidence/security/)"; \
+	fi
+	@echo ""
+	@echo "== test-all: explicitly opt-in groups NOT run (by design) =="
+	@echo "  HARNESS_P0_LIVE=1          real local model (ollama pull qwen3.5:9b, ~7.6GB)"
+	@echo "  HARNESS_LIVE_OPENROUTER=1  paid endpoint + key file (see .env.example)"
+	@echo "test-all done: PG probes + section4 PG suite + Docker P0 + promtool + landlock dispositioned above."
 
 # ----------------------------------------------------------------- pip-audit
 # WARN-posture parity for the security-scan job (continue-on-error in CI).

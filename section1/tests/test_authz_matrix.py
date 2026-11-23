@@ -75,11 +75,31 @@ SELF_REVOKING = re.compile(r"^/api/v1/auth/logout\Z")
 # not a session" — same law on the runner surface).
 RUNNER_DOORS = re.compile(r"^/api/v1/runner(/jobs(/\{run_id\})?)?(/[a-z]+)?$")
 SCIM_DOORS = re.compile(r"^/scim/v2/.*\Z")
+# The org service-identity door authenticates its OWN credential (Bearer hsi_…),
+# never a user session: a user bearer gets 401 by design (orgs.py
+# service_whoami: "invalid service identity token" — the same law as the
+# runner and SCIM doors, not an authz gap).
+SERVICE_DOORS = re.compile(r"^/api/v1/orgs/service/whoami\Z")
+# Destructive self-service: DELETE /orgs/me/identity deactivates the CALLER and
+# kills every session and team seat they hold (orgs.py:466). Probing it with a
+# probe actor poisons the rest of the walk — that is exactly what turned every
+# later org route into a 401 for that actor (F-SEC-06 class 1, 2026-11-22). It
+# gets throwaway twins, one per actor, like SELF_REVOKING does.
+SELF_DELETING = re.compile(r"^/api/v1/orgs/me/identity\Z")
 # /health is deliberately public (compose healthchecks hit it unauthenticated).
 PUBLIC_HEALTH = re.compile(r"^/health\Z")
 # These reads scope rows to principal.teamId (code: api_keys, team-runners,
-# list_projects) — a foreign admin sees their own team's (empty) set: own-data.
-OWN_DATA_GETS = re.compile(r"^/api/v1/(keys|projects|team-runners|billing/state)\Z")
+# list_projects, agents) — a foreign admin sees their own team's (empty) set:
+# own-data. The notifications reads and the caller's own org list are keyed the
+# same way (team_id+user_id / user_id), so they are own-data too.
+OWN_DATA_GETS = re.compile(
+    r"^/api/v1/(keys|projects|agents|team-runners|billing/state"
+    r"|orgs|notifications(/unread-count|/preferences)?"
+    r"|sessions(/templates)?|workspaces(/allowlist|/templates)?)\Z")
+# Per-user writes: rows are keyed by (team_id, user_id), so any role may mark
+# its OWN notifications read — a viewer succeeding here discloses nothing and
+# changes nothing outside their own inbox (notifications.py read_all).
+SELF_SCOPED_WRITES = re.compile(r"^/api/v1/notifications/read-all\Z")
 
 
 def classify(method: str, path: str) -> str:
@@ -93,6 +113,12 @@ def classify(method: str, path: str) -> str:
         return "scim_door"
     if RUNNER_DOORS.match(path):
         return "runner_door"
+    if SERVICE_DOORS.match(path):
+        return "service_door"
+    if SELF_DELETING.match(path):
+        return "self_delete"
+    if SELF_SCOPED_WRITES.match(path) and method == "POST":
+        return "own_data_write"
     if OWN_DATA_GETS.match(path) and method == "GET":
         return "own_data"
     if ANON_AUTH.match(path):
@@ -221,9 +247,32 @@ async def matrix_env():
                            team_id=beta.id,
                            expires_at=datetime.now(UTC) + timedelta(hours=1)))
         burners["foreign"] = bftok
+        # Self-delete twins: ONE throwaway identity per actor. DELETE
+        # /orgs/me/identity deactivates the caller and kills every seat they
+        # hold, so the probe actors must never be used there (F-SEC-06 class 1).
+        twins: dict[str, str] = {}
+        for twin_role, team, email in (
+            ("admin", alpha, "twin-admin@alpha.io"),
+            ("engineer", alpha, "twin-engineer@alpha.io"),
+            ("viewer", alpha, "twin-viewer@alpha.io"),
+            ("guest", alpha, "twin-guest@alpha.io"),
+            ("foreign", beta, "twin-admin@beta.io"),
+        ):
+            twin = User(email=email, name=f"twin-{twin_role}", is_active=True)
+            db.add(twin)
+            await db.flush()
+            db.add(TeamMember(team_id=team.id, user_id=twin.id,
+                              role="ADMIN" if twin_role in ("admin", "foreign")
+                              else twin_role.upper(),
+                              display_name=f"twin-{twin_role}"))
+            ttok = f"twin-tok-{twin_role}"
+            db.add(AuthSession(token_hash=hash_token(ttok), user_id=twin.id,
+                               team_id=team.id,
+                               expires_at=datetime.now(UTC) + timedelta(hours=1)))
+            twins[twin_role] = ttok
         await db.commit()
     sqlite_only = not os.environ.get("HARNESS_TEST_PG")
-    yield app, tokens, sqlite_only, burners
+    yield app, tokens, sqlite_only, burners, twins
     await engine.dispose()
     if os.environ.get("HARNESS_TEST_PG"):
         admin = await asyncpg.connect(_server_dsn())
@@ -238,7 +287,7 @@ async def _client(app) -> AsyncClient:
 
 
 async def test_matrix_covers_every_route_and_pins_the_cells(matrix_env):
-    app, tokens, sqlite_only, burners = matrix_env
+    app, tokens, sqlite_only, burners, twins = matrix_env
     paths = app.openapi()["paths"]
     assert len(paths) > 100, f"spec walk found only {len(paths)} paths — walker broken?"
     headers = {
@@ -272,6 +321,11 @@ async def test_matrix_covers_every_route_and_pins_the_cells(matrix_env):
                         # Anonymous has no session to burn: probe without one.
                         if actor != "anonymous":
                             hdr = {"Authorization": f"Bearer {burners[actor]}"}
+                    if SELF_DELETING.match(path):
+                        # Consumes the caller's account: twins only, never the
+                        # probe actors (F-SEC-06 class 1).
+                        if actor != "anonymous":
+                            hdr = {"Authorization": f"Bearer {twins[actor]}"}
                     response = await _send(client, method, path, hdr)
                     status = response.status_code if response is not None else 500
                     if status >= 500 and sqlite_only:
@@ -295,11 +349,23 @@ def _check(route_class: str, actor: str, method: str, status: int) -> tuple[bool
         return (True, "") if status < 500 else (False, "<500 (telemetry sink)")
     if route_class == "public_health":
         return (True, "") if status < 500 else (False, "<500 (liveness)")
-    if route_class in ("runner_door", "scim_door"):
+    if route_class in ("runner_door", "scim_door", "service_door"):
         # Non-matching credential types MUST get 401/403 — never 2xx, never 5xx.
         if 200 <= status < 300:
             return False, "no 2xx without the surface's own token type"
         return status < 500, "401/403 for a user bearer on a token-scoped door"
+    if route_class == "self_delete":
+        if actor == "anonymous":
+            return status == 401, "401"
+        if actor == "guest":
+            return not (200 <= status < 300), "guest deny-by-default: no 2xx"
+        return status != 401 and status < 500, "204 (or honest 4xx), never 401/5xx"
+    if route_class == "own_data_write":
+        if actor == "anonymous":
+            return status == 401, "401"
+        if actor == "guest":
+            return not (200 <= status < 300), "guest deny-by-default: no 2xx"
+        return status != 401 and status < 500, "<500 (rows scoped to the caller)"
     if route_class == "public_auth":
         if status >= 500:
             return False, "<500 (honest 4xx/2xx)"
@@ -341,7 +407,7 @@ async def test_verify_otp_bruteforce_is_locked_and_audited(matrix_env):
     budget is spent the code is DEAD — even the CORRECT code is refused.
     (verify_otp consumes the row when attempts hit the cap: LOCKED is the
     exact-cap answer, "no active code" afterwards; both are the lockout.)"""
-    app, _, _sqlite, _burners = matrix_env
+    app, _, _sqlite, _burners, _twins = matrix_env
     settings: Settings = app.state.settings
     assert settings.otp_max_attempts >= 1
     transport = ASGITransport(app=app)
@@ -369,7 +435,7 @@ async def test_verify_otp_bruteforce_is_locked_and_audited(matrix_env):
 
 
 async def test_expired_and_tampered_otp_stay_401(matrix_env):
-    app, _, _sqlite, _burners = matrix_env
+    app, _, _sqlite, _burners, _twins = matrix_env
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         r = await client.post("/api/v1/auth/verify-otp",
