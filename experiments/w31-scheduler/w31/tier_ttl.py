@@ -22,6 +22,7 @@ WARM_FACTOR = 4
 TIERS = ("hot", "warm", "cold")
 VALUE = {"hot": 3, "warm": 2, "cold": 1}  # per hit/day; hot is worth most
 BASE_TTL_H, PAID_TTL_H = 24, 48
+SCHEMA = "w31-tier-ttl/1"  # stable wire tag for consumers (section4 scheduler_proposal.py)
 
 
 def _caps() -> dict[str, tuple[int, int] | None]:
@@ -47,7 +48,7 @@ def solve(items: list[dict], time_limit_s: float = 5.0) -> dict:
     solver.parameters.num_workers = 1  # reproducible proposals
     status = solver.Solve(m)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        return {"status": "unknown", "placements": [], "proposalOnly": True,
+        return {"schema": SCHEMA, "status": "unknown", "placements": [], "proposalOnly": True,
                 "requiresHumanApproval": True}
     placements = []
     for i in items:
@@ -56,7 +57,7 @@ def solve(items: list[dict], time_limit_s: float = 5.0) -> dict:
         if tier == "hot":
             ttl = PAID_TTL_H if i.get("billing_approved") is True else BASE_TTL_H
         placements.append({"id": i["id"], "tier": tier, "ttl_hours": ttl})
-    return {"status": "optimal" if status == cp_model.OPTIMAL else "feasible",
+    return {"schema": SCHEMA, "status": "optimal" if status == cp_model.OPTIMAL else "feasible",
             "placements": placements, "proposalOnly": True, "requiresHumanApproval": True}
 
 

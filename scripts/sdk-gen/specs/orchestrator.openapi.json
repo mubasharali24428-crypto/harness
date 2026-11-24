@@ -1106,6 +1106,41 @@
     "title": "IntentBody",
     "type": "object"
    },
+   "Item": {
+    "additionalProperties": false,
+    "properties": {
+     "billing_approved": {
+      "default": false,
+      "title": "Billing Approved",
+      "type": "boolean"
+     },
+     "bytes": {
+      "exclusiveMinimum": 0.0,
+      "maximum": 1048576.0,
+      "title": "Bytes",
+      "type": "integer"
+     },
+     "hits_per_day": {
+      "maximum": 1000000.0,
+      "minimum": 0.0,
+      "title": "Hits Per Day",
+      "type": "integer"
+     },
+     "id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "bytes",
+     "hits_per_day"
+    ],
+    "title": "Item",
+    "type": "object"
+   },
    "LeaseBody": {
     "properties": {
      "ttlSeconds": {
@@ -1771,6 +1806,25 @@
      "expectedVersion"
     ],
     "title": "PromoteBody",
+    "type": "object"
+   },
+   "ProposalRequest": {
+    "additionalProperties": false,
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/Item"
+      },
+      "maxItems": 500,
+      "minItems": 1,
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items"
+    ],
+    "title": "ProposalRequest",
     "type": "object"
    },
    "ProposeBody": {
@@ -9988,6 +10042,102 @@
     "summary": "Run Rewind",
     "tags": [
      "execution"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/scheduler-proposals": {
+   "get": {
+    "operationId": "latest_proposal_api_v1_orchestrator_runs__runId__scheduler_proposals_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Latest Proposal Api V1 Orchestrator Runs  Runid  Scheduler Proposals Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Latest Proposal",
+    "tags": [
+     "scheduler-proposals"
+    ]
+   },
+   "post": {
+    "operationId": "create_proposal_api_v1_orchestrator_runs__runId__scheduler_proposals_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ProposalRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Proposal Api V1 Orchestrator Runs  Runid  Scheduler Proposals Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Proposal",
+    "tags": [
+     "scheduler-proposals"
     ]
    }
   },
