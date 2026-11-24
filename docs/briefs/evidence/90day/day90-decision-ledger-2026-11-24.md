@@ -60,6 +60,14 @@ F-SEC-05 redeploy, paid benchmark budget, P-D7). Engineering items that changed 
 | X-08 | not started | classification + advisory badge; P-D6 still not enabled | Task 17 commit `47f3c8ad` |
 | Blind-approval KPI | denominator only | measured signal + admin tile; no pilot data yet | `docs/briefs/evidence/10x/x07-backend-preference-2026-11-24.md` |
 
+## Delta after Sprint 4 (2026-11-24, engineering only)
+
+**No owner decision closed; no 10.11 gate line moved.** One engineering verification row:
+
+| Item | Before | After | Evidence |
+|---|---|---|---|
+| `pg-probe` on compose `:5499` | scratch-DB / external-PG only | **PASS** on compose PG: integration 3 passed/1 skipped, section1 1361 passed, migrate selftest 79 migrations (0001→0081) idempotent | `docs/briefs/evidence/sprint4/task-23-pg-probe.md` |
+
 ## Delta after Sprint 3 (2026-11-24)
 
 **No status changed. No 10.11 gate line moved. No signature was written by engineering.**
