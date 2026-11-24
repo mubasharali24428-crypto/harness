@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter
@@ -29,6 +30,9 @@ from harness_orchestrator.plans import _now
 
 router = APIRouter(prefix="/api/v1/orchestrator", tags=["adapters"])
 PROTOCOL = "1"
+#: Display metadata: when the observer lease should be renewed. Derived from the immutable
+#: created_at; an expired observer lease holds no authority either way (there is none to lose).
+LEASE_TTL = timedelta(hours=24)
 Capability = Literal["read_events", "read_plan", "propose_patch", "comment"]
 
 
@@ -49,8 +53,15 @@ def registration_digest(req: AdapterRegistration) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
+def _expires(created: object) -> datetime:
+    ts = datetime.fromisoformat(created) if isinstance(created, str) else created
+    return (ts if ts.tzinfo else ts.replace(tzinfo=UTC)) + LEASE_TTL
+
+
 def _view(row: dict) -> dict:
+    expires = _expires(row["created_at"])
     return {"leaseId": row["id"], "runId": row["run_id"], "agentId": row["agent_id"],
+            "expiresAt": expires.isoformat(), "expired": expires <= datetime.now(UTC),
             "protocolVersion": row["protocol"], "capabilities": json.loads(row["capabilities"]),
             "requestedScope": json.loads(row["max_scope"]), "digest": row["digest"],
             "mode": "observer", "authority": [], "registeredBy": row["registered_by"]}

@@ -39,6 +39,7 @@ import { RunIntentSection } from "./intentSection";
 import { RunOwnerSection } from "./ownerSection";
 import { PresenceSection } from "./presenceSection";
 import { DecisionCardGrid } from "./decisionGrid";
+import { ObserversSection } from "./observersSection";
 
 const muted = { color: "var(--muted)" } as const;
 const mono = { fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12 } as const;
@@ -402,6 +403,7 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
         <RunIntentSection runId={runId} token={token} tick={tick} canEdit={canLead} onChanged={changed} />
         <RunOwnerSection runId={runId} token={token} tick={tick} me={me} />
         <AgentTreeSection runId={runId} token={token} tick={tick} canSteer={canLead && view.joined} />
+        <ObserversSection runId={runId} token={token} tick={tick} />
       </SharedRunView>
     </AnnounceContext.Provider>
   );

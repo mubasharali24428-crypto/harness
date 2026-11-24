@@ -34,6 +34,18 @@ each integration would invent its own access path.
 | Key material leak | only the pubkey's sha256 is stored or returned |
 | Path traversal in requested scope | `collab.validate_paths` (422) |
 
+## Implementation status (2026-11-24, Sprint 2 Task 19)
+- Leases show `expiresAt` (created + 24h) and `expired`; display metadata only, since an observer
+  lease holds no authority to lose. Empty list answers `{"adapters": []}`.
+- Generated SDKs carry the routes (`clients/ts/src/orchestrator.ts` `register_adapter` /
+  `list_adapters`, dist rebuilt; `clients/python/harness_sdk/orchestrator.py`).
+- Run page Advanced pane lists external agents: observer-only, requested scope labelled
+  "not granted", lease expiry, no key material (`section7/.../observersSection.tsx`).
+- Tests: `section4/tests/unit/test_external_agent_adapter.py` 9 (viewer 403, traversal 422,
+  duplicate 409, foreign no-oracle 404, expiry); section7 `observers.test.tsx` 3.
+- Headless use is unchanged: adapters remain observer-only; there is still no agent self-auth.
+
 ## Not in v1
 The agent authenticating as itself (W13 runner-token style), event streaming to the adapter,
-lease revocation/expiry, and the TS client stub. Each needs this record amended first.
+lease revocation and *enforced* expiry (expiry is display-only today). Each needs this record
+amended first.

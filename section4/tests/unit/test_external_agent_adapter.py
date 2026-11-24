@@ -114,3 +114,12 @@ def test_re_registration_cannot_silently_widen_scope(as_):
     wider = c.post(f"{P}/r1/adapters/register", json={**REG, "maxScope": ["src", "deploy"]})
     assert wider.status_code == 409
     assert c.get(f"{P}/r1/adapters").json()["adapters"][0]["requestedScope"] == ["src/api"]
+
+
+def test_lease_shows_expiry_and_empty_state(as_):
+    assert as_("view").get(f"{P}/r1/adapters").json() == {"adapters": []}  # empty state
+    lease = as_("lead").post(f"{P}/r1/adapters/register", json=REG).json()
+    assert lease["expired"] is False and lease["expiresAt"].endswith("+00:00")
+    listed = as_("view").get(f"{P}/r1/adapters").json()["adapters"][0]
+    assert listed["expiresAt"] == lease["expiresAt"]  # same instant on read as on create
+    assert "pubkey" not in listed and "pubkey_sha256" not in listed
