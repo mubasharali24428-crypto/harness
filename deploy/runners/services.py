@@ -593,6 +593,7 @@ def app_orchestrator():
     from harness_orchestrator import (
         agent_tree,
         artifacts,
+        assignment_plan,
         control,
         delegation,
         deployments,
@@ -621,7 +622,7 @@ def app_orchestrator():
     for _r in (presence.router, participation.router, control.router, agent_tree.router,
                delegation.router, discussion.router, plans.router, execution.router, artifacts.router, search.router,
                exports.router, retention_holds.router, shares.router,
-               deployments.router, visuals.router):
+               deployments.router, visuals.router, assignment_plan.router):
         app.include_router(_r)
 
     # Part 38.005: org policy applies to every classified run/plan route of org-linked teams
