@@ -263,6 +263,7 @@ export default function RunDetailPage({
                   <a className="ws-foot-link" href={`/projects/${projectId}/runs/${runId}/report`}>Read-only report →</a>
                   <a className="ws-foot-link" href={`/projects/${projectId}/runs/${runId}/checkpoints`}>Checkpoints →</a>
                   <a className="ws-foot-link" href={`/projects/${projectId}/tree`}>Repository files →</a>
+                  <a className="ws-foot-link" href={`/projects/${projectId}/planning`}>Assignment planning →</a>
                 </p>
               )}
             </>
