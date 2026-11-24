@@ -16,6 +16,8 @@ export interface Roster {
   leader: string | null;
   pendingHandoff: { id: string; from: string; to: string } | null;
 }
+import type { DecisionGrid } from "./decisionGrid";
+
 export interface Approval {
   id: string;
   runId: string;
@@ -31,6 +33,9 @@ export interface Approval {
   amendedAfterApproval?: boolean; // the approvals list only: pending because an amend voided an approval
   outcome: string | null;
   expiresAt: string;
+  /** X-07/X-21 presentation of the same facts (server templates); technical fields stay authoritative. */
+  plain?: string;
+  decisionGrid?: DecisionGrid;
 }
 export interface CollabEvent {
   seq: number;

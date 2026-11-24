@@ -39,3 +39,14 @@ States follow `FUTURE PLAN 2.0.md` §0 — this is an **incremental slice**, not
 2. Template snapshot tests; keyboard-only and axe-clean journeys.
 3. Blind-approval-rate instrumentation (the standing KPI) — only meaningful once the
    risk-tiered envelopes (X-08, P-D6/D-U4) land.
+
+## Update 2026-11-24 (later) — Tasks 4 + 5: Plain sentence, Decision-card grid (X-21), KPI split
+
+| Claim | Status | Evidence |
+|---|---|---|
+| Deterministic Plain sentence + X-21 grid computed from action + paths only (`section4/src/harness_orchestrator/approval_copy.py`); unknown action/paths say "unknown" | **Verified** | `section4/tests/unit/test_approval_copy.py` 7/7 — golden read / write / rm / network / `.env` |
+| Every collab approval carries `plain` + `decisionGrid` beside the unchanged technical fields | **Verified** | `test_collab_backend.py::test_approvals_carry_plain_sentence_and_grid_beside_technical` |
+| section7 card picks the view from `GET /api/v1/me/rendering` (failure -> technical); grid's dominant band precedes Approve in DOM order; every cell and column is text-labelled | **Verified (static render)** | `section7/.../approvalRendering.test.tsx` 3/3; full vitest 1208/1208; `tsc --noEmit` clean |
+| Reviewer's rendering recorded on `review.approved` / `review.changes_requested` audit rows (blind-approval denominator, fail-open `unknown`) | **Verified** | `section8/tests/unit/test_decision_context.py` 2/2 + conformance assertion; `make test-section8` 106 passed |
+| Keyboard-only + axe journey; no-scroll at 1280 / 375 px | **Not run** | no live stack (Docker daemon down); needs a browser pass |
+| Grid approves anything | **No** — P-D6 envelopes not enabled; display only |

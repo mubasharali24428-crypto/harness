@@ -13,7 +13,7 @@ import { Card } from "@/components/ui";
 import { Notice } from "@/components/ui/Notice";
 import { Pill } from "@/components/ui";
 import { loadSession } from "@/lib/auth";
-import { ApiError, getPlan } from "@/lib/api";
+import { ApiError, IDENTITY_BASE, getPlan } from "@/lib/api";
 import { createRefetchCoalescer } from "@/lib/backoff";
 import { parkFocus } from "@/lib/focus";
 import { formatDateTime } from "@/lib/intl";
@@ -21,7 +21,7 @@ import { AnnounceContext, useAnnouncer } from "@/components/LiveAnnouncer";
 import {
   type Approval, type CollabEvent, type RedirectKind, type Roster,
   hasUnappliedStaged, applyApproval, claimLeader, decideApproval, decideHandoff, getRoster, joinRun,
-  listApprovals, requestHandoff, sendRedirect,
+  call, listApprovals, requestHandoff, sendRedirect,
 } from "./collabApi";
 import {
   type CollabView, approvalAnnouncements, approvalLabel, clipDiff, deriveCollabView, describeDecision,
@@ -38,6 +38,7 @@ import { RunControlSection } from "./controlSection";
 import { RunIntentSection } from "./intentSection";
 import { RunOwnerSection } from "./ownerSection";
 import { PresenceSection } from "./presenceSection";
+import { DecisionCardGrid } from "./decisionGrid";
 
 const muted = { color: "var(--muted)" } as const;
 const mono = { fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12 } as const;
@@ -56,6 +57,8 @@ export interface SharedRunViewProps {
   goal?: string | null;
   /** A polite note about the last thing you did (e.g. your direction was queued, not sent). */
   notice?: string | null;
+  /** X-07: the member's approval rendering (GET /api/v1/me/rendering); technical when unknown. */
+  rendering?: "technical" | "plain" | "decision";
   /** Part 46: live connection state; the indicator renders only when given. */
   connection?: StreamView;
   onReload?: () => void;
@@ -176,6 +179,8 @@ export function SharedRunView(p: SharedRunViewProps) {
                 {approvalLabel(a, view.leader)}
               </Pill>
             </div>
+            {p.rendering === "plain" && a.plain && <p style={{ margin: "4px 0" }} data-testid={`plain-${a.id}`}>{a.plain}</p>}
+            {p.rendering === "decision" && a.decisionGrid && <DecisionCardGrid grid={a.decisionGrid} testId={`grid-${a.id}`} />}
             <p style={{ margin: "4px 0" }}>{a.summary}</p>
             {reopened.includes(a.id) && a.state === "pending" && (
               <Notice tone="warning" role="status" testId={`reopened-${a.id}`}>
@@ -277,9 +282,17 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
   const [goal, setGoal] = useState<string | null>(null);
   const [reopened, setReopened] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [rendering, setRendering] = useState<SharedRunViewProps["rendering"]>("technical");
   const seen = useRef<Approval[] | null>(null);
   const meRef = useRef({ me, leader: null as string | null });
   const { announce, region } = useAnnouncer();
+
+  useEffect(() => {
+    if (!token) return;
+    // X-07: presentation only. Any failure keeps "technical", the historical rendering.
+    call<{ rendering: SharedRunViewProps["rendering"] }>(`${IDENTITY_BASE}/api/v1/me/rendering`, token)
+      .then((r) => setRendering(r.rendering)).catch(() => undefined);
+  }, [token]);
 
   const refresh = useCallback(async () => {
     if (!token) return;
@@ -360,7 +373,7 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
       {region}
       <SharedRunView
         me={me} roster={roster} view={view} approvals={approvals} events={events}
-        error={error} busy={busy || cooling} reopened={reopened} goal={goal} notice={notice}
+        error={error} busy={busy || cooling} reopened={reopened} goal={goal} notice={notice} rendering={rendering}
         connection={stream} onReload={() => window.location.reload()}
         discussion={<DiscussionSection scope={{ kind: "run", id: runId }} token={token} me={me} role={session?.principal.role} canSteer={canLead && view.joined} people={people} tick={tick} />}
         onJoin={() => run(() => joinRun(runId, token))}

@@ -295,6 +295,17 @@ def new_approval(as_, user="eng2"):
     return r.json()
 
 
+def test_approvals_carry_plain_sentence_and_grid_beside_technical(env):
+    """X-07/X-21: translation rides beside the technical record; it never replaces it."""
+    as_, _ = env
+    lead_run(as_)
+    new_approval(as_)
+    a = as_("view").get(f"{P}/r1/approvals").json()["approvals"][0]
+    assert a["plain"] == "The agent wants to delete 1 file (src/old.py)."
+    assert a["decisionGrid"]["dominantBand"] == "elevated"
+    assert a["paths"] == ["src/old.py"] and a["diff"] == "-x"  # technical detail unchanged
+
+
 def test_approval_flow_blocks_until_leader_approves_exact_digest(env):
     as_, f = env
     lead_run(as_)

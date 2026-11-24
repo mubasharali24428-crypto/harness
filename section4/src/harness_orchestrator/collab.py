@@ -45,7 +45,7 @@ from harness_contracts.timeutil import as_utc, db_now
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, OperationalError
 
-from harness_orchestrator import domain_metrics, notify
+from harness_orchestrator import approval_copy, domain_metrics, notify
 
 logger = logging.getLogger(__name__)
 
@@ -836,6 +836,7 @@ def _view(r: Any) -> dict[str, Any]:
         "decidedAt": _iso(r.decided_at),
         "outcome": r.outcome,
         "expiresAt": str(r.expires_at),
+        **approval_copy.render(r.action, paths),  # X-07/X-21: same facts, plain words + grid
     }
 
 
