@@ -43,3 +43,23 @@ the preference through a settings UI (no such UI exists yet; preference set via 
   `/settings/account` offers Technical / Plain / Decision card against `GET/PUT /me/rendering`.
 - Task 14 also added `similarCases` to the API and the card; the shared fixture carries one item
   so the browser spec exercises the new read-only block.
+
+## Sprint 4 / Task 24 — LIVE addendum (2026-11-24, stack from Task 21)
+
+The stack is now up, so the live path was taken. `section7/e2e/approval-rendering-live.e2e.ts`
+drives **real** section1 `GET/PUT /api/v1/me/rendering` and real section4 plan/join/leader/
+approval APIs — no `page.route` for approvals or rendering. It seeds a run + approval through the
+documented APIs, verifies the real list response carries server `plain`, `decisionGrid` and
+`similarCases`, changes the preference through `/settings/account`, re-reads it from the real
+service, and re-checks axe + 375 px on the live card.
+
+```
+E2E_BASE_URL=http://localhost:3010 E2E_API_URL=http://localhost:8001 \
+E2E_ORCHESTRATOR_URL=http://localhost:8004 npx playwright test \
+  e2e/approval-rendering.e2e.ts e2e/approval-rendering-live.e2e.ts --retries=0
+  → 7 passed (1 live + 6 mocked)
+```
+
+Screenshots: `docs/briefs/evidence/sprint4/live-plain-approval.png`, `live-plain-375.png`.
+The "still mocked" note above now applies only to the historical sprint-3 state; the X-07 UI half is
+**verified live** at the Sprint 4 SHA. The mocked spec stays green as a regression guard.
