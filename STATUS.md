@@ -81,6 +81,19 @@ it recorded but cannot undo one; a module is only as trustworthy as the resolver
 host hands it; Section 4 still cannot pin a multi-file program until `WorkflowRequest`
 carries a program digest; and the track adds no approval surface of its own.
 
+## 2026-11-24 — Sprints 1–2: Phase 7 slice, X-07/X-21 browser-verified, X-14 deferred (local, not pushed)
+
+Commits `c9d40d74`..`2c8abe1d` on `w28-s1-delegate` (not pushed). Full index with SHAs:
+`docs/briefs/evidence/sprint2/END-report-2026-11-24.md`. `make gate` at `2c8abe1d`: every stage
+green except two section4 tests that need a running Docker daemon (down here). Shipped: Phase 7
+admin-reviewed assignment planning (API + pages); Plain / Decision-card approval renderings
+verified in Chromium with a mocked API (keyboard, axe, 375 px; found and fixed a clipped grid);
+blind-approval KPI with a measured diff-on-screen signal; X-08 classification (display only,
+P-D6 off); case memory on denial stops; W31 tier proposals (flag-off); observer-only external
+adapters; `python -c` pre-exec parse. X-14 dry benchmark → **DEFER** (faces tie flat chunks).
+Owner register recorded with defaults; **no 10.11 gate line moved** and P-D7 stays deferred
+(`docs/briefs/evidence/90day/day90-decision-ledger-2026-11-24.md`). Verdict unchanged: **NOT READY**.
+
 ## 2026-11-23 — F-SEC-06 closed; the PG-gated authz matrix is green unskipped
 
 The first routine `make test-all` (X-02) halted on one red PG-gated test. The root
@@ -121,52 +134,6 @@ checklist (Grafana/offsite/5499/restore drill — `step3-operations-checklist-
 2026-11-21.md`) and the checkpoint-1 redesign design doc
 (`checkpoint1-redesign-2026-11-21.md`) so the next lane builds the faithful
 flow instead of patching the old one green.
-
-## 2026-11-21 (earlier) — weeks 9–13 fleet scope shipped: compliance pack, denial-learning loop, CI race fix, ledgers complete
-
-Engineering slices from the 90-day plan's Month-3 fleet rows, all offline, zero
-spend, on `w28-s1-delegate`:
-
-- **P-19 / I-03 compliance evidence pack**: new
-  `section1/src/harness_identity/audit_pack.py` + `GET /api/v1/audit/pack` —
-  one bounded document = manifest (ranges/counts/explicit truncation/retention
-  statements) + hash-chain verdict + team audit trail + collab events. Same
-  admin+step-up door as `/audit/export` (classified `"export"` in
-  `contracts/policy_enforce.py`), pack generation itself audited, no-drift with
-  `/audit/export` via the shared `audit_rows` reader, honest `performed: false`
-  chain verdict on non-PG lanes. 5/5 pack tests; section1 suite **1269 passed,
-  63 skipped**; identity spec now 148 paths, python+TS SDK and dist rebuilt,
-  `spec_drift.py` and `make check-ts-dist` green; sample pack committed as
-  `docs/briefs/evidence/90day/p19-sample-pack.json`.
-- **P-23 / I-08 denial-learning loop**: `section4` `denial_learning.py` — a W27
-  `denials_repeated` stop now carries a deterministic bounded SUGGESTED project
-  rule (the denied paths → include them in `scopePaths`) in the durable
-  `engine_failed` reason; the human saves it through the existing rules API;
-  `repeat_denial_stops` is the metric the plan's "repeat-denial count → 0"
-  acceptance needs. 6/6 tests; section4 suite **2398 passed, 60 skipped**.
-- **P-25 stabilization**: root-cause fixed the CI section11 race (`2ddf03b`,
-  lease release before terminal status, W19 suite 5× green, 60/60); week-09…13
-  evidence ledgers now exist for every plan-week's fleet scope.
-- **P-21 / I-05**: policy DRAFT only (`i05-approval-envelope-policy-draft.md`);
-  enablement stays owner-gated (P-D6, default off); no gate code changed.
-- **I-04 benchmark leaderboard** (the last scheduled fleet-buildable idea):
-  `scripts/eval/bench_leaderboard.py` renders the public leaderboard as a
-  presentation of `bench_stats.aggregate` (no second arithmetic); MIN_N/dry/
-  unknown-cost honesty laws inherited; dry-only corpus correctly shows "No
-  claimable rows yet". Both formats (markdown + self-contained static HTML —
-  no JS, no external assets, escaped against hostile model names) render from
-  the SAME computed sections, so they cannot disagree; `make bench-leaderboard`
-  regenerates both; 15 tests (41/41 across the eval suite); committed at
-  `docs/briefs/evidence/w7-bench/leaderboard.md` + `.html`. Week-08's
-  verdict-bot wiring row corrected to Implemented (verdict_post.py existed
-  since the W4 wave).
-
-Owner-gated and untouched: vv90r5 redeploy (runbook ready), P-13 live benchmark
-(spend caps preregistered), P-14/P-16/P-18/P-20/P-22 revenue rows, F-05
-signature, Day-90 gate (P-24). With I-04 done, every fleet-buildable item in
-the 90-day plan (W1–W13 + scheduled ideas I-01…I-05, I-09, I-10) now has a
-dated evidence entry; what remains is owner lane (outreach, SOW signatures,
-spend, deploys, revenue).
 
 ## 2026-11-21 (later) — pushed to origin, weeks 2–3 of the 90-day plan executed, measured data
 
@@ -213,5 +180,6 @@ SOWs, D-01/rename/payment decisions, redeploy, pen test, counsel), not engineeri
 
 Every entry before 2026-11-06 — the v1.0-candidate missions, the August waves, and the
 2026-11-04/05/06 reconciliation entries — lives verbatim in
-**[docs/archive/STATUS-history-to-2026-11-06.md](docs/archive/STATUS-history-to-2026-11-06.md)**.
+**[docs/archive/STATUS-history-to-2026-11-06.md](docs/archive/STATUS-history-to-2026-11-06.md)**;
+the 2026-11-21 (earlier) entry is in [docs/archive/STATUS-history-2026-11-21.md](docs/archive/STATUS-history-2026-11-21.md).
 This file stays the current-readiness record: newest entries at the top.

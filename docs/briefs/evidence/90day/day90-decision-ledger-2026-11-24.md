@@ -45,3 +45,17 @@ owner signature missing (= BLOCKED on owner) · **BLOCKED** = gate cannot move w
 
 Owner (project owner) must supply: SOW signatures, P-D2 rail choice with written eligibility,
 F-SEC-05 redeploy, P-13 benchmark budget, P-D7 go/no-go. Engineering cannot close any 10.11 line alone.
+
+## Delta after Sprint 2 (2026-11-24, `dcadc02c`..`2c8abe1d`)
+
+**No 10.11 gate line moved.** Every line above is still owner-lane (SOWs, revenue, P-D2 rail,
+F-SEC-05 redeploy, paid benchmark budget, P-D7). Engineering items that changed state:
+
+| Item | Before | After | Evidence |
+|---|---|---|---|
+| X-07 / X-21 keyboard, axe, 375 px | not run | verified in Chromium (mocked API) | `docs/briefs/evidence/sprint2/task-11-browser.md` |
+| Phase 7 (C-01..C-04) | backend only | admin + member pages | `section7/e2e/planning.e2e.ts` |
+| Gate 6 / B-09 | ledgered blocked | per-item checklist + threat model; still BLOCKED (P-D7) | `docs/briefs/evidence/multiplayer/B-09-checklist-2026-11-24.md` |
+| X-14 | prototype | dry benchmark run; verdict DEFER | `docs/briefs/evidence/10x/x14-layout-benchmark-2026-11-24.md` |
+| X-08 | not started | classification + advisory badge; P-D6 still not enabled | Task 17 commit `47f3c8ad` |
+| Blind-approval KPI | denominator only | measured signal + admin tile; no pilot data yet | `docs/briefs/evidence/10x/x07-backend-preference-2026-11-24.md` |
