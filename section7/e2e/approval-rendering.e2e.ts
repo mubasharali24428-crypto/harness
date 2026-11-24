@@ -11,22 +11,10 @@
  */
 import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { APPROVAL } from "./approvalFixture";
 
 const SHOTS = "../docs/briefs/evidence/sprint2";
 const RUN = "/projects/p1/runs/r1?pane=advanced";
-const APPROVAL = {
-  id: "a1", runId: "r1", action: "modify", paths: ["deploy/.env"], summary: "rotate the API key",
-  diff: "-OLD_KEY\n+NEW_KEY", digest: "d".repeat(64), state: "pending", requester: "eng2",
-  decidedBy: null, decidedAt: null, outcome: null, expiresAt: "2026-12-01T00:00:00Z",
-  plain: "The agent wants to change 1 file (deploy/.env). This touches a secrets or credentials file.",
-  decisionGrid: {
-    dominantBand: "critical",
-    cells: [
-      { family: "file_write", band: "moderate", label: "File write" },
-      { family: "credentials", band: "critical", label: "Credentials / secrets" },
-    ],
-  },
-};
 
 async function stub(page: Page, rendering: string, decisions: unknown[]) {
   await page.addInitScript(() => {
@@ -68,7 +56,7 @@ async function openCard(page: Page) {
 test("plain rendering: the sentence leads, technical record stays", async ({ page }) => {
   await stub(page, "plain", []);
   const card = await openCard(page);
-  await expect(page.getByTestId("plain-a1")).toHaveText(APPROVAL.plain);
+  await expect(page.getByTestId("plain-a1")).toHaveText(APPROVAL.plain!);
   await expect(card.getByLabel("Proposed change")).toContainText("+NEW_KEY");
   await expect(page.getByTestId("grid-a1")).toHaveCount(0);
   await card.screenshot({ path: `${SHOTS}/x07-plain-1280.png` });

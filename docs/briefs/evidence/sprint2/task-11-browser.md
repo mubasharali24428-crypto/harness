@@ -29,3 +29,17 @@ Screenshots: `x07-plain-1280.png`, `x21-decision-1280.png`, `x21-decision-375.pn
 
 **Not covered:** live backend round-trip (needs the stack), screen-reader audio check, setting
 the preference through a settings UI (no such UI exists yet; preference set via API).
+
+## Sprint 3 / Task 15 addendum (2026-11-24)
+
+- **Still mocked.** Task 12 stack smoke is BLOCKED (Docker daemon down, no compose backend), so
+  no live section4 round-trip was added. The browser spec continues to use `page.route` for every
+  `/api/v1` call.
+- New guard: `section7/e2e/approvalFixture.ts` is the single mock payload shared by the spec and
+  `approvalFixture.test.ts`, which fails if the mock drifts from section4's documented
+  `ApprovalRequest` limits (action enum, paths/summary/diff maxima) or if the approvals GET route
+  is no longer in `section4/openapi.json`.
+- Superseded note above: the settings UI **now exists** (Sprint 3 Task 13, commit `2a1dc0cc`) —
+  `/settings/account` offers Technical / Plain / Decision card against `GET/PUT /me/rendering`.
+- Task 14 also added `similarCases` to the API and the card; the shared fixture carries one item
+  so the browser spec exercises the new read-only block.
