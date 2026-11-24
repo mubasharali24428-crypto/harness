@@ -176,6 +176,25 @@ def test_foreign_team_gets_404_everywhere(env):
     assert c.post(f"{P}/r1/redirect", json={"content": "x"}).status_code == 404
 
 
+def test_foreign_approval_reads_are_not_an_oracle(env):
+    """Task 2 / B-04: a foreign member asking for a REAL run's approvals (one pending, with a
+    diff) gets byte-for-byte the answer for a run that does not exist - no status, code or
+    message difference to probe existence with, and no approval body leaks."""
+    as_, _ = env
+    lead_run(as_)
+    real = new_approval(as_)
+    c = as_("evil")
+    decide = {"approve": True, "digest": real["digest"]}
+    for ask in (
+        lambda run: c.get(f"{P}/{run}/approvals"),
+        lambda run: c.post(f"{P}/{run}/approvals/{real['id']}/decision", json=decide),
+    ):
+        hit, miss = ask("r1"), ask("nope")
+        assert hit.status_code == miss.status_code == 404
+        assert hit.json() == miss.json()
+        assert real["digest"] not in hit.text and PROPOSAL["summary"] not in hit.text
+
+
 # ----------------------------------------------------------------------- redirect
 
 
