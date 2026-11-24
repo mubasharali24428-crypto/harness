@@ -177,6 +177,10 @@ async def review(projectId: str, version: int, req: Review, p: _api.RequirePrinc
             raise _err(409, "STALE_VERSION", "only the latest version can be reviewed")
         if req.decision != "edit" and latest.state != "proposed":
             raise _err(409, "PLAN_DECIDED", f"version {version} is already {latest.state}")
+        if req.decision == "reject" and not (req.note or "").strip():
+            # C-07: a rejection must say what the admin disagreed with. The note
+            # is stored on the new version and shown in the version history.
+            raise _err(422, "NOTE_REQUIRED", "a rejection needs a note explaining the disagreement")
         assignments = json.loads(latest.assignments)
         if req.decision == "edit":
             members, by_task = await _members(db, p.teamId), {a["task"]: a for a in assignments}
@@ -215,10 +219,20 @@ async def my_tasks(projectId: str, p: _api.RequirePrincipal) -> dict:
         return {"version": None, "tasks": []}
     brief = json.loads(row.brief)
     titles = {t["key"]: t["title"] for t in brief["tasks"]}
-    mine = [a for a in json.loads(row.assignments) if a["assignee"] == p.userId]
+    assignments = json.loads(row.assignments)
+    by_task = {a["task"]: a for a in assignments}
+    mine = [a for a in assignments if a["assignee"] == p.userId]
+    # C-05: dependency readiness from the approved graph only. A dependency is
+    # "ready" when its task is assigned to the caller (so it is within their own
+    # work); otherwise "waiting". Only the caller already knows these keys from
+    # their own task's dependsOn — no other member's title, body or id is sent.
+    tasks = [{"task": a["task"], "title": titles[a["task"]], "kind": a["kind"],
+              "dependsOn": a["dependsOn"],
+              "dependsOnStatus": {k: ("ready" if by_task.get(k, {}).get("assignee") == p.userId
+                                      else "waiting") for k in a["dependsOn"]}}
+             for a in mine]
     return {"version": row.version, "acceptanceCriteria": brief.get("acceptanceCriteria", []),
-            "tasks": [{"task": a["task"], "title": titles[a["task"]], "kind": a["kind"],
-                       "dependsOn": a["dependsOn"]} for a in mine]}
+            "tasks": tasks}
 
 
 def _row(r: Any) -> dict[str, Any]:

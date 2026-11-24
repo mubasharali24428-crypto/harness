@@ -39,7 +39,9 @@ export interface PlanVersion {
 export interface MyTasks {
   version: number | null;
   acceptanceCriteria?: string[];
-  tasks: { task: string; title: string; kind: string; dependsOn: string[] }[];
+  tasks: { task: string; title: string; kind: string; dependsOn: string[];
+    /** C-05: per dependency key, from the approved plan graph only; no other member's text. */
+    dependsOnStatus?: Record<string, "ready" | "waiting"> }[];
 }
 export type ReviewDecision =
   | { decision: "approve" | "reject"; note?: string }

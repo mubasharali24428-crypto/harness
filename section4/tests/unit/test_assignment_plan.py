@@ -2,6 +2,7 @@
 sqlite; table mirrors migration 0078."""
 
 import asyncio
+import json
 
 import pytest
 from fastapi import FastAPI
@@ -129,3 +130,38 @@ def test_foreign_project_is_not_an_oracle(as_):
 def test_bad_brief_rejected(as_):
     bad = {**BRIEF, "tasks": [{"key": "a", "title": "x", "dependsOn": ["zzz"]}]}
     assert as_("boss").post(f"{P}/p/assignment-plans", json=bad).status_code == 422
+
+
+def test_reject_requires_a_note_and_keeps_it_in_history(as_):
+    c = as_("boss")
+    c.post(f"{P}/p/assignment-plans", json=BRIEF)
+    empty = c.post(f"{P}/p/assignment-plans/1/review", json={"decision": "reject", "note": "   "})
+    assert empty.status_code == 422
+    assert empty.json()["detail"]["error"]["code"] == "NOTE_REQUIRED"
+    rejected = c.post(f"{P}/p/assignment-plans/1/review",
+                      json={"decision": "reject", "note": "Disagree: keep the pen test in scope"})
+    assert rejected.status_code in (200, 201)
+    versions = c.get(f"{P}/p/assignment-plans").json()["versions"]
+    assert versions[-1]["state"] == "rejected"
+    assert versions[-1]["note"] == "Disagree: keep the pen test in scope"
+
+
+def test_mine_dependency_readiness_has_no_oracle(as_):
+    brief = {**BRIEF, "tasks": [
+        {"key": "a", "title": "SECRET-A-BODY", "preferredAssignee": "sec"},
+        {"key": "b", "title": "SECRET-B-BODY", "preferredAssignee": "sec", "dependsOn": ["a"]},
+        {"key": "c", "title": "SECRET-C-BODY", "preferredAssignee": "ui", "dependsOn": ["b"]},
+    ]}
+    boss = as_("boss")
+    boss.post(f"{P}/p/assignment-plans", json=brief)
+    boss.post(f"{P}/p/assignment-plans/1/review", json={"decision": "approve"})
+    sec = as_("sec").get(f"{P}/p/assignment-plans/mine").json()
+    ui = as_("ui").get(f"{P}/p/assignment-plans/mine").json()
+    by_task = {t["task"]: t for t in sec["tasks"] + ui["tasks"]}
+    assert by_task["b"]["dependsOnStatus"] == {"a": "ready"}   # both a and b are sec's
+    assert by_task["c"]["dependsOnStatus"] == {"b": "waiting"}  # b is someone else's
+    sec_blob, ui_blob = json.dumps(sec), json.dumps(ui)
+    assert "SECRET-C-BODY" not in sec_blob  # ui's task body never reaches sec
+    assert "SECRET-A-BODY" not in ui_blob and "SECRET-B-BODY" not in ui_blob
+    assert [t["task"] for t in sec["tasks"]] == ["a", "b"]
+    assert [t["task"] for t in ui["tasks"]] == ["c"]

@@ -72,15 +72,19 @@ export function AdminPlanningView(p: AdminViewProps) {
           <section aria-label={`Version ${v.version}`} data-testid={`version-${v.version}`}>
             <h3 style={{ fontSize: 14 }}>Version {v.version} <Pill tone={v.state === "approved" ? "green" : v.state === "rejected" ? "red" : "yellow"}>{v.state}</Pill>
               {v !== latest && <span style={muted}> (older version, read-only)</span>}</h3>
-            <p style={muted}>By {v.createdBy}{v.parentVersion ? `, from version ${v.parentVersion}` : ""}{v.note ? `: ${v.note}` : ""}</p>
+            <p style={muted}>By {v.createdBy}{v.parentVersion ? `, from version ${v.parentVersion}` : ""}</p>
+            {v.note && <p data-testid={`note-${v.version}`} style={{ margin: "4px 0" }}><strong>Review note:</strong> {v.note}</p>}
             <AssignmentTable v={v} />
             {v === latest && (
               <div style={{ display: "grid", gap: 8, marginTop: 8 }} data-testid="review-actions">
-                <label>Note (optional)<input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} /></label>
+                <label>Note (optional for approval; required to reject)<input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} aria-describedby={v.state === "proposed" ? `planning-note-hint` : undefined} /></label>
+                <p id={`planning-note-hint`} style={muted}>A rejection needs a note explaining what you disagreed with. The note is kept in the version history.</p>
                 {v.state === "proposed" && (
-                  <div role="group" aria-label="Decide" style={{ display: "flex", gap: 8 }}>
+                  <div role="group" aria-label="Decide" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <Button variant="primary" disabled={p.busy} onClick={() => p.onReview(v.version, { decision: "approve", note: note || undefined })}>Approve plan</Button>
-                    <Button variant="danger" disabled={p.busy} onClick={() => p.onReview(v.version, { decision: "reject", note: note || undefined })}>Reject plan</Button>
+                    <Button variant="danger" disabled={p.busy || !note.trim()} aria-describedby={`planning-note-hint`}
+                      onClick={() => p.onReview(v.version, { decision: "reject", note: note.trim() })}>Reject plan</Button>
+                    {!note.trim() && <p role="status" data-testid="reject-note-problem" style={muted}>Add a note before rejecting the plan.</p>}
                   </div>
                 )}
                 <div role="group" aria-label="Reassign" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -108,7 +112,10 @@ export function MemberTasksView({ mine }: { mine: MyTasks | null }) {
       <h2 style={{ fontSize: 15 }}>Your tasks (approved plan version {mine.version})</h2>
       {mine.tasks.length === 0 ? <p style={muted}>Nothing is assigned to you in this plan.</p> : (
         <ul>{mine.tasks.map((t) => (
-          <li key={t.task} data-testid={`my-task-${t.task}`}>{t.title}{t.dependsOn.length > 0 && <span style={muted}> (waits on {t.dependsOn.join(", ")})</span>}</li>
+          <li key={t.task} data-testid={`my-task-${t.task}`}>{t.title}
+            {t.dependsOn.length > 0 && <span style={muted}> ({t.dependsOn.map((k) =>
+              `${k}: ${t.dependsOnStatus?.[k] === "ready" ? "ready" : "waiting"}`).join(", ")})</span>}
+          </li>
         ))}</ul>
       )}
       {(mine.acceptanceCriteria ?? []).length > 0 && <p style={muted}>Done when: {mine.acceptanceCriteria!.join("; ")}</p>}

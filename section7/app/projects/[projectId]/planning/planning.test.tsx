@@ -46,6 +46,20 @@ describe("admin planning view", () => {
   it("approve copy never claims work starts", () => {
     expect(admin([v(1, "proposed", null)])).toContain("Nothing starts until people pick up their tasks.");
   });
+  it("C-07: the admin's review note is visible in version history", () => {
+    const withNote = { ...v(2, "rejected", null), note: "Disagree: keep the pen test in scope" };
+    const h = admin([v(1, "proposed", null), withNote]);
+    expect(h).toContain('data-testid="note-2"');
+    expect(h).toContain("Review note:");
+    expect(h).toContain("Disagree: keep the pen test in scope");
+  });
+  it("C-07: reject needs a non-empty note, approve does not", () => {
+    const h = admin([v(1, "proposed", null)]);
+    expect(h).toContain("A rejection needs a note explaining what you disagreed with.");
+    expect(h).toContain('data-testid="reject-note-problem"');
+    expect(h).toMatch(/aria-describedby="planning-note-hint"[^>]*disabled[^>]*>Reject plan|disabled[^>]*aria-describedby="planning-note-hint"[^>]*>Reject plan/);
+    expect(h).toContain(">Approve plan</button>");
+  });
 });
 
 describe("member view", () => {
@@ -57,6 +71,14 @@ describe("member view", () => {
   });
   it("says so when nothing is approved yet", () => {
     expect(renderToStaticMarkup(<MemberTasksView mine={{ version: null, tasks: [] }} />)).toContain("No approved plan yet.");
+  });
+  it("C-05: shows per-dependency readiness without another member's text", () => {
+    const h = renderToStaticMarkup(<MemberTasksView mine={{ version: 3, tasks: [
+      { task: "b", title: "My task B", kind: "human", dependsOn: ["a", "c"],
+        dependsOnStatus: { a: "ready", c: "waiting" } }] }} />);
+    expect(h).toContain("a: ready");
+    expect(h).toContain("c: waiting");
+    expect(h).not.toMatch(/SECRET|pen test/i);
   });
 });
 
