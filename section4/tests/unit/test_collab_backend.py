@@ -750,3 +750,34 @@ def test_risk_envelope_is_classification_only(env, monkeypatch, flag):
                      json={"approve": True, "digest": a["digest"]})
     ok = as_("eng2").post(f"{P}/r1/approvals/{a['id']}/claim", json={"digest": a["digest"]})
     assert ok.status_code == 200 and ok.json()["state"] == "executing"
+
+
+def test_p_d6_flag_on_critical_tier_claim_never_auto_executes(env, monkeypatch):
+    """P-D6 negative (D-U4 accepted): with the advisory envelope flag ON in this test only,
+    a critical-tier approval still needs the leader's exact-digest decision before claim.
+    Re-reads state after the refusal — a stale pre-claim snapshot cannot mask an execution."""
+    monkeypatch.setenv("HARNESS_RISK_ENVELOPES", "1")
+    as_, factory = env
+    lead_run(as_)
+    a = as_("eng2").post(f"{P}/r1/approvals", json={**PROPOSAL, "action": "modify",
+                                                    "paths": ["deploy/.env"]}).json()
+    listed = as_("view").get(f"{P}/r1/approvals").json()["approvals"][0]
+    assert listed["riskTier"] == "critical"
+    assert listed["envelope"] == {"tier": "critical", "advisory": True, "autoApprove": False}
+    run_before = q(factory, "SELECT state FROM agent_runs WHERE id = 'r1'")
+
+    claim = as_("eng2").post(f"{P}/r1/approvals/{a['id']}/claim", json={"digest": a["digest"]})
+    assert claim.status_code == 409
+    assert claim.json()["detail"]["error"]["code"] == "NOT_APPROVED"
+
+    after = as_("view").get(f"{P}/r1/approvals").json()["approvals"][0]
+    assert after["state"] == "pending"  # fresh read, not the pre-claim snapshot
+    assert q(factory, "SELECT state FROM agent_runs WHERE id = 'r1'") == run_before
+    assert q(factory, "SELECT seq FROM run_collab_events WHERE run_id = 'r1'"
+                      " AND kind = 'approval.claimed'") == []
+
+    # The flag is advisory only: the leader's decision, not the tier, unlocks execution.
+    as_("lead").post(f"{P}/r1/approvals/{a['id']}/decision",
+                     json={"approve": True, "digest": a["digest"]})
+    assert as_("eng2").post(f"{P}/r1/approvals/{a['id']}/claim",
+                            json={"digest": a["digest"]}).json()["state"] == "executing"
