@@ -92,6 +92,18 @@ describe("client", () => {
     const init = (fn.mock.calls[0] as unknown as [string, RequestInit])[1];
     expect(JSON.parse(init.body as string)).toEqual({ approve: true, digest: "d".repeat(64) });
   });
+  it("approval decision carries the measured viewed_detail signal only when measured", async () => {
+    const fn = stub({ id: "a1" }, 200);
+    await decideApproval("r1", "tok", approval(), true, false);
+    const init = (fn.mock.calls[0] as unknown as [string, RequestInit])[1];
+    expect(JSON.parse(init.body as string)).toEqual({
+      approve: true, digest: "d".repeat(64), viewed_detail: false,
+    });
+    const fn2 = stub({ id: "a1" }, 200);
+    await decideApproval("r1", "tok", approval(), true, true);
+    const init2 = (fn2.mock.calls[0] as unknown as [string, RequestInit])[1];
+    expect(JSON.parse(init2.body as string).viewed_detail).toBe(true);
+  });
 });
 
 function render(me: string, approvals: Approval[], r: Roster = roster, error: string | null = null) {
@@ -105,6 +117,11 @@ function render(me: string, approvals: Approval[], r: Roster = roster, error: st
 }
 
 describe("SharedRunView", () => {
+  it("marks the diff for X-07 diff-visibility measurement before Approve", () => {
+    const html = render("lead", [approval()]);
+    expect(html).toContain('data-approval-diff="a1"');
+    expect(html).toContain("Approve this change");
+  });
   it("leader sees approve/reject with the diff, blocked banner and leader line", () => {
     const html = render("lead", [approval()]);
     expect(html).toContain("Approve this change");

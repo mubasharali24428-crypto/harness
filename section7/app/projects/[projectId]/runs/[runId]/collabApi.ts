@@ -133,10 +133,14 @@ export const listApprovals = (runId: string, t: string) =>
 export const getSchedulerProposal = (runId: string, t: string) =>
   call<SchedulerProposalResponse>(`${root(runId)}/scheduler-proposals`, t);
 /** The approver echoes the digest they reviewed; a changed proposal is refused (409). */
-export const decideApproval = (runId: string, t: string, a: Approval, approve: boolean) =>
+/** `viewedDetail` is the X-07 KPI signal (25% IntersectionObserver on the diff). Omit when
+ * the proposal has no diff or the client did not measure; the server may ignore it today. */
+export const decideApproval = (runId: string, t: string, a: Approval, approve: boolean,
+                               viewedDetail?: boolean) =>
   post<Approval>(`${root(runId)}/approvals/${encodeURIComponent(a.id)}/decision`, t, {
     approve,
     digest: a.digest,
+    ...(viewedDetail === undefined ? {} : { viewed_detail: viewedDetail }),
   });
 
 /** Apply exactly the approved staged digest; approval alone does not land files. */

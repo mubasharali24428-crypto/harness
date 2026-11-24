@@ -72,7 +72,7 @@ export interface SharedRunViewProps {
   discussion?: React.ReactNode;
   onJoin: () => void;
   onClaim: () => void;
-  onDecide: (a: Approval, approve: boolean) => void;
+  onDecide: (a: Approval, approve: boolean, viewedDetail?: boolean) => void;
   onApply: (a: Approval) => void;
   onHandoff: (toUserId: string) => void;
   onHandoffDecision: (id: string, accept: boolean) => void;
@@ -101,6 +101,22 @@ const keepFocus = (e: React.SyntheticEvent<HTMLElement>) =>
   (e.currentTarget.closest("[data-approval-card]") as HTMLElement | null)?.focus();
 
 export function SharedRunView(p: SharedRunViewProps) {
+  // X-07 KPI on the collab path: measure whether the proposed diff was ever 25% on
+  // screen before Approve, using the same threshold as ReviewPane. Unknown (no diff
+  // or no observer) is left unset — never reported as a blind approval.
+  const seenDiff = React.useRef<Record<string, boolean>>({});
+  React.useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        const id = (e.target as HTMLElement).getAttribute("data-approval-diff");
+        if (id) seenDiff.current[id] = true;
+      }
+    }, { threshold: 0.25 });
+    document.querySelectorAll("[data-approval-diff]").forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [p.approvals]);
   const { view } = p;
   const ids = React.useId();
   const [kind, setKind] = useState<RedirectKind>("guidance");
@@ -219,7 +235,7 @@ export function SharedRunView(p: SharedRunViewProps) {
               </p>
             )}
             <p style={{ ...muted, margin: "4px 0" }}>Requested by {a.requester}{a.decidedBy ? `, decided by ${a.decidedBy}` : ""}{a.decidedAt && <> on <time dateTime={a.decidedAt} data-testid={`decided-${a.id}`}>{formatDateTime(a.decidedAt)}</time></>}. Files: <span style={mono}>{a.paths.join(", ")}</span>. Proposal version <span style={mono} data-testid={`digest-${a.id}`}>{a.digest.slice(0, 8)}</span>.</p>
-            {a.diff ? <pre aria-label="Proposed change" tabIndex={0} style={{ ...mono, maxHeight: 160, overflow: "auto", background: "var(--panel-2)", padding: 8 }}>{clipDiff(a.diff)}</pre> : null}
+            {a.diff ? <div data-approval-diff={a.id}><pre aria-label="Proposed change" tabIndex={0} style={{ ...mono, maxHeight: 160, overflow: "auto", background: "var(--panel-2)", padding: 8 }}>{clipDiff(a.diff)}</pre></div> : null}
             {a.requester === "system:staging" && (
               <p style={muted}>This change is withheld. Approval and application are separate steps.</p>
             )}
@@ -228,7 +244,7 @@ export function SharedRunView(p: SharedRunViewProps) {
               : <p style={muted}>Waiting for {view.leader ?? "the session leader"} to apply this change.</p>)}
             {a.state === "pending" && (view.isLeader
               ? <div role="group" aria-label="Decide" style={{ display: "flex", gap: 8 }}>
-                  <Button size="sm" variant="primary" disabled={p.busy} aria-describedby={`${ids}-${a.id}`} onClick={(e) => { keepFocus(e); p.onDecide(a, true); }}>Approve this change</Button>
+                  <Button size="sm" variant="primary" disabled={p.busy} aria-describedby={`${ids}-${a.id}`} onClick={(e) => { keepFocus(e); p.onDecide(a, true, a.diff ? seenDiff.current[a.id] === true : undefined); }}>Approve this change</Button>
                   <Button size="sm" variant="danger" disabled={p.busy} aria-describedby={`${ids}-${a.id}`} onClick={(e) => { keepFocus(e); p.onDecide(a, false); }}>Reject</Button>
                 </div>
               : <p style={muted}>Only {view.leader ?? "a session leader"} can decide this.</p>)}
@@ -414,7 +430,7 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
         onJoin={() => run(() => joinRun(runId, token))}
         onClaim={() => run(() => claimLeader(runId, token))}
         onApply={(a) => run(() => applyApproval(runId, token, a))}
-        onDecide={(a, ok) => run(() => decideApproval(runId, token, a, ok))}
+        onDecide={(a, ok, viewedDetail) => run(() => decideApproval(runId, token, a, ok, viewedDetail))}
         onHandoff={(to) => run(() => requestHandoff(runId, token, to))}
         onHandoffDecision={(id, ok) => run(() => decideHandoff(runId, token, id, ok))}
         onRedirect={(kind, content, reason) =>
