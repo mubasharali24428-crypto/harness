@@ -18,6 +18,15 @@ export interface Roster {
 }
 import type { DecisionGrid } from "./decisionGrid";
 
+/** Task 14: similar earlier denial cases for this run's team (max 3, read-only). */
+export interface SimilarCase {
+  caseId: string;
+  runId: string;
+  outcome: string;
+  score: number;
+  suggestedRule: string | null;
+}
+
 export interface Approval {
   id: string;
   runId: string;
@@ -40,6 +49,8 @@ export interface Approval {
   riskTier?: string;
   /** X-08: present only when HARNESS_RISK_ENVELOPES=1; advisory, never approves (P-D6 off). */
   envelope?: { tier: string; advisory: true; autoApprove: false };
+  /** Task 14: read-only, team-scoped lesson from earlier denial stops. */
+  similarCases?: SimilarCase[];
 }
 export interface CollabEvent {
   seq: number;

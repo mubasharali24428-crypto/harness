@@ -37,7 +37,7 @@ import os
 import re
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from harness_contracts.roles import READ_ONLY, Principal, Role
@@ -45,7 +45,7 @@ from harness_contracts.timeutil import as_utc, db_now
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, OperationalError
 
-from harness_orchestrator import approval_copy, domain_metrics, notify
+from harness_orchestrator import approval_copy, case_memory, domain_metrics, notify
 
 logger = logging.getLogger(__name__)
 
@@ -904,7 +904,39 @@ async def request_approval(
     return {**_view(row), "designatedApprover": leader}
 
 
+async def similar_cases_for_run(factory: Any, run_id: str) -> list[dict[str, Any]]:
+    """Task 14: up to 3 similar earlier denial cases for this run's team.
+
+    Reuses case_memory's own team-scoped similarity; never returns this run's
+    own case or another team's. Best-effort like the recall at the stop: an old
+    schema, a run with no recorded case or a DB hiccup yields [] so that
+    listing approvals can never fail over lesson rows. Proposals only.
+    """
+    try:
+        async with factory() as db:
+            own = (await db.execute(text(
+                "SELECT team_id, tool, paths, recorded_at FROM case_memory"
+                " WHERE run_id = :r ORDER BY recorded_at DESC LIMIT 1"),
+                {"r": run_id},
+            )).mappings().first()
+            if own is None:
+                return []
+            cases = await case_memory.load_cases(db, own["team_id"])
+        paths = json.loads(own["paths"]) if isinstance(own["paths"], str) else own["paths"]
+        others = [c for c in cases if c["runId"] != run_id]
+        similar = case_memory.retrieve_similar_cases(
+            others, paths, own["tool"], datetime.now(UTC),
+            limit=case_memory.MAX_RECALLED,
+        )
+        return [{"caseId": c["caseId"], "runId": c["runId"], "outcome": c["outcome"],
+                 "score": c["score"], "suggestedRule": c["suggestedRule"]} for c in similar]
+    except Exception:  # noqa: BLE001 - listing approvals must survive missing memory
+        logger.warning("similar cases unavailable for %s", run_id, exc_info=True)
+        return []
+
+
 async def list_approvals(factory: Any, run_id: str) -> list[dict[str, Any]]:
+    similar = await similar_cases_for_run(factory, run_id)
     try:
         await expire_stale_approvals(factory, run_id)  # show expiry truthfully, with evidence
     except Exception:  # noqa: BLE001 - listing must work on any schema
@@ -933,7 +965,9 @@ async def list_approvals(factory: Any, run_id: str) -> list[dict[str, Any]]:
             ]
             voided = {x["approvalId"] for x in loaded if x.get("voidedApproval")}
     return [
-        {**_view(r), "amendedAfterApproval": r.state == "pending" and r.id in voided} for r in rows
+        {**_view(r), "amendedAfterApproval": r.state == "pending" and r.id in voided,
+         "similarCases": similar}
+        for r in rows
     ]
 
 

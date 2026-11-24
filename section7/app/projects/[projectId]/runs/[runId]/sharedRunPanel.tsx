@@ -187,6 +187,19 @@ export function SharedRunView(p: SharedRunViewProps) {
             </div>
             {p.rendering === "plain" && a.plain && <p style={{ margin: "4px 0" }} data-testid={`plain-${a.id}`}>{a.plain}</p>}
             {p.rendering === "decision" && a.decisionGrid && <DecisionCardGrid grid={a.decisionGrid} testId={`grid-${a.id}`} />}
+            {a.similarCases && a.similarCases.length > 0 && (
+              <div data-testid={`similar-${a.id}`} style={{ margin: "4px 0" }}>
+                <p style={{ ...muted, margin: 0 }}>Similar past denials</p>
+                <ul style={{ margin: "2px 0", paddingLeft: 18 }}>
+                  {a.similarCases.slice(0, 3).map((c) => (
+                    <li key={c.caseId}>
+                      Earlier run <span style={mono}>{c.runId}</span> ({c.outcome})
+                      {c.suggestedRule ? `: ${c.suggestedRule}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <p style={{ margin: "4px 0" }}>{a.summary}</p>
             {reopened.includes(a.id) && a.state === "pending" && (
               <Notice tone="warning" role="status" testId={`reopened-${a.id}`}>
