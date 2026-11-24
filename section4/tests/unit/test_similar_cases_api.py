@@ -49,7 +49,8 @@ def _db(tmp_path):
             await insert_case(conn, "t1", "r-now", NOW)
             await insert_case(conn, "t1", "r-old", NOW - timedelta(days=1))
             await insert_case(conn, "t1", "r-old2", NOW - timedelta(days=2))
-            await insert_case(conn, "t1", "r-unrelated", NOW, paths=("/etc/other.conf",), tool="Write")
+            await insert_case(conn, "t1", "r-unrelated", NOW,
+                              paths=("/etc/other.conf",), tool="Write")
             await insert_case(conn, "t2", "r-foreign", NOW)  # same path, other team
             await conn.execute(text(
                 "INSERT INTO high_impact_approvals (id, run_id, team_id, requester_user_id,"

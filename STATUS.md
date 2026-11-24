@@ -83,17 +83,17 @@ carries a program digest; and the track adds no approval surface of its own.
 
 ## 2026-11-24 — Sprint 3: migrations proven, X-D1 settings UI, similar denials, owner DRAFT pack (local, not pushed)
 
-Commits `03a03a40`..Task 20 on `w28-s1-delegate` (not pushed); full index with SHAs in
-`docs/briefs/evidence/sprint3/END-report-2026-11-24.md`. `migrate_selftest` PASS: 79 migrations
-(0001→0081) on real PG 18.4 via the caller-supplied-PG path — Docker stayed down, so compose stack
-smoke and live approval e2e are BLOCKED and the browser spec keeps an openapi-checked mock. Shipped:
-self-service approval rendering in `/settings/account` (display only); similar denial cases on the
-approval card (team-scoped, max 3, read-only); 0078/0080 integration through the deployed routers; a
-read-only flag-gated W31 proposal panel; and 15 unsigned owner DRAFTs, so every BLOCKED/DEFAULT §17
-row now has a signable path. Gates at closure: static-gates, check-ts-dist, section8, frontend
-(vitest + tsc) and migrations green; section1 has one known order-flaky test (passes in isolation),
-section4 two Docker-only container tests. **No 10.11 gate line moved; P-D2/P-D7/payment stay
-owner-blocked.** Verdict unchanged: **NOT READY**.
+Commits `03a03a40`..`3eb09124` (not pushed); SHAs in `docs/briefs/evidence/sprint3/END-report-2026-11-24.md`.
+`migrate_selftest` PASS: 79 migrations (0001→0081) on real PG via the caller-supplied path; Docker was down, so compose smoke and live approval e2e stayed BLOCKED and the browser spec remained mocked (openapi-checked).
+Shipped: self-service rendering in `/settings/account` (display only), similar denials on the approval card (team-scoped, max 3), 0078/0080 router integration, a read-only flag-gated W31 panel, 15 unsigned §17 DRAFTs.
+Gates: static, check-ts-dist, section8, frontend and migrations green; section1 had one order-flaky test, section4 two Docker-only failures.
+**No 10.11 line moved; P-D2/P-D7/payment BLOCKED.** Verdict: **NOT READY**.
+
+## 2026-11-24 — Sprint 4: live stack verified, migrations on compose, Phase 7 gap closed (local, not pushed)
+
+Commits `d93ee869`..Task 30 on `w28-s1-delegate` (not pushed); SHAs in `docs/briefs/evidence/sprint4/END-report-2026-11-24.md`.
+Docker recovered, stale image rebuilt; `migrate` applied 0076–0081 on compose `:5499` (`max(version)=0081`), identity/orchestrator health 200. `pg-probe`, compose journey (13/13), live approval e2e (1 live + 6 mocked) and the P1 multiplayer spec passed at named SHAs.
+Section1 flake hardened (two full greens), section4 2445 passed with Docker up; C-05 dependency status + C-07 reject note shipped; collab `viewed_detail` measured (section8 seam still open); operator runbook added. **`make gate` GREEN (rc=0)** — the full ci.yml PR gate. P-D7 stays DEFERRED; no 10.11 line moved; verdict **NOT READY**.
 
 ## 2026-11-24 — Sprints 1–2: Phase 7 slice, X-07/X-21 browser-verified, X-14 deferred (local, not pushed)
 

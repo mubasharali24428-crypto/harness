@@ -35,7 +35,7 @@ running stack.
 | playwright approval specs | 7 passed (1 live + 6 mocked) |
 | multiplayer.e2e.ts | 1 passed on fresh P1 stack |
 | `make e2e-compose` | 13 checks green |
-| `make gate` | see Task 30 END report |
+| `make gate` | **GREEN (rc=0)** at Task 30 — byte-for-byte ci.yml PR gate |
 
 ## Uncommitted artifacts — exclude from any push
 

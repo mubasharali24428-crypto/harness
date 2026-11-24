@@ -67,6 +67,8 @@ F-SEC-05 redeploy, paid benchmark budget, P-D7). Engineering items that changed 
 | Item | Before | After | Evidence |
 |---|---|---|---|
 | `pg-probe` on compose `:5499` | scratch-DB / external-PG only | **PASS** on compose PG: integration 3 passed/1 skipped, section1 1361 passed, migrate selftest 79 migrations (0001→0081) idempotent | `docs/briefs/evidence/sprint4/task-23-pg-probe.md` |
+| X-07 / X-21 browser evidence | Chromium, mocked API only | live browser run at `8a78c5dc` on compose stack (real section1 + section4, axe + 375 px); mocked spec still green | `docs/briefs/evidence/sprint4/task-24-live-approval-e2e.md` |
+| P1 multiplayer pilot spec | never run (no stack) | 1 passed at `29b7a8d7` on a fresh P1 stack; B-09 build still owner-blocked (P-D7 deferred) | `docs/briefs/evidence/sprint4/task-25-multiplayer-e2e.md` |
 
 ## Delta after Sprint 3 (2026-11-24)
 

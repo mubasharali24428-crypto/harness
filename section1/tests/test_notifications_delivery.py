@@ -236,8 +236,8 @@ async def test_mail_holds_no_content_and_an_unsubscribe_link_whose_token_is_stor
     sess = {"id": "s-mail-secret"}
     async with factory() as db:
         await db.execute(text(
-            "INSERT INTO collab_sessions (id, team_id, title, owner_user_id, created_at, updated_at)"
-            " VALUES (:i, :t, :title, :u, :ts, :ts)"),
+            "INSERT INTO collab_sessions (id, team_id, title, owner_user_id,"
+            " created_at, updated_at) VALUES (:i, :t, :title, :u, :ts, :ts)"),
             {"i": sess["id"], "t": eng["teamId"], "title": secret,
              "u": eng["userId"], "ts": T0})
         await db.commit()

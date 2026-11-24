@@ -71,7 +71,8 @@ def client(tmp_path, monkeypatch):
         async with engine.begin() as c:
             for d in DDL:
                 await c.execute(text(d))
-            await c.execute(text("INSERT INTO projects (id, team_id) VALUES ('p','team-a'),('q','team-b')"))
+            await c.execute(text(
+                "INSERT INTO projects (id, team_id) VALUES ('p','team-a'),('q','team-b')"))
             await c.execute(text("INSERT INTO agent_runs (id, project_id) VALUES ('r-now','p')"))
             for u, (t, r) in USERS.items():
                 await c.execute(text("INSERT INTO team_members (id, team_id, user_id, role)"
@@ -82,7 +83,8 @@ def client(tmp_path, monkeypatch):
                                    "denied", when)
                 await c.execute(text(
                     "INSERT INTO case_memory (case_id, team_id, project_id, run_id, failure_class,"
-                    " tool, paths, fingerprint, outcome, weight, suggested_rule, status, recorded_at)"
+                    " tool, paths, fingerprint, outcome, weight, suggested_rule, status,"
+                    " recorded_at)"
                     " VALUES (:c,'team-a','p',:r,:f,:tool,:paths,:fp,:o,:w,:s,'proposed',:at)"),
                     {"c": case["caseId"], "r": run, "f": case["failureClass"],
                      "tool": case["tool"], "paths": json.dumps(case["paths"]),

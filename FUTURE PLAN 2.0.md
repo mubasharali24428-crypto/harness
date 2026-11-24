@@ -10,6 +10,7 @@
 2. **Gates, not dates.** Phases end at a gate with written evidence. The only calendar date is the 90-day commercial gate (9–11 Feb 2027), because the commercial plan is time-boxed. Everything else is relative.
 3. **Evidence states** (from `FUTURE PLAN.md` §2): `Not started` · `In progress` · `Implemented—unverified` · `Verified at <revision>` · `Blocked` · `Deferred by <decision>`. A task is done only when its evidence is linked in the repo at a named revision.
 4. **Owner decides.** Items marked **[OWNER]** need a written decision record before dependent work starts. Defaults in §10 are planning assumptions, not approvals.
+5. **Sprint 4 evidence note (2026-11-24).** Engineering evidence, not owner sign-off: the X-07 UI half is verified in Chromium against the real compose stack at `8a78c5dc` (`docs/briefs/evidence/sprint4/task-24-live-approval-e2e.md`, axe + 375 px included); `pg-probe` is green on compose `:5499` at `49445e4f`. The collab `viewed_detail` signal is measured but not yet wired into the section8 KPI (`docs/briefs/evidence/sprint4/task-27-collab-viewed-detail.md`). No gate moved; verdict stays **NOT READY**.
 
 ## 1. Product direction
 
