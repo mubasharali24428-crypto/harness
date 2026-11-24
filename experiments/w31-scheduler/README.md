@@ -136,3 +136,15 @@ overlap correctly.
 ## Verdict
 
 See [`docs/decisions/2026-11-04-w31-scheduler.md`](../../docs/decisions/2026-11-04-w31-scheduler.md).
+
+## Memory tier placement (`w31/tier_ttl.py`, 2026-11-24)
+
+CP-SAT proposal of hot / warm / cold placement for memory items. Hot caps = `memory_loader`
+(20 entries, 32 KiB; drift-checked by `tests/test_tier_ttl.py`), warm = 4x, cold unbounded.
+Hot items get the 24h window; 48h only when the item carries `billing_approved=True` (default
+false). `validate()` re-checks any proposal independently (0 violations on 10/50/100 fixtures).
+
+**Seam (W32):** output is marked `proposalOnly` + `requiresHumanApproval`. No section imports
+this module and nothing moves memory; wiring it into section4 as a C-08 proposal source needs
+its own decision record (OR-Tools would become a production dependency). Curator batching is
+not modelled yet.
