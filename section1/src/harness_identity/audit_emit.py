@@ -1315,3 +1315,35 @@ async def emit_auth_otp_locked(
         },
         session_owner=session_owner,
     )
+
+
+async def emit_member_rendering_changed(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    member_user_id: str,
+    before: str,
+    after: str,
+    kind: str,
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """member.rendering_changed — X-07 (10X Wave B): a member's approval-rendering
+    preference changed (``kind`` = ``self`` when the member set their own,
+    ``admin`` when an admin set it for them, X-D1). Presentation state only; the
+    audit row records who changed what for whom, never any approval content."""
+    return await _emit(
+        session,
+        "member.rendering_changed",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_member",
+        target_id=member_user_id,
+        detail={
+            "memberUserId": member_user_id,
+            "before": before,
+            "after": after,
+            "setBy": kind,
+        },
+        session_owner=session_owner,
+    )

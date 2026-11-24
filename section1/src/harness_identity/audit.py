@@ -25,6 +25,9 @@ APPEND_ONLY_ACTIONS = frozenset(
         "invite.revoked",
         # M14-F2a: admin resend of an unredeemed invite (old token revoked).
         "invite.resent",
+        # X-07 (10X Wave B): rendering preference changes are presentation
+        # state, but they are still auditable member actions (self or admin).
+        "member.rendering_changed",
         "billing.plan_changed",
         "billing.limits_changed",
         "run.started",

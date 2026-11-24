@@ -168,6 +168,18 @@ export class IdentityClient {
         const _path = `/api/v1/me`;
         return this.http.request(this.baseUrl, _path, "GET", undefined);
     }
+    /** Get My Rendering
+     *  GET /api/v1/me/rendering */
+    get_my_rendering() {
+        const _path = `/api/v1/me/rendering`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
+    /** Put My Rendering
+     *  PUT /api/v1/me/rendering */
+    put_my_rendering(body) {
+        const _path = `/api/v1/me/rendering`;
+        return this.http.request(this.baseUrl, _path, "PUT", body);
+    }
     /** List Inbox
      *  GET /api/v1/notifications */
     list_inbox(unread, kind, state, limit, cursor) {
@@ -819,6 +831,18 @@ export class IdentityClient {
         const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/members/${encodeURIComponent(user_id)}`;
         return this.http.request(this.baseUrl, _path, "PATCH", body);
     }
+    /** Get Member Rendering
+     *  GET /api/v1/teams/{team_id}/members/{user_id}/rendering */
+    get_member_rendering(team_id, user_id) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/members/${encodeURIComponent(user_id)}/rendering`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
+    /** Put Member Rendering
+     *  PUT /api/v1/teams/{team_id}/members/{user_id}/rendering */
+    put_member_rendering(team_id, user_id, body) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/members/${encodeURIComponent(user_id)}/rendering`;
+        return this.http.request(this.baseUrl, _path, "PUT", body);
+    }
     /** List Scim Tokens
      *  GET /api/v1/teams/{team_id}/scim/tokens */
     list_scim_tokens(team_id) {
@@ -1269,6 +1293,7 @@ export class IdentityClient {
  * export interface/type ProjectOut
  * export interface/type PutBody
  * export interface/type ReadAllBody
+ * export interface/type RenderingBody
  * export interface/type RevertBody
  * export interface/type RoutingBody
  * export interface/type Rule

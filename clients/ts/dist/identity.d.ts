@@ -334,6 +334,10 @@ export interface PutBody {
 export interface ReadAllBody {
     kind?: string | null;
 }
+/** RenderingBody. Required keys: rendering. */
+export interface RenderingBody {
+    rendering: string;
+}
 /** RevertBody. Required keys: toVersion. */
 export interface RevertBody {
     expectedVersion?: number | null;
@@ -718,6 +722,12 @@ export declare class IdentityClient {
     /** Me
      *  GET /api/v1/me */
     me(): Promise<PrincipalResponse>;
+    /** Get My Rendering
+     *  GET /api/v1/me/rendering */
+    get_my_rendering(): Promise<Record<string, unknown>>;
+    /** Put My Rendering
+     *  PUT /api/v1/me/rendering */
+    put_my_rendering(body: RenderingBody): Promise<Record<string, unknown>>;
     /** List Inbox
      *  GET /api/v1/notifications */
     list_inbox(unread?: boolean, kind?: string | null, state?: string | null, limit?: number, cursor?: string | null): Promise<Record<string, unknown>>;
@@ -1039,6 +1049,12 @@ export declare class IdentityClient {
     /** Change Member Role
      *  PATCH /api/v1/teams/{team_id}/members/{user_id} */
     change_member_role(team_id: string, user_id: string, body: MemberRoleBody): Promise<Record<string, unknown>>;
+    /** Get Member Rendering
+     *  GET /api/v1/teams/{team_id}/members/{user_id}/rendering */
+    get_member_rendering(team_id: string, user_id: string): Promise<Record<string, unknown>>;
+    /** Put Member Rendering
+     *  PUT /api/v1/teams/{team_id}/members/{user_id}/rendering */
+    put_member_rendering(team_id: string, user_id: string, body: RenderingBody): Promise<Record<string, unknown>>;
     /** List Scim Tokens
      *  GET /api/v1/teams/{team_id}/scim/tokens */
     list_scim_tokens(team_id: string): Promise<Record<string, unknown>>;

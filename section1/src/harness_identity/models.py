@@ -90,6 +90,12 @@ class TeamMember(Base, TimestampMixin):
         Enum(MemberType, native_enum=False, length=16), nullable=False, default="human"
     )
     role: Mapped[str] = mapped_column(Enum(Role, native_enum=False, length=16), nullable=False)
+    # X-07 (10X Wave B): per-member approval rendering (technical|plain|decision).
+    # Presentation preference only — never affects disclosure or gating. The DB
+    # default and CHECK live in migration 0077; this column mirrors it for ORM reads.
+    approval_rendering: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="technical", server_default="technical"
+    )
 
 
 class Project(Base, TimestampMixin):

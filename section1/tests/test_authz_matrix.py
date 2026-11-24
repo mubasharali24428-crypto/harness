@@ -94,12 +94,13 @@ PUBLIC_HEALTH = re.compile(r"^/health\Z")
 # same way (team_id+user_id / user_id), so they are own-data too.
 OWN_DATA_GETS = re.compile(
     r"^/api/v1/(keys|projects|agents|team-runners|billing/state"
-    r"|orgs|notifications(/unread-count|/preferences)?"
+    r"|orgs|notifications(/unread-count|/preferences)?|me/rendering"
     r"|sessions(/templates)?|workspaces(/allowlist|/templates)?)\Z")
 # Per-user writes: rows are keyed by (team_id, user_id), so any role may mark
 # its OWN notifications read — a viewer succeeding here discloses nothing and
 # changes nothing outside their own inbox (notifications.py read_all).
-SELF_SCOPED_WRITES = re.compile(r"^/api/v1/notifications/read-all\Z")
+SELF_SCOPED_WRITES = re.compile(
+    r"^/api/v1/(notifications/read-all|me/rendering)\Z")
 
 
 def classify(method: str, path: str) -> str:
@@ -117,7 +118,7 @@ def classify(method: str, path: str) -> str:
         return "service_door"
     if SELF_DELETING.match(path):
         return "self_delete"
-    if SELF_SCOPED_WRITES.match(path) and method == "POST":
+    if SELF_SCOPED_WRITES.match(path) and method != "GET":
         return "own_data_write"
     if OWN_DATA_GETS.match(path) and method == "GET":
         return "own_data"

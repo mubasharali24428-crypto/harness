@@ -375,6 +375,11 @@ export interface ReadAllBody {
   kind?: string | null;  // optional
 }
 
+/** RenderingBody. Required keys: rendering. */
+export interface RenderingBody {
+  rendering: string;
+}
+
 /** RevertBody. Required keys: toVersion. */
 export interface RevertBody {
   expectedVersion?: number | null;  // optional
@@ -901,6 +906,20 @@ export class IdentityClient {
   me(): Promise<PrincipalResponse> {
     const _path = `/api/v1/me`;
     return this.http.request<PrincipalResponse>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Get My Rendering
+   *  GET /api/v1/me/rendering */
+  get_my_rendering(): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/me/rendering`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Put My Rendering
+   *  PUT /api/v1/me/rendering */
+  put_my_rendering(body: RenderingBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/me/rendering`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
   }
 
   /** List Inbox
@@ -1661,6 +1680,20 @@ export class IdentityClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PATCH", body);
   }
 
+  /** Get Member Rendering
+   *  GET /api/v1/teams/{team_id}/members/{user_id}/rendering */
+  get_member_rendering(team_id: string, user_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/members/${encodeURIComponent(user_id)}/rendering`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Put Member Rendering
+   *  PUT /api/v1/teams/{team_id}/members/{user_id}/rendering */
+  put_member_rendering(team_id: string, user_id: string, body: RenderingBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/members/${encodeURIComponent(user_id)}/rendering`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
   /** List Scim Tokens
    *  GET /api/v1/teams/{team_id}/scim/tokens */
   list_scim_tokens(team_id: string): Promise<Record<string, unknown>> {
@@ -2176,6 +2209,7 @@ export class IdentityClient {
  * export interface/type ProjectOut
  * export interface/type PutBody
  * export interface/type ReadAllBody
+ * export interface/type RenderingBody
  * export interface/type RevertBody
  * export interface/type RoutingBody
  * export interface/type Rule

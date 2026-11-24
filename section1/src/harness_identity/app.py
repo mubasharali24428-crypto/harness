@@ -303,6 +303,11 @@ def make_app(session_factory, settings: Settings):
 
     app.include_router(settings_api_router)
 
+    # X-07 (10X Wave B): approval rendering by reader — per-member preference.
+    from .approval_rendering import router as approval_rendering_router
+
+    app.include_router(approval_rendering_router)
+
     # Session 3 (parts 37-39): organizations, policy engine, workspaces.
     from .orgs import router as orgs_router
     from .policy import router as policy_router

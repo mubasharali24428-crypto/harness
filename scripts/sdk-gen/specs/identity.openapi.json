@@ -1725,6 +1725,21 @@
     "title": "ReadAllBody",
     "type": "object"
    },
+   "RenderingBody": {
+    "properties": {
+     "rendering": {
+      "maxLength": 16,
+      "minLength": 4,
+      "title": "Rendering",
+      "type": "string"
+     }
+    },
+    "required": [
+     "rendering"
+    ],
+    "title": "RenderingBody",
+    "type": "object"
+   },
    "RevertBody": {
     "properties": {
      "expectedVersion": {
@@ -4471,6 +4486,64 @@
      }
     },
     "summary": "Me"
+   }
+  },
+  "/api/v1/me/rendering": {
+   "get": {
+    "operationId": "get_my_rendering_api_v1_me_rendering_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get My Rendering Api V1 Me Rendering Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Get My Rendering"
+   },
+   "put": {
+    "operationId": "put_my_rendering_api_v1_me_rendering_put",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RenderingBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Put My Rendering Api V1 Me Rendering Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put My Rendering"
    }
   },
   "/api/v1/notifications": {
@@ -9458,6 +9531,114 @@
      }
     },
     "summary": "Change Member Role"
+   }
+  },
+  "/api/v1/teams/{team_id}/members/{user_id}/rendering": {
+   "get": {
+    "operationId": "get_member_rendering_api_v1_teams__team_id__members__user_id__rendering_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Member Rendering Api V1 Teams  Team Id  Members  User Id  Rendering Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Member Rendering"
+   },
+   "put": {
+    "operationId": "put_member_rendering_api_v1_teams__team_id__members__user_id__rendering_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RenderingBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Put Member Rendering Api V1 Teams  Team Id  Members  User Id  Rendering Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put Member Rendering"
    }
   },
   "/api/v1/teams/{team_id}/scim/tokens": {
