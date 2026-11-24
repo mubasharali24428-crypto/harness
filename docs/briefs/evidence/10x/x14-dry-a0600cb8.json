@@ -1,0 +1,717 @@
+{
+ "protocol": "x14-dry/1",
+ "revision": "a0600cb8",
+ "embedder": "HashingEmbedding(256)",
+ "queries": 12,
+ "facts": 12,
+ "variants": {
+  "flat_chunks": {
+   "hit@1": 0.9166666666666666,
+   "hit@3": 1.0,
+   "whole@3": 1.0,
+   "tokens@3_mean": 152.58333333333334,
+   "latency_us_mean": 279.4,
+   "per_query": [
+    {
+     "q": "can low risk changes get approved automatically",
+     "expect": "du4",
+     "top": [
+      "du4",
+      "cd02",
+      "vf"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 149,
+     "latency_us": 276.6660036286339
+    },
+    {
+     "q": "is the scheduler allowed to dispatch work",
+     "expect": "w31",
+     "top": [
+      "w31",
+      "vf",
+      "d01"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 153,
+     "latency_us": 275.54199914447963
+    },
+    {
+     "q": "which language do agent workflows use, and what about hermes",
+     "expect": "hx",
+     "top": [
+      "hx",
+      "d01",
+      "adapter"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 155,
+     "latency_us": 277.79099764302373
+    },
+    {
+     "q": "is verification on by default",
+     "expect": "vf",
+     "top": [
+      "vf",
+      "hx",
+      "pd7"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 150,
+     "latency_us": 276.9580023596063
+    },
+    {
+     "q": "when will billing be turned on",
+     "expect": "pd2",
+     "top": [
+      "pd2",
+      "d01",
+      "d05"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 144,
+     "latency_us": 276.29200485534966
+    },
+    {
+     "q": "are we building multiplayer now",
+     "expect": "pd7",
+     "top": [
+      "pd7",
+      "pd3",
+      "xd1"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 156,
+     "latency_us": 284.7079886123538
+    },
+    {
+     "q": "does learned memory get applied without review",
+     "expect": "cd02",
+     "top": [
+      "cd02",
+      "vf",
+      "adapter"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 159,
+     "latency_us": 281.4579929690808
+    },
+    {
+     "q": "what authority does an external agent get",
+     "expect": "adapter",
+     "top": [
+      "adapter",
+      "hx",
+      "xd1"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 161,
+     "latency_us": 287.041999399662
+    },
+    {
+     "q": "self hosted or cloud first",
+     "expect": "d01",
+     "top": [
+      "d01",
+      "vf",
+      "w31"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 153,
+     "latency_us": 281.41599614173174
+    },
+    {
+     "q": "can we launch publicly under the current name",
+     "expect": "pd3",
+     "top": [
+      "pd3",
+      "du4",
+      "hx"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 149,
+     "latency_us": 278.74999796040356
+    },
+    {
+     "q": "who decides how approvals are rendered for a member",
+     "expect": "xd1",
+     "top": [
+      "d05",
+      "w31",
+      "xd1"
+     ],
+     "hit1": false,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 156,
+     "latency_us": 279.4579922920093
+    },
+    {
+     "q": "who approves task assignments",
+     "expect": "d05",
+     "top": [
+      "d05",
+      "pd2",
+      "vf"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 146,
+     "latency_us": 277.2919979179278
+    }
+   ]
+  },
+  "plain_graph_edges": {
+   "hit@1": 0.8333333333333334,
+   "hit@3": 0.9166666666666666,
+   "whole@3": 0.8333333333333334,
+   "tokens@3_mean": 122.41666666666667,
+   "latency_us_mean": 838.4,
+   "per_query": [
+    {
+     "q": "can low risk changes get approved automatically",
+     "expect": "du4",
+     "top": [
+      "du4",
+      "du4",
+      "du4"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 122,
+     "latency_us": 826.2500050477684
+    },
+    {
+     "q": "is the scheduler allowed to dispatch work",
+     "expect": "w31",
+     "top": [
+      "vf",
+      "w31",
+      "vf"
+     ],
+     "hit1": false,
+     "hit3": true,
+     "whole3": false,
+     "tokens3": 120,
+     "latency_us": 830.9590048156679
+    },
+    {
+     "q": "which language do agent workflows use, and what about hermes",
+     "expect": "hx",
+     "top": [
+      "hx",
+      "hx",
+      "hx"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 125,
+     "latency_us": 848.9589963573962
+    },
+    {
+     "q": "is verification on by default",
+     "expect": "vf",
+     "top": [
+      "vf",
+      "vf",
+      "vf"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 118,
+     "latency_us": 846.0409881081432
+    },
+    {
+     "q": "when will billing be turned on",
+     "expect": "pd2",
+     "top": [
+      "pd2",
+      "pd2",
+      "d01"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 111,
+     "latency_us": 835.1249998668209
+    },
+    {
+     "q": "are we building multiplayer now",
+     "expect": "pd7",
+     "top": [
+      "pd7",
+      "pd7",
+      "pd3"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 118,
+     "latency_us": 830.3749928018078
+    },
+    {
+     "q": "does learned memory get applied without review",
+     "expect": "cd02",
+     "top": [
+      "cd02",
+      "cd02",
+      "cd02"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 130,
+     "latency_us": 842.9169974988326
+    },
+    {
+     "q": "what authority does an external agent get",
+     "expect": "adapter",
+     "top": [
+      "adapter",
+      "adapter",
+      "adapter"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 146,
+     "latency_us": 847.332994453609
+    },
+    {
+     "q": "self hosted or cloud first",
+     "expect": "d01",
+     "top": [
+      "d01",
+      "d01",
+      "d01"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 116,
+     "latency_us": 847.7499941363931
+    },
+    {
+     "q": "can we launch publicly under the current name",
+     "expect": "pd3",
+     "top": [
+      "pd3",
+      "pd3",
+      "pd3"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 131,
+     "latency_us": 830.6249947054312
+    },
+    {
+     "q": "who decides how approvals are rendered for a member",
+     "expect": "xd1",
+     "top": [
+      "d05",
+      "d05",
+      "d05"
+     ],
+     "hit1": false,
+     "hit3": false,
+     "whole3": false,
+     "tokens3": 116,
+     "latency_us": 838.6669942410663
+    },
+    {
+     "q": "who approves task assignments",
+     "expect": "d05",
+     "top": [
+      "d05",
+      "d05",
+      "d05"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 116,
+     "latency_us": 835.6659964192659
+    }
+   ]
+  },
+  "simplicial_flat": {
+   "hit@1": 0.9166666666666666,
+   "hit@3": 1.0,
+   "whole@3": 1.0,
+   "tokens@3_mean": 152.58333333333334,
+   "latency_us_mean": 367.4,
+   "per_query": [
+    {
+     "q": "can low risk changes get approved automatically",
+     "expect": "du4",
+     "top": [
+      "du4",
+      "cd02",
+      "vf"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 149,
+     "latency_us": 337.7499961061403
+    },
+    {
+     "q": "is the scheduler allowed to dispatch work",
+     "expect": "w31",
+     "top": [
+      "w31",
+      "vf",
+      "d01"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 153,
+     "latency_us": 336.54100843705237
+    },
+    {
+     "q": "which language do agent workflows use, and what about hermes",
+     "expect": "hx",
+     "top": [
+      "hx",
+      "d01",
+      "adapter"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 155,
+     "latency_us": 342.9160133237019
+    },
+    {
+     "q": "is verification on by default",
+     "expect": "vf",
+     "top": [
+      "vf",
+      "hx",
+      "pd7"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 150,
+     "latency_us": 346.62500547710806
+    },
+    {
+     "q": "when will billing be turned on",
+     "expect": "pd2",
+     "top": [
+      "pd2",
+      "d01",
+      "d05"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 144,
+     "latency_us": 344.29099468979985
+    },
+    {
+     "q": "are we building multiplayer now",
+     "expect": "pd7",
+     "top": [
+      "pd7",
+      "pd3",
+      "xd1"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 156,
+     "latency_us": 335.16700204927474
+    },
+    {
+     "q": "does learned memory get applied without review",
+     "expect": "cd02",
+     "top": [
+      "cd02",
+      "vf",
+      "adapter"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 159,
+     "latency_us": 337.499994202517
+    },
+    {
+     "q": "what authority does an external agent get",
+     "expect": "adapter",
+     "top": [
+      "adapter",
+      "hx",
+      "xd1"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 161,
+     "latency_us": 343.58400444034487
+    },
+    {
+     "q": "self hosted or cloud first",
+     "expect": "d01",
+     "top": [
+      "d01",
+      "vf",
+      "w31"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 153,
+     "latency_us": 334.08399031031877
+    },
+    {
+     "q": "can we launch publicly under the current name",
+     "expect": "pd3",
+     "top": [
+      "pd3",
+      "du4",
+      "hx"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 149,
+     "latency_us": 336.08300145715475
+    },
+    {
+     "q": "who decides how approvals are rendered for a member",
+     "expect": "xd1",
+     "top": [
+      "d05",
+      "w31",
+      "xd1"
+     ],
+     "hit1": false,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 156,
+     "latency_us": 334.08300078008324
+    },
+    {
+     "q": "who approves task assignments",
+     "expect": "d05",
+     "top": [
+      "d05",
+      "pd2",
+      "vf"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 146,
+     "latency_us": 679.6670058974996
+    }
+   ]
+  },
+  "simplicial_hyperbolic": {
+   "hit@1": 0.9166666666666666,
+   "hit@3": 1.0,
+   "whole@3": 1.0,
+   "tokens@3_mean": 152.58333333333334,
+   "latency_us_mean": 877.5,
+   "per_query": [
+    {
+     "q": "can low risk changes get approved automatically",
+     "expect": "du4",
+     "top": [
+      "du4",
+      "cd02",
+      "vf"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 149,
+     "latency_us": 809.1659983620048
+    },
+    {
+     "q": "is the scheduler allowed to dispatch work",
+     "expect": "w31",
+     "top": [
+      "w31",
+      "vf",
+      "d01"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 153,
+     "latency_us": 793.4579916764051
+    },
+    {
+     "q": "which language do agent workflows use, and what about hermes",
+     "expect": "hx",
+     "top": [
+      "hx",
+      "d01",
+      "adapter"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 155,
+     "latency_us": 798.5829870449379
+    },
+    {
+     "q": "is verification on by default",
+     "expect": "vf",
+     "top": [
+      "vf",
+      "hx",
+      "pd7"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 150,
+     "latency_us": 1149.6670049382374
+    },
+    {
+     "q": "when will billing be turned on",
+     "expect": "pd2",
+     "top": [
+      "pd2",
+      "d01",
+      "d05"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 144,
+     "latency_us": 1347.2499995259568
+    },
+    {
+     "q": "are we building multiplayer now",
+     "expect": "pd7",
+     "top": [
+      "pd7",
+      "pd3",
+      "xd1"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 156,
+     "latency_us": 812.8750050673261
+    },
+    {
+     "q": "does learned memory get applied without review",
+     "expect": "cd02",
+     "top": [
+      "cd02",
+      "vf",
+      "adapter"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 159,
+     "latency_us": 801.1250029085204
+    },
+    {
+     "q": "what authority does an external agent get",
+     "expect": "adapter",
+     "top": [
+      "adapter",
+      "hx",
+      "xd1"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 161,
+     "latency_us": 808.7919995887205
+    },
+    {
+     "q": "self hosted or cloud first",
+     "expect": "d01",
+     "top": [
+      "d01",
+      "vf",
+      "w31"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 153,
+     "latency_us": 797.7500063134357
+    },
+    {
+     "q": "can we launch publicly under the current name",
+     "expect": "pd3",
+     "top": [
+      "pd3",
+      "du4",
+      "hx"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 149,
+     "latency_us": 796.7080018715933
+    },
+    {
+     "q": "who decides how approvals are rendered for a member",
+     "expect": "xd1",
+     "top": [
+      "d05",
+      "w31",
+      "xd1"
+     ],
+     "hit1": false,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 156,
+     "latency_us": 800.8750010048971
+    },
+    {
+     "q": "who approves task assignments",
+     "expect": "d05",
+     "top": [
+      "d05",
+      "pd2",
+      "vf"
+     ],
+     "hit1": true,
+     "hit3": true,
+     "whole3": true,
+     "tokens3": 146,
+     "latency_us": 813.8750126818195
+    }
+   ]
+  }
+ }
+}
