@@ -1,3 +1,4 @@
+import ast
 import fnmatch
 import os
 import re
@@ -309,6 +310,43 @@ def _symlink_spellings(token: str, cwd: str | None) -> list[str]:
     return [real]
 
 
+PREEXEC_ENV = "HARNESS_PREEXEC_VALIDATE"
+MAX_INLINE_SOURCE = 64 * 1024
+
+
+def check_inline_python(tokens: list[str]) -> None:
+    """Task 8 pre-exec validation: ``python -c SOURCE`` must parse before it may run.
+
+    Parse only (``ast.parse`` never executes). A refusal carries one diagnostic in the
+    output_parser ``path:line:col: error: message`` shape plus a safe alternative.
+    ponytail: covers ``-c`` only; script files fail at run time with their own traceback.
+    """
+    # Only an interpreter-level -c counts: once -m or a script appears, later "-c" belongs to
+    # that program (e.g. `python -m pytest -c pytest.ini`).
+    i = next((n for n, tok in enumerate(tokens[1:], start=1)
+              if tok in ("-c", "-m") or not tok.startswith("-")), None)
+    if i is None or tokens[i] != "-c":
+        return
+    src = tokens[i + 1] if i + 1 < len(tokens) else ""
+    if not src.strip():
+        raise SecurityPolicyViolationError("<python -c>:1:1: error: empty source. "
+                                           "Safe alternative: write the code to a file and run it.")
+    if len(src.encode()) > MAX_INLINE_SOURCE:
+        raise SecurityPolicyViolationError(
+            f"<python -c>:1:1: error: inline source over {MAX_INLINE_SOURCE} bytes. "
+            "Safe alternative: write the code to a file in the workspace and run it.")
+    try:
+        ast.parse(src, "<python -c>")
+    except SyntaxError as e:
+        raise SecurityPolicyViolationError(
+            f"<python -c>:{e.lineno or 1}:{e.offset or 1}: error: {e.msg}. "
+            "Safe alternative: fix the syntax and resubmit; nothing was executed.") from e
+    except (ValueError, RecursionError, MemoryError) as e:  # null bytes, pathological nesting
+        raise SecurityPolicyViolationError(
+            f"<python -c>:1:1: error: source could not be parsed ({type(e).__name__}). "
+            "Safe alternative: simplify the code; nothing was executed.") from e
+
+
 def validate_command(
     command: str,
     forbidden_paths: list[str] | None = None,
@@ -363,6 +401,9 @@ def validate_command(
             raise SecurityPolicyViolationError(
                 f"git subcommand '{subcmd}' is not permitted in sandbox."
             )
+
+    if binary in ("python", "python3") and os.environ.get(PREEXEC_ENV, "1") != "0":
+        check_inline_python(tokens)
 
     # S1-R03a: check literal tokens AND every path a glob token can reach.
     checked_paths = list(tokens)
