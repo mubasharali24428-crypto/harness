@@ -11,23 +11,30 @@ Laws (CD-02, denial_learning.py):
 * Deterministic: same inputs -> same fingerprint, same ranking (ties broken by case id).
 * Old cases fade: weight halves every ``half_life_hours`` (default one week).
 
-ponytail: in-memory similarity (path-set Jaccard + same-tool bonus) over a caller-supplied
-list; a case_memory table + pgvector fingerprint search are the upgrade once cases are
-persisted by the denial stop.
+Persistence (migration 0080): ``recall_and_record`` is what the denial stop calls. It reads
+the team's recent cases FIRST (so a case never matches itself), ranks them, then stores the
+new one. Every query filters ``team_id``.
+ponytail: similarity runs in Python over the team's latest MAX_SCAN cases; pgvector
+fingerprint search is the upgrade if a team's case count outgrows that window.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Literal
+
+from sqlalchemy import text
 
 from harness_orchestrator.denial_learning import suggested_rule_text
 
 Outcome = Literal["recovered", "denied", "repeat"]
 OUTCOME_WEIGHT = {"recovered": 1.0, "denied": 0.6, "repeat": 0.3}  # what fixed it ranks first
 DEFAULT_HALF_LIFE_HOURS = 168.0
+MAX_SCAN = 200  # newest cases per team considered for similarity
+MAX_RECALLED = 3  # what rides on the run record next to a stop
 
 
 def fingerprint(failure_class: str, tool: str, paths: list[str]) -> str:
@@ -73,3 +80,40 @@ def retrieve_similar_cases(cases: list[dict[str, Any]], query_paths: list[str], 
         scored.append((score, c["caseId"], c))
     scored.sort(key=lambda s: (-s[0], s[1]))
     return [{**c, "score": round(s, 6)} for s, _, c in scored[:limit]]
+
+
+def _aware(ts: Any) -> datetime:
+    if isinstance(ts, str):
+        ts = datetime.fromisoformat(ts)
+    return ts if ts.tzinfo else ts.replace(tzinfo=UTC)
+
+
+async def load_cases(db: Any, team_id: str) -> list[dict[str, Any]]:
+    rows = (await db.execute(text(
+        "SELECT * FROM case_memory WHERE team_id = :t ORDER BY recorded_at DESC LIMIT :n"),
+        {"t": team_id, "n": MAX_SCAN})).mappings().all()
+    return [{"caseId": r["case_id"], "runId": r["run_id"], "failureClass": r["failure_class"],
+             "tool": r["tool"], "paths": json.loads(r["paths"]), "fingerprint": r["fingerprint"],
+             "outcome": r["outcome"], "weight": float(r["weight"]),
+             "recordedAt": _aware(r["recorded_at"]), "suggestedRule": r["suggested_rule"],
+             "status": r["status"]} for r in rows]
+
+
+async def recall_and_record(factory: Any, team_id: str, project_id: str | None, run_id: str,
+                            failure_class: str, tool: str, paths: list[str],
+                            now: datetime) -> list[dict[str, Any]]:
+    """Similar earlier cases (bounded, JSON-safe), then persist this one as ``denied``."""
+    case = record_case(run_id, failure_class, tool, paths, "denied", now)
+    async with factory() as db:
+        similar = retrieve_similar_cases(await load_cases(db, team_id), case["paths"], tool, now,
+                                         limit=MAX_RECALLED)
+        await db.execute(text(
+            "INSERT INTO case_memory (case_id, team_id, project_id, run_id, failure_class, tool,"
+            " paths, fingerprint, outcome, weight, suggested_rule, status, recorded_at) VALUES"
+            " (:c, :t, :p, :r, :f, :tool, :paths, :fp, :o, :w, :s, 'proposed', :at)"),
+            {"c": case["caseId"], "t": team_id, "p": project_id, "r": run_id, "f": failure_class,
+             "tool": tool, "paths": json.dumps(case["paths"]), "fp": case["fingerprint"],
+             "o": case["outcome"], "w": case["weight"], "s": case["suggestedRule"], "at": now})
+        await db.commit()
+    return [{"caseId": c["caseId"], "runId": c["runId"], "outcome": c["outcome"],
+             "score": c["score"], "suggestedRule": c["suggestedRule"]} for c in similar]
