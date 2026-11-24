@@ -52,6 +52,25 @@ export interface Approval {
   /** Task 14: read-only, team-scoped lesson from earlier denial stops. */
   similarCases?: SimilarCase[];
 }
+/** Task 18: stored W31 memory-tier proposal (read-only; flag-gated server-side). */
+export interface SchedulerProposal {
+  runId: string;
+  schema: string;
+  proposal: {
+    schema?: string;
+    status?: string;
+    proposalOnly?: boolean;
+    requiresHumanApproval?: boolean;
+    placements: { id: string; tier: string; ttl_hours: number | null }[];
+  };
+  violations: string[];
+  valid: boolean;
+  proposalOnly: boolean;
+  requiresHumanApproval: boolean;
+  createdBy: string;
+}
+export interface SchedulerProposalResponse { runId: string; latest: SchedulerProposal | null }
+
 export interface CollabEvent {
   seq: number;
   actor: string;
@@ -110,6 +129,9 @@ export const decideHandoff = (runId: string, t: string, handoffId: string, accep
   post<unknown>(`${root(runId)}/handoff/${encodeURIComponent(handoffId)}`, t, { accept });
 export const listApprovals = (runId: string, t: string) =>
   call<{ approvals: Approval[] }>(`${root(runId)}/approvals`, t);
+/** Task 18: read-only. 404 FEATURE_OFF / 403 non-admin / 503 no solver are caught by the panel. */
+export const getSchedulerProposal = (runId: string, t: string) =>
+  call<SchedulerProposalResponse>(`${root(runId)}/scheduler-proposals`, t);
 /** The approver echoes the digest they reviewed; a changed proposal is refused (409). */
 export const decideApproval = (runId: string, t: string, a: Approval, approve: boolean) =>
   post<Approval>(`${root(runId)}/approvals/${encodeURIComponent(a.id)}/decision`, t, {

@@ -19,9 +19,9 @@ import { parkFocus } from "@/lib/focus";
 import { formatDateTime } from "@/lib/intl";
 import { AnnounceContext, useAnnouncer } from "@/components/LiveAnnouncer";
 import {
-  type Approval, type CollabEvent, type RedirectKind, type Roster,
+  type Approval, type CollabEvent, type RedirectKind, type Roster, type SchedulerProposal,
   hasUnappliedStaged, applyApproval, claimLeader, decideApproval, decideHandoff, getRoster, joinRun,
-  call, listApprovals, requestHandoff, sendRedirect,
+  call, getSchedulerProposal, listApprovals, requestHandoff, sendRedirect,
 } from "./collabApi";
 import {
   type CollabView, approvalAnnouncements, approvalLabel, clipDiff, deriveCollabView, describeDecision,
@@ -39,6 +39,7 @@ import { RunIntentSection } from "./intentSection";
 import { RunOwnerSection } from "./ownerSection";
 import { PresenceSection } from "./presenceSection";
 import { DecisionCardGrid } from "./decisionGrid";
+import { SchedulerProposalCard } from "./schedulerProposalCard";
 import { ObserversSection } from "./observersSection";
 
 const muted = { color: "var(--muted)" } as const;
@@ -60,6 +61,8 @@ export interface SharedRunViewProps {
   notice?: string | null;
   /** X-07: the member's approval rendering (GET /api/v1/me/rendering); technical when unknown. */
   rendering?: "technical" | "plain" | "decision";
+  /** Task 18: admin's stored W31 proposal, or null when absent/flag-off/error. Read-only. */
+  schedulerProposal?: SchedulerProposal | null;
   /** Part 46: live connection state; the indicator renders only when given. */
   connection?: StreamView;
   onReload?: () => void;
@@ -166,6 +169,8 @@ export function SharedRunView(p: SharedRunViewProps) {
       )}
 
       {p.children}
+
+      {p.schedulerProposal && <SchedulerProposalCard proposal={p.schedulerProposal} />}
 
       <section aria-label="Pending decisions">
         <h3 style={{ fontSize: 13 }}>Pending decisions ({open.filter((a) => a.state === "pending").length})</h3>
@@ -302,6 +307,7 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
   const [reopened, setReopened] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [rendering, setRendering] = useState<SharedRunViewProps["rendering"]>("technical");
+  const [schedulerProposal, setSchedulerProposal] = useState<SchedulerProposal | null>(null);
   const seen = useRef<Approval[] | null>(null);
   const meRef = useRef({ me, leader: null as string | null });
   const { announce, region } = useAnnouncer();
@@ -312,6 +318,15 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
     call<{ rendering: SharedRunViewProps["rendering"] }>(`${IDENTITY_BASE}/api/v1/me/rendering`, token)
       .then((r) => setRendering(r.rendering)).catch(() => undefined);
   }, [token]);
+
+  useEffect(() => {
+    // Task 18: admin-only, flag-gated read. 404 FEATURE_OFF, 403, 503 and an empty
+    // latest all mean "show nothing" — never an error banner on an ordinary run page.
+    if (!token || session?.principal.role !== "admin") return;
+    getSchedulerProposal(runId, token)
+      .then((r) => setSchedulerProposal(r.latest))
+      .catch(() => setSchedulerProposal(null));
+  }, [token, runId, session?.principal.role]);
 
   const refresh = useCallback(async () => {
     if (!token) return;
@@ -393,6 +408,7 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
       <SharedRunView
         me={me} roster={roster} view={view} approvals={approvals} events={events}
         error={error} busy={busy || cooling} reopened={reopened} goal={goal} notice={notice} rendering={rendering}
+        schedulerProposal={schedulerProposal}
         connection={stream} onReload={() => window.location.reload()}
         discussion={<DiscussionSection scope={{ kind: "run", id: runId }} token={token} me={me} role={session?.principal.role} canSteer={canLead && view.joined} people={people} tick={tick} />}
         onJoin={() => run(() => joinRun(runId, token))}
