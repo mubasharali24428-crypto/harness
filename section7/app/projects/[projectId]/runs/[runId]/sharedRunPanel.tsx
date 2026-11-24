@@ -178,6 +178,11 @@ export function SharedRunView(p: SharedRunViewProps) {
               <Pill tone={stateTone(a.state)}>
                 {approvalLabel(a, view.leader)}
               </Pill>
+              {a.envelope && (
+                <span data-testid={`envelope-${a.id}`} style={{ ...muted, marginLeft: 6 }}>
+                  Risk envelope: {a.envelope.tier} (advisory; still needs your decision)
+                </span>
+              )}
             </div>
             {p.rendering === "plain" && a.plain && <p style={{ margin: "4px 0" }} data-testid={`plain-${a.id}`}>{a.plain}</p>}
             {p.rendering === "decision" && a.decisionGrid && <DecisionCardGrid grid={a.decisionGrid} testId={`grid-${a.id}`} />}

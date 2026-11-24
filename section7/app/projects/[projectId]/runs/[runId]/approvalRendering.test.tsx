@@ -53,4 +53,17 @@ describe("approval rendering by reader", () => {
     // every column labelled in text (short visible + full word for assistive tech): never colour alone
     expect(h).toMatch(/<th scope="col"[^>]*>.*?elev.*?<span class="sr-only">elevated<\/span><\/th>/);
   });
+  it("X-08 envelope badge: shown only when the server sends it, and never replaces Approve", () => {
+    expect(html("technical")).not.toContain('data-testid="envelope-a1"');
+    const withEnvelope = { ...approval, envelope: { tier: "critical", advisory: true as const, autoApprove: false as const } };
+    const noop = () => undefined;
+    const h = renderToStaticMarkup(
+      <SharedRunView me="lead" roster={roster} view={deriveCollabView(roster, [withEnvelope], "lead", true)}
+        approvals={[withEnvelope]} events={[]} error={null} busy={false}
+        onApply={noop} onJoin={noop} onClaim={noop} onDecide={noop} onHandoff={noop}
+        onHandoffDecision={noop} onRedirect={noop} />,
+    );
+    expect(h).toContain("Risk envelope: critical (advisory; still needs your decision)");
+    expect(h).toContain("Approve this change");
+  });
 });

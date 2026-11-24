@@ -13,6 +13,7 @@ envelopes (P-D6) are not enabled: the grid informs a human, it never approves an
 from __future__ import annotations
 
 import fnmatch
+import os
 from typing import Any
 
 from harness_orchestrator.confine import SECRET_FILE_PATTERNS
@@ -86,5 +87,16 @@ def plain(action: str, paths: list[str]) -> str:
     return f"The agent wants to {verb} {target}.{extra}"
 
 
+ENVELOPES_ENV = "HARNESS_RISK_ENVELOPES"
+
+
 def render(action: str, paths: list[str]) -> dict[str, Any]:
-    return {"plain": plain(action, paths), "decisionGrid": grid(action, paths)}
+    """X-08 classification rides along: ``riskTier`` is always the grid's dominant band (a pure
+    function of the digest-bound action + paths, so deriving it on read IS the recorded tier).
+    ``envelope`` appears only with HARNESS_RISK_ENVELOPES=1 and is advisory by construction:
+    P-D6 is not enabled (D-U4), so no tier ever skips the explicit approve + digest claim."""
+    g = grid(action, paths)
+    out = {"plain": plain(action, paths), "decisionGrid": g, "riskTier": g["dominantBand"]}
+    if os.environ.get(ENVELOPES_ENV, "0") == "1":
+        out["envelope"] = {"tier": g["dominantBand"], "advisory": True, "autoApprove": False}
+    return out

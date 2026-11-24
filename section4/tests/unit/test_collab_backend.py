@@ -725,3 +725,28 @@ def test_guidance_items_are_numbered_for_replay(env):
     assert f"- #{seq} [guidance from eng2]" in first
     assert "skip any numbered item you already acted on" in first
     assert again == first and seq2 == seq
+
+
+@pytest.mark.parametrize("flag", ["0", "1"])
+def test_risk_envelope_is_classification_only(env, monkeypatch, flag):
+    """X-08 under D-U4/P-D6 (not enabled): the tier is computed either way; with the flag on it
+    is shown as an advisory envelope, and a critical request still cannot be executed until the
+    leader approves the exact digest."""
+    monkeypatch.setenv("HARNESS_RISK_ENVELOPES", flag)
+    as_, _ = env
+    lead_run(as_)
+    r = as_("eng2").post(f"{P}/r1/approvals", json={**PROPOSAL, "action": "modify",
+                                                   "paths": ["deploy/.env"]})
+    a = r.json()
+    listed = as_("view").get(f"{P}/r1/approvals").json()["approvals"][0]
+    assert listed["riskTier"] == "critical"
+    if flag == "1":
+        assert listed["envelope"] == {"tier": "critical", "advisory": True, "autoApprove": False}
+    else:
+        assert "envelope" not in listed
+    claim = as_("eng2").post(f"{P}/r1/approvals/{a['id']}/claim", json={"digest": a["digest"]})
+    assert claim.status_code == 409 and listed["state"] == "pending"  # no tier skips approval
+    as_("lead").post(f"{P}/r1/approvals/{a['id']}/decision",
+                     json={"approve": True, "digest": a["digest"]})
+    ok = as_("eng2").post(f"{P}/r1/approvals/{a['id']}/claim", json={"digest": a["digest"]})
+    assert ok.status_code == 200 and ok.json()["state"] == "executing"

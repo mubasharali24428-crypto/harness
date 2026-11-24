@@ -36,6 +36,10 @@ export interface Approval {
   /** X-07/X-21 presentation of the same facts (server templates); technical fields stay authoritative. */
   plain?: string;
   decisionGrid?: DecisionGrid;
+  /** X-08: policy-table tier (always computed server-side). */
+  riskTier?: string;
+  /** X-08: present only when HARNESS_RISK_ENVELOPES=1; advisory, never approves (P-D6 off). */
+  envelope?: { tier: string; advisory: true; autoApprove: false };
 }
 export interface CollabEvent {
   seq: number;
