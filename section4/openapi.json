@@ -37,6 +37,58 @@
     "title": "AbandonBody",
     "type": "object"
    },
+   "AdapterRegistration": {
+    "additionalProperties": false,
+    "properties": {
+     "agentId": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      "title": "Agentid",
+      "type": "string"
+     },
+     "capabilities": {
+      "items": {
+       "enum": [
+        "read_events",
+        "read_plan",
+        "propose_patch",
+        "comment"
+       ],
+       "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 1,
+      "title": "Capabilities",
+      "type": "array"
+     },
+     "maxScope": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 100,
+      "title": "Maxscope",
+      "type": "array"
+     },
+     "protocolVersion": {
+      "const": "1",
+      "title": "Protocolversion",
+      "type": "string"
+     },
+     "pubkey": {
+      "maxLength": 4096,
+      "minLength": 32,
+      "title": "Pubkey",
+      "type": "string"
+     }
+    },
+    "required": [
+     "agentId",
+     "protocolVersion",
+     "capabilities",
+     "pubkey"
+    ],
+    "title": "AdapterRegistration",
+    "type": "object"
+   },
    "AggregateStepOut": {
     "description": "One ordered step of the W4-C2 aggregate (agent_events summary row).",
     "properties": {
@@ -4936,6 +4988,104 @@
     "summary": "Abandon Route",
     "tags": [
      "execution"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/adapters": {
+   "get": {
+    "operationId": "list_adapters_api_v1_orchestrator_runs__runId__adapters_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Adapters Api V1 Orchestrator Runs  Runid  Adapters Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Adapters",
+    "tags": [
+     "adapters"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/adapters/register": {
+   "post": {
+    "operationId": "register_adapter_api_v1_orchestrator_runs__runId__adapters_register_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AdapterRegistration"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Register Adapter Api V1 Orchestrator Runs  Runid  Adapters Register Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Register Adapter",
+    "tags": [
+     "adapters"
     ]
    }
   },
