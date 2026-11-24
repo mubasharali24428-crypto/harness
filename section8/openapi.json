@@ -7,6 +7,17 @@
       "minLength": 1,
       "title": "Reviewer User Id",
       "type": "string"
+     },
+     "viewed_detail": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Viewed Detail"
      }
     },
     "required": [
@@ -341,6 +352,27 @@
  },
  "openapi": "3.1.0",
  "paths": {
+  "/api/v1/review-kpi/blind-approval": {
+   "get": {
+    "description": "X-07 KPI for the caller's team (admin only): blind-approval rate split by rendering.",
+    "operationId": "blind_approval_api_v1_review_kpi_blind_approval_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Blind Approval Api V1 Review Kpi Blind Approval Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Blind Approval"
+   }
+  },
   "/api/v1/reviews/settings/thresholds": {
    "get": {
     "description": "Read-only view of the caller's team reviewer thresholds (M15-G6b).\n\nThe AUTHORITATIVE admin write path is Section 1's\n``GET/PUT /api/v1/teams/{teamId}/settings/reviewer-thresholds``; this\nendpoint exists so the Review Area UI can show what's in force without\nreaching across sections. Missing config answers the documented defaults\n(never an error).",

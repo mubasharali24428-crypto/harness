@@ -293,7 +293,8 @@ class ReviewService(ReviewGate):
             )
 
     async def approve(
-        self, pr_id: str, reviewer_user_id: str, *, team_id: str | None = None
+        self, pr_id: str, reviewer_user_id: str, *, team_id: str | None = None,
+        viewed_detail: bool | None = None,
     ) -> None:
         """Approve a PR for merge (human action — merge itself is manual on GitHub)."""
         async with await self._session() as db:
@@ -315,6 +316,8 @@ class ReviewService(ReviewGate):
                         "github_pr_number": record["github_pr_number"],
                         # X-07 blind-approval KPI denominator (fail-open "unknown").
                         "rendering": await reviewer_rendering(db, team_id, reviewer_user_id),
+                        "teamId": team_id,
+                        "viewedDetail": viewed_detail,
                     },
                 )
 
@@ -356,6 +359,7 @@ class ReviewService(ReviewGate):
                         "comment_count": len(comments),
                         "github_pr_number": record["github_pr_number"],
                         "rendering": await reviewer_rendering(db, team_id, reviewer_user_id),
+                        "teamId": team_id,
                     },
                 )
 

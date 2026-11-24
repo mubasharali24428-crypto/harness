@@ -28,6 +28,17 @@ export function ReviewPane({ view, token, role }: { view: RunView; token: string
   const [decision, setDecision] = React.useState<string | null>(null);
   const [status, setStatus] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  // X-07 KPI: did the diff ever come on screen before Approve? Measured, not assumed.
+  const diffRef = React.useRef<HTMLDivElement | null>(null);
+  const [diffSeen, setDiffSeen] = React.useState(false);
+  React.useEffect(() => {
+    const el = diffRef.current;
+    if (!el || diffSeen || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) setDiffSeen(true); },
+      { threshold: 0.25 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [diffSeen]);
 
   React.useEffect(() => {
     if (!prId) return;
@@ -53,7 +64,7 @@ export function ReviewPane({ view, token, role }: { view: RunView; token: string
     setError(null);
     try {
       const reviewer = getUserId() ?? "ui-user";
-      if (kind === "approve") await approvePr(prId, reviewer, token);
+      if (kind === "approve") await approvePr(prId, reviewer, token, diffSeen);
       else await requestChanges(prId, [{ body: note.trim() }], reviewer, token);
       setDecision(kind === "approve"
         ? "Approved. Merging still happens on GitHub, by a person."
@@ -165,7 +176,9 @@ export function ReviewPane({ view, token, role }: { view: RunView; token: string
         </section>
       )}
 
-      <DiffPane view={view} compact onComment={ready && canDecide ? comment : undefined} />
+      <div ref={diffRef}>
+        <DiffPane view={view} compact onComment={ready && canDecide ? comment : undefined} />
+      </div>
     </div>
   );
 }

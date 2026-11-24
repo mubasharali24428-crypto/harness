@@ -50,3 +50,18 @@ States follow `FUTURE PLAN 2.0.md` §0 — this is an **incremental slice**, not
 | Reviewer's rendering recorded on `review.approved` / `review.changes_requested` audit rows (blind-approval denominator, fail-open `unknown`) | **Verified** | `section8/tests/unit/test_decision_context.py` 2/2 + conformance assertion; `make test-section8` 106 passed |
 | Keyboard-only + axe journey; no-scroll at 1280 / 375 px | **Verified (browser, mocked API)** — Sprint 2 Task 11 commit | `section7/e2e/approval-rendering.e2e.ts` 6/6 in Chromium; `docs/briefs/evidence/sprint2/task-11-browser.md`. Live-stack round-trip still not run (Docker down) |
 | Grid approves anything | **No** — P-D6 envelopes not enabled; display only |
+
+## Sprint 2 Task 18 — blind-approval KPI (2026-11-24)
+
+**Definition.** *Blind approval* = a PR approval whose `viewedDetail` is `false`, i.e. the diff was
+never on screen before Approve (the run-page review pane measures this with an
+IntersectionObserver at 25% visibility and sends `viewed_detail`). Approvals without the
+signal (the standalone `/review` page, API callers, rows before today) count as **not measured**,
+never as blind. **Rate** = blind / measured approvals, `null` ("insufficient data") below 10.
+
+| Claim | Status | Evidence |
+|---|---|---|
+| Approval audit rows carry `teamId`, `rendering`, `viewedDetail` | **Verified (unit)** | `section8/tests/unit/test_decision_context.py`; `make test-section8` 108 passed |
+| `GET /api/v1/review-kpi/blind-approval` — admin only, team-scoped, counts only (no user ids) | **Verified (unit)** | `test_kpi_reads_audit_rows_for_the_team_only`, `test_kpi_splits_by_rendering_and_never_counts_unknown_as_blind` |
+| Admin tile on `/dashboard/cost` | **Verified (static render)** | `section7/app/dashboard/blindApproval.test.tsx` |
+| Real rate on pilot tasks | **Not measured** — no pilot reviews yet; trend not tracked; no 5-minute cache (bounded 500-row scan) |
