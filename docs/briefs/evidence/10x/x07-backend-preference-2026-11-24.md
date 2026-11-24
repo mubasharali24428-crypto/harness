@@ -48,5 +48,5 @@ States follow `FUTURE PLAN 2.0.md` §0 — this is an **incremental slice**, not
 | Every collab approval carries `plain` + `decisionGrid` beside the unchanged technical fields | **Verified** | `test_collab_backend.py::test_approvals_carry_plain_sentence_and_grid_beside_technical` |
 | section7 card picks the view from `GET /api/v1/me/rendering` (failure -> technical); grid's dominant band precedes Approve in DOM order; every cell and column is text-labelled | **Verified (static render)** | `section7/.../approvalRendering.test.tsx` 3/3; full vitest 1208/1208; `tsc --noEmit` clean |
 | Reviewer's rendering recorded on `review.approved` / `review.changes_requested` audit rows (blind-approval denominator, fail-open `unknown`) | **Verified** | `section8/tests/unit/test_decision_context.py` 2/2 + conformance assertion; `make test-section8` 106 passed |
-| Keyboard-only + axe journey; no-scroll at 1280 / 375 px | **Not run** | no live stack (Docker daemon down); needs a browser pass |
+| Keyboard-only + axe journey; no-scroll at 1280 / 375 px | **Verified (browser, mocked API)** — Sprint 2 Task 11 commit | `section7/e2e/approval-rendering.e2e.ts` 6/6 in Chromium; `docs/briefs/evidence/sprint2/task-11-browser.md`. Live-stack round-trip still not run (Docker down) |
 | Grid approves anything | **No** — P-D6 envelopes not enabled; display only |

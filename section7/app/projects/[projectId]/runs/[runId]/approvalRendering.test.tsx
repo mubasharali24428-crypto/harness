@@ -50,6 +50,7 @@ describe("approval rendering by reader", () => {
     expect(dominant).toBeLessThan(h.indexOf("Approve this change"));
     expect(h).toMatch(/Overall risk:.*critical/);
     expect(h).toContain("Credentials / secrets");
-    expect(h).toContain("<th scope=\"col\">elevated</th>"); // every column labelled: never colour alone
+    // every column labelled in text (short visible + full word for assistive tech): never colour alone
+    expect(h).toMatch(/<th scope="col"[^>]*>.*?elev.*?<span class="sr-only">elevated<\/span><\/th>/);
   });
 });
