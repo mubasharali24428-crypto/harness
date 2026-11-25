@@ -1,6 +1,7 @@
 "use client";
 
-// ReviewPane — the Diff pane: verdict facts, the decision (R4), then the diff.
+// ReviewPane — the Diff pane: verdict facts, the decision (R4), then the diff,
+// opening on the last iteration's hunks with a switch to the full pull request.
 // A reviewer approves or requests changes here; a comment on a file is recorded
 // on the review and, while the run is live, sent to the agent as direction.
 // Every action is an existing review-service or redirect call.
@@ -8,6 +9,8 @@
 import * as React from "react";
 import type { RunView } from "./useRun";
 import { DiffPane } from "./DiffPane";
+import { IterationDiffScope } from "./IterationDiffScope";
+import type { DiffScope } from "@/lib/diffScope";
 import { reviewVerdictFacts } from "../../../app/review/verdictCard";
 import { addReviewComment, approvePr, listReviewComments, requestChanges, type ReviewComment } from "@/lib/api";
 import { getUserId } from "@/lib/auth";
@@ -18,7 +21,17 @@ import { takesEffectText } from "../../../app/projects/[projectId]/runs/[runId]/
 import { composerMode } from "./runFlow";
 import { approveBlock, commentAsDirection, reviewRisks, type DiffComment } from "./reviewFlow";
 
-export function ReviewPane({ view, token, role }: { view: RunView; token: string; role?: string | null }) {
+export function ReviewPane({ view, token, role, projectId = null, runKey, onDiffScopeChange }: {
+  view: RunView;
+  token: string;
+  role?: string | null;
+  /** R4: the project whose checkpoints hold the run's iterations. */
+  projectId?: string | null;
+  /** R4: a new key starts the diff scope again from its default. Defaults to the run id. */
+  runKey?: string | null;
+  /** R4: reports the diff scope (null while it is being decided or when unmounted). */
+  onDiffScopeChange?: (scope: DiffScope | null) => void;
+}) {
   const { agg, review, reviewState, runId } = view;
   const prId = agg?.prId ?? null;
   const [comments, setComments] = React.useState<ReviewComment[]>([]);
@@ -165,7 +178,10 @@ export function ReviewPane({ view, token, role }: { view: RunView; token: string
         </section>
       )}
 
-      <DiffPane view={view} compact onComment={ready && canDecide ? comment : undefined} />
+      <IterationDiffScope key={runKey ?? runId ?? ""} projectId={projectId} runId={runId} token={token} compact
+        onDiffScopeChange={onDiffScopeChange}>
+        <DiffPane view={view} compact onComment={ready && canDecide ? comment : undefined} />
+      </IterationDiffScope>
     </div>
   );
 }

@@ -1598,6 +1598,14 @@ a[href] {
 .ws-decide-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .ws-diff-comment { margin-top: var(--space-1); font-size: var(--text-xs); color: var(--text-2); }
 .ws-diff-comment summary { cursor: pointer; min-height: 24px; }
+
+/* R4: since-last-iteration scope switch and the last iteration's hunks. */
+.ws-scope { display: flex; flex-direction: column; gap: var(--space-2); }
+.ws-scope-toggle { display: flex; flex-wrap: wrap; gap: 4px; }
+.ws-scope-toggle .ws-pane-tab:disabled { cursor: not-allowed; opacity: 0.6; }
+.ws-hunk { display: flex; flex-direction: column; gap: 4px; margin-top: var(--space-2); }
+.ws-hunk-head { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; justify-content: space-between; }
+.ws-hunk-head code { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); }
 .ws-diff-comment form { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-1); align-items: flex-start; }
 .ws-diff-comment label { width: 100%; }
 
