@@ -271,7 +271,7 @@ export function ChangeReview({
       try {
         const list = await listCheckpoints(projectId, token);
         setSnapshots(list.items);
-        const next = preferred ?? sha ?? list.items[0]?.sha ?? "";
+        const next = preferred || sha || list.items[0]?.sha || "";
         setSha(next);
       } catch (e) {
         // A project the sandbox has never snapshotted is an empty history,
