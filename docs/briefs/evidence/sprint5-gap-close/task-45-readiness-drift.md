@@ -49,3 +49,21 @@ Mac truth at SHA <sha>:
 - make readiness-drift rc=
 - manifest file committed: Y/N  (path)
 ```
+
+## 45b result (owner Mac, 2026-11-25): PASS on the Mac at `5793ce9f`; manifest NOT committed
+
+Owner's handback, verbatim:
+
+```
+Mac truth at SHA 5793ce9f:
+- stack_tags Agreement: AGREE (vv90r7)
+- schema_migrations: 80|0082
+- make readiness-drift (CI): rc=0
+- manifest file written: Y (docs/briefs/evidence/90day/image-manifest-vv90r6-deployed.json) — NOT committed
+```
+
+- RC `harness-rc`: migrate 0077 to 0082. `make readiness-drift` (CI mode) on the Mac: 0 drift items (`disk 80|0082 = manifest`).
+- Full `rc build` failed on the DB image pull (timeout). 45b was finished with backend/frontend build + `migrate` one-shot + `up --force-recreate`.
+- **The manifest JSON exists only on the owner's Mac.** The committed file is still the 0076-era one, so CI `readiness drift (manifest vs HEAD)` on PR 27 stays red (`disk 80|0082 != manifest 74|0076`, re-measured in the cloud at `f2d0a5e`) until the owner commits and pushes it. Cloud did not write or edit the manifest.
+- PR 27 is now at `f2d0a5e` (master merged in). CI mode only checks lineage, migrations and image tags, and `f2d0a5e` has the same `80|0082` on disk, so the `5793ce9f` manifest also passes there. The RC stack still runs `5793ce9f`'s shell gate; master's PR 33 changed `shell_gate.py`, so `make readiness-drift-live` at `f2d0a5e` should show gate drift until a redeploy from the post-merge SHA.
+- Next: owner pushes the manifest (hand-fill the narrative fields as in the vv90r6 file), then confirm the CI job is green on PR 27.

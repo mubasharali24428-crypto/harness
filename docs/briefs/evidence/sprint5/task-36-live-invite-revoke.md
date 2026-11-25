@@ -78,3 +78,10 @@ burst of live specs from one machine gets 429, which the browser shows as "Faile
   `section7/e2e/invite-revoke-live.e2e.ts`.
 - **Playwright PASS is NOT claimed.** Only the owner's Mac re-run (`--retries=0`, command above) can confirm it
   without the marker. Status stays pending until that log exists.
+
+## Mac run 2026-11-25 at `5793ce9f` (owner-reported)
+
+- `make gate` rc=0, GATE GREEN at `5793ce9f`. `make gate` does **not** run `e2e/invite-revoke-live.e2e.ts`, so this is not the Task 36 Playwright result.
+- RC stack redeployed with migration 0082 (Task 45b, schema `80|0082`).
+- **Playwright PASS is still NOT claimed**: the paste has no `invite-revoke-live` log. Status stays pending that `--retries=0` run.
+- PR 27 has since moved to `f2d0a5e` (master merged in); nothing here was run at that SHA.
