@@ -83,3 +83,16 @@ create a separate ACCEPTED record; these DRAFTs are not decisions.
 |---|---|---|---|
 | §17 draft coverage | 3 drafts (D-01, P-D2, P-D3) | all 18 BLOCKED/DEFAULT rows have a DRAFT path (P-D6 is CONFIRMED, ACCEPTED record) | table above; `docs/decisions/2026-11-24-*-DRAFT.md` |
 | Owner gates (10.11, P-D2, P-D7) | BLOCKED | unchanged — still BLOCKED | this file, "Single BLOCKED summary" |
+
+## Delta after Sprint 5 (2026-11-25, engineering only)
+
+**No owner decision closed; no 10.11 gate line moved.** Engineering rows (all from the owner Mac; cloud had no Docker):
+
+| Item | Before | After | Evidence |
+|---|---|---|---|
+| Blind-approval KPI (collab) | collab decisions not counted | collab approvals in KPI; live PASS at `5932eaf1`; real rate still unmeasured | `docs/briefs/evidence/sprint5/task-33-live-blind-kpi.md` |
+| Phase 7 planning | mocked e2e | live PASS (real planner, C-07 note rule) | `task-34-live-planning.md` |
+| Denial learning / similarCases | unit only | read-only offer on run page; live similarCases PASS (stand-in denial text) | `task-35-…`, `task-37-…` |
+| B-09 invite → revoke | checklist only | live run **FAIL**: D2 (500 on member removal), D3 (wrong id); D1 fixed. P-D7 stays DEFERRED | `task-36-live-invite-revoke.md` |
+| Full test-all / gate | cloud env failures | Mac `a55ba75f`: test-all rc=0, `make gate` GREEN | `mac-gate-a55ba75f.md` |
+

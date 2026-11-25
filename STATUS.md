@@ -81,6 +81,13 @@ it recorded but cannot undo one; a module is only as trustworthy as the resolver
 host hands it; Section 4 still cannot pin a multi-file program until `WorkflowRequest`
 carries a program digest; and the track adds no approval surface of its own.
 
+## 2026-11-25 — Sprint 5: live e2e on four fronts; `make gate` GREEN; Task 36 FAIL (member removal broken)
+
+Commits `260b24b`..`5b59af8` on `w28-s2-sprints1-4` (PR #27, not merged); full ledger in `docs/briefs/evidence/sprint5/END-report-2026-11-24.md`.
+Collab approvals now carry `viewed_detail`, audit `rendering`/`teamId`, and count in the blind-approval KPI; the run page shows the denial lesson read-only. Live on the compose/P1 stack (owner Mac): blind-KPI (33), planning (34) and similarCases (35) **PASS**. **Task 36 (invite → revoke) FAIL:** D1 (UI redeem 422) fixed; **D2** (removing a member who has acted is a 500 on Postgres — audit FK RESTRICT) and **D3** (roster has no `userId`; Remove button 404s) are open, so a member cannot be removed through the product.
+Owner-Mac truth run at `a55ba75f`: `make test-all` (Docker, PG 18) rc=0, `make gate` rc=0 **GATE GREEN**, gitleaks + `check-ts-dist` ok. The gate runs no e2e, so it does not cover Task 36. GitHub Actions still blocked by billing; this is local evidence, not CI.
+No 10.11 line moved; P-D7 DEFERRED; payment and global P-D6 not enabled. Verdict: **NOT READY**.
+
 ## 2026-11-24 — Sprint 4: live stack verified, migrations on compose, Phase 7 gap closed (PR pending)
 
 Commits `d93ee869`..Task 30 + Opus prep on `w28-s2-sprints1-4`; SHAs in `docs/briefs/evidence/sprint4/END-report-2026-11-24.md`.
