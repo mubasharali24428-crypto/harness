@@ -140,6 +140,8 @@ DELETION_MAP: dict[tuple[str, str], tuple[str, str]] = {
     ("project_guest_grants", "user_id"): ("users.id", "CASCADE"),
     # optional back-references survive the referenced row
     ("team_members", "user_id"): ("users.id", "SET NULL"),
+    # Task 42 (D2, 0082): who held a soft-removed seat; forensic only, never a seat
+    ("team_members", "removed_user_id"): ("users.id", "SET NULL"),
     ("meeting_messages", "sender_member_id"): ("team_members.id", "SET NULL"),
     ("engineering_briefs", "approved_by"): ("users.id", "SET NULL"),
     ("agent_runs", "brief_id"): ("engineering_briefs.id", "SET NULL"),
@@ -285,10 +287,11 @@ def test_fk_inventory_size_is_pinned():
     (team + user); 60 -> 62: M2-W16 slice 4's siem_sinks (team CASCADE, author
     RESTRICT — a live egress path keeps its human until erasure retires it). The
     out-of-models mirrors live in stripe_adapter.py / sso.py / scim.py /
-    siem_sink.py and are imported; 62 -> 64: P-17's project_guest_grants (project + user).
+    siem_sink.py and are imported; 62 -> 64: P-17's project_guest_grants (project + user);
+    64 -> 65: Task 42 (D2)'s team_members.removed_user_id for soft-removed seats.
     HERE for their metadata side effect so enumeration is collection-order
     independent.)"""
-    assert len(_metadata_fks()) == 64
+    assert len(_metadata_fks()) == 65
 
 
 # --------------------------------------------------------------------------

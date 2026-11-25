@@ -256,7 +256,9 @@ async def list_members(
                 await db.execute(
                     select(TeamMember, User)
                     .outerjoin(User, TeamMember.user_id == User.id)
-                    .where(TeamMember.team_id == team_id)
+                    # Task 42 (D2): soft-removed seats stay as audit FK targets
+                    # but are not members; the roster lists active seats only.
+                    .where(TeamMember.team_id == team_id, TeamMember.removed_at.is_(None))
                     .order_by(TeamMember.created_at)
                 )
             )

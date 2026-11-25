@@ -413,8 +413,8 @@ async def emit_member_removed(
     """member.removed — Mission 12 E3a: admin deletes a team membership.
 
     Call from the DELETE /teams/{id}/members/{uid} handler AFTER the membership
-    row commits; target_id is the (now-gone) TeamMember.id, detail carries the
-    removed userId + former role only.
+    row commits; target_id is the soft-removed TeamMember.id (Task 42: the row is
+    kept as the audit FK target), detail carries the removed userId + former role.
     """
     return await _emit(
         session,

@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .audit import write_audit
 from .auth import get_principal
+from .memberships import soft_remove_seats
 from .models import AuditLog, uid
 
 router = APIRouter(prefix="/api/v1/orgs")
@@ -105,20 +106,14 @@ async def _revoke_access(db: AsyncSession, org_id: str, user_id: str, *, everywh
     """Kill sessions, team seats and service identities a user holds through an org.
 
     Not committed: the caller's audit write commits it together with the membership change.
-    Team seats referenced by an audit row cannot be deleted (append-only audit FK), their
-    sessions are still revoked.
+    Task 42 (D2): team seats are SOFT-removed (memberships.py). Before, a seat referenced by an
+    audit row could not be deleted (append-only audit FK) and was silently left LIVE, so the
+    person could sign straight back into that team; now every seat in scope stops resolving.
     """
     scope = "" if everywhere else " AND team_id IN (SELECT id FROM teams WHERE org_id = :o)"
     params = {"u": user_id, "o": org_id}
     await db.execute(text(f"DELETE FROM auth_sessions WHERE user_id = :u{scope}"), params)
-    await db.execute(
-        text(
-            f"DELETE FROM team_members WHERE user_id = :u{scope}"
-            " AND id NOT IN (SELECT actor_member_id FROM audit_log"
-            " WHERE actor_member_id IS NOT NULL)"
-        ),
-        params,
-    )
+    await soft_remove_seats(db, user_id, scope, {"o": org_id})
     own = "" if everywhere else " AND org_id = :o"
     await db.execute(
         text(
@@ -1111,13 +1106,8 @@ async def remove_from_team(
         await db.execute(
             text("DELETE FROM auth_sessions WHERE user_id = :u AND team_id = :t"), params
         )
-        await db.execute(
-            text(
-                "DELETE FROM team_members WHERE user_id = :u AND team_id = :t AND id NOT IN"
-                " (SELECT actor_member_id FROM audit_log WHERE actor_member_id IS NOT NULL)"
-            ),
-            params,
-        )
+        # Task 42 (D2): soft-remove, so an audited seat is no longer left live.
+        await soft_remove_seats(db, user_id, " AND team_id = :t", {"t": team_id})
         await _audit(
             db,
             "org.member_removed",

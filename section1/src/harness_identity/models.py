@@ -96,6 +96,13 @@ class TeamMember(Base, TimestampMixin):
     approval_rendering: Mapped[str] = mapped_column(
         String(16), nullable=False, default="technical", server_default="technical"
     )
+    # Task 42 (D2, migration 0082): soft-remove. A removed seat keeps its row because
+    # audit_log.actor_member_id RESTRICTs deletion; user_id goes NULL (so no lookup by user
+    # resolves it) and removed_user_id remembers who held it. removed_at NULL = active seat.
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    removed_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
 
 class Project(Base, TimestampMixin):
