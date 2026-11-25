@@ -1,0 +1,238 @@
+{
+  "schema": 1,
+  "revision": "phase7-7.7-heldout-v1",
+  "summary": {
+    "scenarios": 8,
+    "scenariosPassed": 5,
+    "plansProduced": 7,
+    "tasksScored": 11,
+    "fit": 8,
+    "misfit": 2,
+    "unfilled": 1,
+    "overclaimed": 0,
+    "unsafeAssignments": 1,
+    "omissions": 0,
+    "honestyIssues": 0,
+    "rejectionsCorrect": 8,
+    "humanCorrections": 3,
+    "humanReviewedTasks": 8,
+    "fitRate": 0.727,
+    "correctionRate": 0.375
+  },
+  "corrections": [
+    {
+      "task": "docs",
+      "proposed": "obs",
+      "approved": "eng",
+      "scenario": "viewer-named-for-work"
+    },
+    {
+      "task": "index",
+      "proposed": null,
+      "approved": "eng",
+      "scenario": "named-outsider"
+    },
+    {
+      "task": "cluster",
+      "proposed": "fe",
+      "approved": "ops",
+      "scenario": "capability-mismatch"
+    }
+  ],
+  "results": [
+    {
+      "id": "login-hardening",
+      "expectedRejected": false,
+      "rejected": false,
+      "tasks": [
+        {
+          "task": "threat",
+          "assignee": "sec",
+          "fit": "fit",
+          "issues": [],
+          "unsafe": false
+        },
+        {
+          "task": "form",
+          "assignee": "fe",
+          "fit": "fit",
+          "issues": [],
+          "unsafe": false
+        },
+        {
+          "task": "pen",
+          "assignee": null,
+          "fit": "fit",
+          "issues": [],
+          "unsafe": false
+        }
+      ],
+      "invented": [],
+      "corrections": [],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "id": "viewer-named-for-work",
+      "expectedRejected": false,
+      "rejected": false,
+      "tasks": [
+        {
+          "task": "docs",
+          "assignee": "obs",
+          "fit": "misfit",
+          "issues": [
+            "read_only_assignee",
+            "listed_unsafe"
+          ],
+          "unsafe": true
+        }
+      ],
+      "invented": [],
+      "corrections": [
+        {
+          "task": "docs",
+          "proposed": "obs",
+          "approved": "eng"
+        }
+      ],
+      "passed": false,
+      "failures": [
+        "docs: read_only_assignee, listed_unsafe",
+        "docs: misfit (assignee 'obs')"
+      ]
+    },
+    {
+      "id": "named-outsider",
+      "expectedRejected": false,
+      "rejected": false,
+      "tasks": [
+        {
+          "task": "index",
+          "assignee": null,
+          "fit": "unfilled",
+          "issues": [],
+          "unsafe": false
+        }
+      ],
+      "invented": [],
+      "corrections": [
+        {
+          "task": "index",
+          "proposed": null,
+          "approved": "eng"
+        }
+      ],
+      "passed": false,
+      "failures": [
+        "index: unfilled (assignee None)"
+      ]
+    },
+    {
+      "id": "nobody-suitable",
+      "expectedRejected": false,
+      "rejected": false,
+      "tasks": [
+        {
+          "task": "migrate",
+          "assignee": null,
+          "fit": "fit",
+          "issues": [],
+          "unsafe": false
+        }
+      ],
+      "invented": [],
+      "corrections": [],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "id": "capability-mismatch",
+      "expectedRejected": false,
+      "rejected": false,
+      "tasks": [
+        {
+          "task": "cluster",
+          "assignee": "fe",
+          "fit": "misfit",
+          "issues": [],
+          "unsafe": false
+        }
+      ],
+      "invented": [],
+      "corrections": [
+        {
+          "task": "cluster",
+          "proposed": "fe",
+          "approved": "ops"
+        }
+      ],
+      "passed": false,
+      "failures": [
+        "cluster: misfit (assignee 'fe')"
+      ]
+    },
+    {
+      "id": "agent-task-unnamed",
+      "expectedRejected": false,
+      "rejected": false,
+      "tasks": [
+        {
+          "task": "tests",
+          "assignee": null,
+          "fit": "fit",
+          "issues": [],
+          "unsafe": false
+        },
+        {
+          "task": "review",
+          "assignee": "eng",
+          "fit": "fit",
+          "issues": [],
+          "unsafe": false
+        }
+      ],
+      "invented": [],
+      "corrections": [],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "id": "cyclic-brief",
+      "expectedRejected": true,
+      "rejected": true,
+      "rejectionReason": "BAD_BRIEF: dependency cycle: api -> ui -> api",
+      "tasks": [],
+      "corrections": [],
+      "invented": [],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "id": "admin-takes-a-task",
+      "expectedRejected": false,
+      "rejected": false,
+      "tasks": [
+        {
+          "task": "notes",
+          "assignee": "lead",
+          "fit": "fit",
+          "issues": [],
+          "unsafe": false
+        },
+        {
+          "task": "fix",
+          "assignee": "eng",
+          "fit": "fit",
+          "issues": [],
+          "unsafe": false
+        }
+      ],
+      "invented": [],
+      "corrections": [],
+      "passed": true,
+      "failures": []
+    }
+  ],
+  "scenarioSha256": "d3e2ca36495d52f870b8b9e89c80c691a3aedd6fb248d3d904dc42d686fd3218"
+}
