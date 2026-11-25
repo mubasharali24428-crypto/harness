@@ -1312,6 +1312,13 @@ export class OrchestratorClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
   }
 
+  /** Get Learned Rule
+   *  GET /api/v1/orchestrator/runs/{runId}/learned-rule */
+  get_learned_rule(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/learned-rule`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
   /** Lineage
    *  GET /api/v1/orchestrator/runs/{runId}/lineage */
   lineage(run_id: string): Promise<unknown> {

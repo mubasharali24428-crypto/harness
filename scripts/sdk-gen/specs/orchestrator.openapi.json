@@ -8237,6 +8237,51 @@
     ]
    }
   },
+  "/api/v1/orchestrator/runs/{runId}/learned-rule": {
+   "get": {
+    "description": "I-08 (Sprint 5 Task 37): the project rule a denial stop suggested, read-only.\n\n``{offer: {failureClass, paths, suggestedRule, recordedAt, status: \"proposed\"} | null,\nsimilarCases: [...]}``. A proposal only (CD-02): saving it is the human PUT on the\nproject rules API. Any team member who can read the run can read its lesson; foreign\nand unknown runs answer the same 404 as every other run read.",
+    "operationId": "get_learned_rule_api_v1_orchestrator_runs__runId__learned_rule_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Learned Rule Api V1 Orchestrator Runs  Runid  Learned Rule Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Learned Rule",
+    "tags": [
+     "orchestrator"
+    ]
+   }
+  },
   "/api/v1/orchestrator/runs/{runId}/lineage": {
    "get": {
     "description": "Task request -> plan versions -> changes -> review -> accepted completion -> merge\napproval, plus the artifacts. Built from the tables of those stages; a stage whose table is\nnot deployed or has no row is listed under ``missing``, never invented.",

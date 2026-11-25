@@ -1309,6 +1309,14 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/runs/{run_id}/leader"
         return self._http.request(self.base_url, "POST", _path)
 
+    def get_learned_rule(self, run_id: str) -> dict[str, typing.Any]:
+        """Get Learned Rule
+
+        GET /api/v1/orchestrator/runs/{runId}/learned-rule
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/learned-rule"
+        return self._http.request(self.base_url, "GET", _path)
+
     def lineage(self, run_id: str) -> typing.Any:
         """Lineage
 

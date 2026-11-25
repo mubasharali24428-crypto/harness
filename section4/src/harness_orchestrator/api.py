@@ -995,6 +995,20 @@ async def get_run(runId: str, reader: RunReader) -> dict[str, Any]:
         ) from e
 
 
+@router.get("/runs/{runId}/learned-rule", status_code=status.HTTP_200_OK)
+async def get_learned_rule(runId: str, reader: RunReader) -> dict[str, Any]:
+    """I-08 (Sprint 5 Task 37): the project rule a denial stop suggested, read-only.
+
+    ``{offer: {failureClass, paths, suggestedRule, recordedAt, status: "proposed"} | null,
+    similarCases: [...]}``. A proposal only (CD-02): saving it is the human PUT on the
+    project rules API. Any team member who can read the run can read its lesson; foreign
+    and unknown runs answer the same 404 as every other run read."""
+    factory = getattr(_service, "session_factory", None)
+    if factory is None:
+        return dict(collab.NO_LEARNED_RULE)
+    return await collab.learned_rule_for_run(factory, runId, reader.teamId)
+
+
 @router.get("/runs/{runId}/plan", status_code=status.HTTP_200_OK)
 async def get_plan(runId: str, reader: RunReader) -> dict[str, Any]:
     try:

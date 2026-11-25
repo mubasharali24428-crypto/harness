@@ -22,6 +22,7 @@ import { useRun } from "@/components/workspace/useRun";
 import { Composer, COMPOSER_INPUT_ID } from "@/components/workspace/Composer";
 import { PlanPin } from "@/components/workspace/PlanPin";
 import { InlineApprovals, NextStepBox } from "@/components/workspace/RunPrompts";
+import { LearnedRuleOffer } from "@/components/workspace/LearnedRuleOffer";
 import { runRowTitle } from "@/components/workspace/runRows";
 import { PANES, paneFromSearch, searchWithPane, type PaneId } from "@/components/workspace/panes";
 import { formatMoneyUsd, formatRelativeTime } from "@/lib/format";
@@ -194,6 +195,8 @@ export default function RunDetailPage({
           {agg && runId && token && (
             <>
               <InlineApprovals runId={runId} token={token} role={role} tick={agg} />
+              {/* I-08: a repeated-denial stop offers its lesson as a rule to copy; never saved here. */}
+              <LearnedRuleOffer runId={runId} token={token} steps={agg.steps} />
               <NextStepBox state={agg.state} busy={controlBusy}
                 onAction={(a) => {
                   if (a === "diff") selectPane("diff");

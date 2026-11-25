@@ -1877,6 +1877,8 @@ a[href] {
 .ws-next-question { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--text); }
 .ws-next .btn, .ws-next-link { align-self: flex-start; }
 .ws-next-link { color: var(--accent); font-size: var(--text-sm); }
+/* I-08 rule offer: long rule text wraps instead of scrolling the column sideways (375 px). */
+.ws-learned-rule { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 
 @media (max-width: 900px) {
   .ws-composer-input { min-height: 44px; }

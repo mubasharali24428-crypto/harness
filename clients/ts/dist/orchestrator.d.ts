@@ -892,6 +892,9 @@ export declare class OrchestratorClient {
     /** Collab Claim Leader
      *  POST /api/v1/orchestrator/runs/{runId}/leader */
     collab_claim_leader(run_id: string): Promise<Record<string, unknown>>;
+    /** Get Learned Rule
+     *  GET /api/v1/orchestrator/runs/{runId}/learned-rule */
+    get_learned_rule(run_id: string): Promise<Record<string, unknown>>;
     /** Lineage
      *  GET /api/v1/orchestrator/runs/{runId}/lineage */
     lineage(run_id: string): Promise<unknown>;

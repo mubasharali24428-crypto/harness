@@ -968,6 +968,45 @@ async def similar_cases_for_run(factory: Any, run_id: str) -> list[dict[str, Any
         return []
 
 
+NO_LEARNED_RULE: dict[str, Any] = {"offer": None, "similarCases": []}
+
+
+async def learned_rule_for_run(factory: Any, run_id: str, team_id: str) -> dict[str, Any]:
+    """Sprint 5 Task 37 (I-08 UI): the lesson this run's denial stop recorded, read-only.
+
+    ``offer`` is the run's own newest case (migration 0080): the bounded rule text a human
+    may copy into the project rules, the paths it names and when it was recorded. It is
+    always ``status="proposed"`` (CD-02): nothing here writes a rule, and the only write
+    path stays the human ``PUT /projects/{id}/rules``. ``similarCases`` reuses the
+    team-scoped recall the approvals list shows. ``team_id`` is filtered again here on top
+    of the route's ownership check. Best-effort: an old schema or a DB hiccup reads as "no
+    lesson", never as an error on the run page."""
+    try:
+        async with factory() as db:
+            own = (await db.execute(text(
+                "SELECT failure_class, paths, suggested_rule, recorded_at FROM case_memory"
+                " WHERE run_id = :r AND team_id = :t ORDER BY recorded_at DESC LIMIT 1"),
+                {"r": run_id, "t": team_id},
+            )).mappings().first()
+    except Exception:  # noqa: BLE001 - the run page must survive missing memory
+        logger.warning("learned rule unavailable for %s", run_id, exc_info=True)
+        return dict(NO_LEARNED_RULE)
+    if own is None:
+        return dict(NO_LEARNED_RULE)
+    paths = json.loads(own["paths"]) if isinstance(own["paths"], str) else list(own["paths"])
+    recorded = own["recorded_at"]
+    return {
+        "offer": {
+            "failureClass": own["failure_class"],
+            "paths": paths,
+            "suggestedRule": own["suggested_rule"],
+            "recordedAt": recorded.isoformat() if hasattr(recorded, "isoformat") else recorded,
+            "status": "proposed",
+        },
+        "similarCases": await similar_cases_for_run(factory, run_id),
+    }
+
+
 async def list_approvals(factory: Any, run_id: str) -> list[dict[str, Any]]:
     similar = await similar_cases_for_run(factory, run_id)
     try:
