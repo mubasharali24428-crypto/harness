@@ -1,0 +1,77 @@
+{
+  "check": "cache-offline-check",
+  "checks": {
+    "C1_same_digest_every_attempt": {
+      "digestIsHeadOfGoal": true,
+      "distinctDigests": 1,
+      "pass": true
+    },
+    "C2_identical_prefix_bytes_no_mid_run_edits": {
+      "guidanceAfterTask": true,
+      "midRunEditsLeaked": 0,
+      "pass": true,
+      "prefixBytes": 442
+    },
+    "C3_simulated_prefix_cache_covers_stable_part": {
+      "goalBytesPerAttempt": [
+        522,
+        560,
+        561,
+        552,
+        563
+      ],
+      "note": "byte-level longest common prefix with the previous attempt; a simulation of a prefix cache, not a provider measurement",
+      "pass": true,
+      "reusableBytesPerAttempt": [
+        null,
+        522,
+        534,
+        534,
+        535
+      ],
+      "stableBytes": 522
+    },
+    "C4_bench_stats_cache_split": {
+      "claim": "descriptive only; no superiority claim",
+      "distinctPrefixDigests": 1,
+      "expected": {
+        "claim": "descriptive only; no superiority claim",
+        "distinctPrefixDigests": 1,
+        "nWithUsage": 5,
+        "perAttemptCacheReadRatio": [
+          0.0,
+          0.7857,
+          0.7674,
+          0.7765,
+          0.75
+        ],
+        "pooledCacheReadRatio": 0.6183
+      },
+      "nWithUsage": 5,
+      "pass": true,
+      "perAttemptCacheReadRatio": [
+        0.0,
+        0.7857,
+        0.7674,
+        0.7765,
+        0.75
+      ],
+      "pooledCacheReadRatio": 0.6183
+    },
+    "C5_control_without_freeze_is_detected": {
+      "controlDistinctDigests": 3,
+      "controlReusableBytesPerAttempt": [
+        null,
+        27,
+        210,
+        466,
+        467
+      ],
+      "pass": true
+    }
+  },
+  "fixture": "scripts/eval/fixtures/cache-replay-v1.json",
+  "fixtureVersion": 1,
+  "scope": "offline replay through the real executor seam + real bench_stats; usage is synthetic. Real cache-hit ratios need a live paid batch on the owner's Mac.",
+  "verdict": "PASS"
+}

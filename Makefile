@@ -223,6 +223,14 @@ frontend: frontend-tsc frontend-vitest
 check-ts-dist:
 	./scripts/sdk-gen/check_ts_dist.sh
 
+# S-02/S-01: offline cache check. Replays a recorded five-attempt run through the
+# real executor seam and bench_stats; zero spend, no Docker/PG. It proves the frozen
+# prefix bytes and the cache-read arithmetic, NOT a real cache-hit ratio (that needs
+# a live paid batch on the owner's Mac). Also runs in CI via
+# section4/tests/unit/test_cache_offline_check.py.
+cache-offline-check:
+	./section4/.venv/bin/python scripts/eval/cache_offline_check.py
+
 # I-04: regenerate the benchmark leaderboard (markdown + self-contained HTML)
 # from the raw w7-bench attempt files. Rendering is offline and zero-spend;
 # the cells it shows are whatever evidence exists (dry corpus -> no ranked
