@@ -78,6 +78,17 @@ toggle and revert paths but not the 1440/375 light/dark visual pass (row 12).
 | 14 | `./.venv/bin/ruff check src tests scripts` | cloud | PASS |
 | 14 | same | owner's Mac | PASS, green (owner-reported) |
 
+### Stack-merge Mac results (2026-11-25)
+
+Source: **owner's reports, not cloud runs.** Raw logs are in the owner's Mac evidence file
+(`mac-phase-b-run-2026-11-25.md`), not in this repo. These do not change STATUS or the NOT READY verdict.
+
+| Item | Check | Where | Result |
+|------|-------|-------|--------|
+| PR 33 | section5 shell-gate pytest, head `94dd92a2` | owner's Mac | rc=0, 136 passed, 2 skipped (macOS procfs), 9 xfailed (owner-reported) |
+| PR 36 | `make gate` on PR head `2dafdf24` | owner's Mac | GATE GREEN, tsc + vitest 1220 (owner-reported) |
+| PR 27 branch (not merged) | Task 36 Playwright at `5793ce9f`, after compose migration 0082 | owner's Mac | 1 passed (owner-reported) |
+
 PR 27 intentionally not merged — reason TBD.
 
 Screenshots (stubbed browser, light): `r4-since-last-1440.png`, `r4-full-pr-1440.png`,
