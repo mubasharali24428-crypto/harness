@@ -1,17 +1,17 @@
 "use client";
 
 // R3: what the run asks of a person, shown in the run column where it happens.
-// Pending approval requests carry their own Approve / Reject buttons (the same
+// Pending approval requests carry their own Approve / Deny buttons (the same
 // decision call as the Advanced pane; nothing is ever approved automatically),
 // and a stopped run ends with one recap, one question and one button.
 
 import * as React from "react";
 import Link from "next/link";
-import { loadErrorMessage } from "@/lib/humanize";
 import { Button } from "@/components/ui";
 import { roleCanAct } from "../../../app/dashboard/planGateApi";
-import { decideApproval, listApprovals, type Approval } from "../../../app/projects/[projectId]/runs/[runId]/collabApi";
+import { listApprovals, type Approval } from "../../../app/projects/[projectId]/runs/[runId]/collabApi";
 import { nextStep, type NextStep } from "./runFlow";
+import { ApprovalCard, decide, type DecisionResult } from "./ApprovalCard";
 
 export function InlineApprovals({
   runId,
@@ -27,7 +27,9 @@ export function InlineApprovals({
 }) {
   const [pending, setPending] = React.useState<Approval[]>([]);
   const [busy, setBusy] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
+  // Operability slice 3: the last decision per card. A success keeps its card on screen with a
+  // receipt even after the pending list drops it; a failure keeps its error on its own card.
+  const [results, setResults] = React.useState<Record<string, { approval: Approval; result: DecisionResult }>>({});
 
   const load = React.useCallback(
     () => listApprovals(runId, token)
@@ -39,58 +41,43 @@ export function InlineApprovals({
     void load();
   }, [load, tick]);
 
-  if (pending.length === 0) return null;
+  const cards = cardsToShow(pending, results);
+  if (cards.length === 0) return null;
   const canAct = roleCanAct(role);
 
-  async function decide(a: Approval, approve: boolean) {
+  async function onDecide(a: Approval, approve: boolean) {
     setBusy(a.id);
-    setError(null);
-    try {
-      await decideApproval(runId, token, a, approve);
-    } catch (e) {
-      setError(loadErrorMessage(e));
-    } finally {
-      setBusy(null);
-      void load();
-    }
+    const result = await decide(runId, token, a, approve);
+    setResults((prev) => ({ ...prev, [a.id]: { approval: a, result } }));
+    setBusy(null);
+    void load();
   }
 
   return (
     <section className="ws-approvals" aria-label="Approval requests">
-      {pending.map((a) => (
-        <article key={a.id} className="ws-approval" data-testid="inline-approval">
-          <h2 className="ws-approval-title">
-            The agent asks to {a.action === "delete" ? "delete" : "change"} {a.paths.length === 1 ? "a file" : `${a.paths.length} files`}
-          </h2>
-          <p className="ws-approval-summary">{a.summary}</p>
-          <ul className="ws-approval-paths">
-            {a.paths.map((p) => (
-              <li key={p}><code>{p}</code></li>
-            ))}
-          </ul>
-          {a.diff ? (
-            <details>
-              <summary>Show the proposed change</summary>
-              <pre className="ws-approval-diff" tabIndex={0} aria-label="Proposed change">{a.diff}</pre>
-            </details>
-          ) : null}
-          <div className="ws-planpin-actions">
-            <span title={canAct ? undefined : "Only admins and engineers can decide."}>
-              <Button variant="primary" size="sm" disabled={!canAct || busy !== null} onClick={() => void decide(a, true)}>
-                Approve
-              </Button>
-            </span>
-            <span title={canAct ? undefined : "Only admins and engineers can decide."}>
-              <Button size="sm" disabled={!canAct || busy !== null} onClick={() => void decide(a, false)}>
-                Reject
-              </Button>
-            </span>
-          </div>
-        </article>
+      {cards.map(({ approval, result }) => (
+        <ApprovalCard key={approval.id} approval={approval} canAct={canAct} busy={busy !== null}
+          result={result} onDecide={(x, ok) => void onDecide(x, ok)} />
       ))}
-      {error && <p role="alert" className="ws-composer-error">{error}</p>}
     </section>
   );
+}
+
+/** Pending cards in server order, then cards decided here that the server no longer lists as
+ *  pending (their receipt stays visible). A card that failed keeps its error until the next try. */
+export function cardsToShow(
+  pending: Approval[],
+  results: Record<string, { approval: Approval; result: DecisionResult }>,
+): Array<{ approval: Approval; result: DecisionResult | null }> {
+  const ids = new Set(pending.map((a) => a.id));
+  const out: Array<{ approval: Approval; result: DecisionResult | null }> = pending.map((a) => ({
+    approval: a,
+    result: results[a.id]?.result ?? null,
+  }));
+  for (const [id, r] of Object.entries(results)) {
+    if (!ids.has(id) && r.result.ok) out.push({ approval: r.approval, result: r.result });
+  }
+  return out;
 }
 
 export function NextStepBox({

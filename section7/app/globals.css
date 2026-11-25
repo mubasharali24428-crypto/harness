@@ -1882,6 +1882,11 @@ a[href] {
 .ws-approval-summary, .ws-next-recap { margin: 0; font-size: var(--text-sm); color: var(--text-2); }
 .ws-approval-paths { margin: 0; padding-left: var(--space-4); font-size: var(--text-sm); }
 .ws-approval-diff { overflow-x: auto; font-size: var(--text-xs); background: var(--panel-2); padding: var(--space-2); border-radius: var(--radius-sm); }
+/* Operability slice 3: plain first, technical one control away, receipt on the card. */
+.ws-approval-note { margin: 0; font-size: var(--text-xs); color: var(--muted); }
+.ws-approval-tech > summary { cursor: pointer; font-size: var(--text-sm); color: var(--text-2); }
+.ws-approval-tech[open] { display: flex; flex-direction: column; gap: var(--space-2); }
+.ws-approval-receipt { margin: 0; font-size: var(--text-sm); color: var(--text); border-left: 2px solid var(--green); padding-left: var(--space-2); }
 .ws-next-question { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--text); }
 .ws-next .btn, .ws-next-link { align-self: flex-start; }
 .ws-next-link { color: var(--accent); font-size: var(--text-sm); }
