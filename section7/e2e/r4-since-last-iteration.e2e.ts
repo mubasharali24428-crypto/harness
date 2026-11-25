@@ -11,7 +11,7 @@
  * exactly { hunks: [{ path, index }] }.
  */
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 import { loginViaUi } from "./support";
 
 const TAGS = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
@@ -58,22 +58,31 @@ test.describe("R4 since last iteration", () => {
 
   async function stubSnapshots(page: Page, revertBodies: unknown[] = []) {
     let newest = SHA;
+    // The sandbox is another origin than the frontend, so a stubbed answer
+    // needs CORS headers, and the preflight (the request carries Authorization)
+    // must be answered too, or the browser drops the stub.
+    const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "*" };
+    const reply = (route: Route, body: () => unknown) =>
+      route.request().method() === "OPTIONS"
+        ? route.fulfill({ status: 204, headers: cors })
+        : route.fulfill({ status: 200, headers: cors, contentType: "application/json", body: JSON.stringify(body()) });
+
     await page.route(CHECKPOINTS, (route) =>
-      route.fulfill({
-        json: {
-          projectId: "demo",
-          nextCursor: null,
-          items: [{ sha: newest, message: "checkpoint: post-edit step-2", createdAt: new Date().toISOString(), taskId: "sandbox-task" }],
-        },
-      }),
+      reply(route, () => ({
+        projectId: "demo",
+        nextCursor: null,
+        items: [{ sha: newest, message: "checkpoint: post-edit step-2", createdAt: new Date().toISOString(), taskId: "sandbox-task" }],
+      })),
     );
     await page.route(HUNKS, (route) =>
-      route.fulfill({ json: { projectId: "demo", sha: newest, files: newest === SHA ? HUNK_FILES : [] } }),
+      reply(route, () => ({ projectId: "demo", sha: newest, files: newest === SHA ? HUNK_FILES : [] })),
     );
-    await page.route(REVERT, async (route) => {
-      revertBodies.push(route.request().postDataJSON());
-      newest = REVERT_SHA;
-      await route.fulfill({ json: { status: "reverted", sha: REVERT_SHA, reverted: 1 } });
+    await page.route(REVERT, (route) => {
+      if (route.request().method() !== "OPTIONS") {
+        revertBodies.push(route.request().postDataJSON());
+        newest = REVERT_SHA;
+      }
+      return reply(route, () => ({ status: "reverted", sha: REVERT_SHA, reverted: 1 }));
     });
   }
 
