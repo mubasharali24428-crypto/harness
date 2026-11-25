@@ -81,6 +81,11 @@ it recorded but cannot undo one; a module is only as trustworthy as the resolver
 host hands it; Section 4 still cannot pin a multi-file program until `WorkflowRequest`
 carries a program digest; and the track adds no approval surface of its own.
 
+## 2026-11-25 (later) — Sprint 5 gap-close, cloud lane: D3 done, CI `changes` job fixed, D2 pending
+
+On `w28-s2-sprints1-4` (PR #27, not merged), commits `48c2ccf`..`92d2ca3`: **D3** shipped — `GET /teams/{id}/members` returns `userId`; team settings Remove/role-change use it (cloud tests green; live not run). **CI** now runs on PR #27 (the earlier "blocked by billing" note was wrong): the `changes` job had a shell-quoting bug, fixed in `bce3aa8`; at `356d7fe` every job is green except `readiness drift` (manifest 0076 vs disk 0081, expected until the owner redeploys; commands in `docs/briefs/evidence/sprint5-gap-close/task-45-readiness-drift.md`).
+**D2 (soft-remove memberships) is still open** — Task 42 is the Opus lane — so a member who has acted still cannot be removed on Postgres; the B-09 live spec (Task 36 path) stays `test.fail` until the owner Mac re-runs it after D2. Review pack: `docs/briefs/evidence/sprint5-gap-close/pr-27-review.md`. Verdict: **NOT READY**; P-D7 DEFERRED; payment and global P-D6 not enabled.
+
 ## 2026-11-25 — Sprint 5: live e2e on four fronts; `make gate` GREEN; Task 36 FAIL (member removal broken)
 
 Commits `260b24b`..`5b59af8` on `w28-s2-sprints1-4` (PR #27, not merged); full ledger in `docs/briefs/evidence/sprint5/END-report-2026-11-24.md`.

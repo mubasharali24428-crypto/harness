@@ -96,3 +96,6 @@ create a separate ACCEPTED record; these DRAFTs are not decisions.
 | B-09 invite → revoke | checklist only | live run **FAIL**: D2 (500 on member removal), D3 (wrong id); D1 fixed. P-D7 stays DEFERRED | `task-36-live-invite-revoke.md` |
 | Full test-all / gate | cloud env failures | Mac `a55ba75f`: test-all rc=0, `make gate` GREEN | `mac-gate-a55ba75f.md` |
 
+## Delta after Sprint 5 gap-close, cloud lane (2026-11-25, engineering only)
+
+No owner decision closed; no 10.11 line moved. D3 (`userId` on roster) is built (cloud tests only); D2 (soft-remove) is not yet built, so B-09/P-D7 stay DEFERRED. CI on PR #27 runs again (the `changes` job bug is fixed); the only red job is `readiness drift` until the owner redeploys. Evidence: `docs/briefs/evidence/sprint5-gap-close/END-report-gap-close-2026-11-25.md`.
