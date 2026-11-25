@@ -80,7 +80,7 @@ def _code(res: dict) -> str | None:
     "cat do*/y.txt",
     "cat [d]ocs/y.txt",
     "cat src/../d*/y.txt",
-    "cat /et?/passwd",          # outside the workspace through a glob (/etc/passwd exists on Linux and macOS)
+    "cat /et?/passwd",          # outside the workspace via a glob (exists on Linux and macOS)
     "grep -rn y *",             # G6b: recursive grep over `*` reaches docs/
     "ls *",
     "cat s*/x.txt",             # src and src2 both match; src2 is outside
