@@ -44,6 +44,7 @@ class ApprovalDecision(typing.TypedDict, total=False):
     """ApprovalDecision. Required keys: approve, digest."""
     approve: bool  # required
     digest: str  # required
+    viewed_detail: bool | None
 
 class ApprovalDigest(typing.TypedDict, total=False):
     """ApprovalDigest. Required keys: digest."""

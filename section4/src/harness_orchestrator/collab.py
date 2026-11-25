@@ -1027,8 +1027,13 @@ async def amend_approval(
 
 
 async def decide_approval(
-    factory: Any, p: Principal, run_id: str, approval_id: str, approve: bool, digest: str
+    factory: Any, p: Principal, run_id: str, approval_id: str, approve: bool, digest: str,
+    *, viewed_detail: bool | None = None,
 ) -> dict[str, Any]:
+    """Leader decides a pending request for the exact digest they reviewed.
+
+    ``viewed_detail`` is the client's X-07 blind-approval signal (was the diff on screen
+    before Approve; ``None`` = not measured). It never affects the decision itself."""
     new = "approved" if approve else "rejected"
     async with factory() as db:
         await _require_leader(db, p, run_id, "approval.decide")

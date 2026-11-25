@@ -1204,6 +1204,9 @@ class ApprovalRequest(BaseModel):
 class ApprovalDecision(BaseModel):
     approve: bool
     digest: str = Field(max_length=64)  # the digest the approver reviewed
+    # X-07 KPI signal from the client (same wire name and meaning as section8's ApproveRequest):
+    # was the proposed diff on screen before Approve? None = not measured (unknown, never blind).
+    viewed_detail: bool | None = None
 
 
 class ApprovalDigest(BaseModel):
@@ -1307,7 +1310,9 @@ async def collab_approval_decide(
 ) -> dict:
     _pilot_gate(actor)
     return await _collab(
-        lambda f: collab.decide_approval(f, actor, runId, approvalId, req.approve, req.digest)
+        lambda f: collab.decide_approval(
+            f, actor, runId, approvalId, req.approve, req.digest, viewed_detail=req.viewed_detail
+        )
     )
 
 

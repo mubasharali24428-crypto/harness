@@ -35,6 +35,7 @@ export interface AggregateStepOut {
 export interface ApprovalDecision {
     approve: boolean;
     digest: string;
+    viewed_detail?: boolean | null;
 }
 /** ApprovalDigest. Required keys: digest. */
 export interface ApprovalDigest {

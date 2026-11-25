@@ -159,6 +159,17 @@
       "maxLength": 64,
       "title": "Digest",
       "type": "string"
+     },
+     "viewed_detail": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Viewed Detail"
      }
     },
     "required": [
