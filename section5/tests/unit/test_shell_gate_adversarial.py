@@ -80,7 +80,7 @@ def _code(res: dict) -> str | None:
     "cat do*/y.txt",
     "cat [d]ocs/y.txt",
     "cat src/../d*/y.txt",
-    "cat /et?/hostname",        # outside the workspace through a glob
+    "cat /et?/passwd",          # outside the workspace through a glob (/etc/passwd exists on Linux and macOS)
     "grep -rn y *",             # G6b: recursive grep over `*` reaches docs/
     "ls *",
     "cat s*/x.txt",             # src and src2 both match; src2 is outside
@@ -196,16 +196,22 @@ def test_forbidden_command_is_refused_by_policy(gate_mod, ws, command):
     assert _code(res) == "COMMAND_REFUSED", (command, res)
 
 
+# The gate only judges tokens that exist (or whose parent dir does), so a /proc path is a real
+# target on Linux and a plain word on macOS, which has no procfs. Run the rows where /proc exists.
+_needs_procfs = pytest.mark.skipif(
+    not Path("/proc/self/environ").exists(), reason="no procfs on this OS (e.g. macOS)")
+
+
 @pytest.mark.parametrize("command", [
-    "cat /proc/self/environ",
-    "cat /proc/1/environ",
+    pytest.param("cat /proc/self/environ", marks=_needs_procfs),
+    pytest.param("cat /proc/1/environ", marks=_needs_procfs),
     "cat /etc//passwd",          # slips past the /etc/passwd pattern; scope catches it
     "cat /etc/./passwd",
     "head -c 100 /dev/sda",
     "ls /root",
     "pytest --rootdir=..",
     "git diff --output=../out",
-    "grep -f /etc/hostname src/x.txt",
+    "grep -f /etc/hosts src/x.txt",
     "cat -- -/../docs/y.txt",
     "ls src/plink",
 ])
