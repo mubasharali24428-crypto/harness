@@ -1,6 +1,7 @@
 "use client";
 
-// ReviewPane — the Diff pane: verdict facts, the decision (R4), then the diff.
+// ReviewPane — the Diff pane: verdict facts, the decision (R4), then the diff,
+// opening on the last iteration's hunks with a switch to the full pull request.
 // A reviewer approves or requests changes here; a comment on a file is recorded
 // on the review and, while the run is live, sent to the agent as direction.
 // Every action is an existing review-service or redirect call.
@@ -8,6 +9,9 @@
 import * as React from "react";
 import type { RunView } from "./useRun";
 import { DiffPane } from "./DiffPane";
+import { IterationDiffScope } from "./IterationDiffScope";
+import { diffViewCountsAsSeen, sinceLastCoversFullPr, type DiffScope } from "@/lib/diffScope";
+import type { CheckpointFile } from "@/lib/api";
 import { reviewVerdictFacts } from "../../../app/review/verdictCard";
 import { addReviewComment, approvePr, listReviewComments, requestChanges, type ReviewComment } from "@/lib/api";
 import { getUserId } from "@/lib/auth";
@@ -18,7 +22,17 @@ import { takesEffectText } from "../../../app/projects/[projectId]/runs/[runId]/
 import { composerMode } from "./runFlow";
 import { approveBlock, commentAsDirection, reviewRisks, type DiffComment } from "./reviewFlow";
 
-export function ReviewPane({ view, token, role }: { view: RunView; token: string; role?: string | null }) {
+export function ReviewPane({ view, token, role, projectId = null, runKey, onDiffScopeChange }: {
+  view: RunView;
+  token: string;
+  role?: string | null;
+  /** R4: the project whose checkpoints hold the run's iterations. */
+  projectId?: string | null;
+  /** R4: a new key starts the diff scope again from its default. Defaults to the run id. */
+  runKey?: string | null;
+  /** R4: reports the diff scope (null while it is being decided or when unmounted). */
+  onDiffScopeChange?: (scope: DiffScope | null) => void;
+}) {
   const { agg, review, reviewState, runId } = view;
   const prId = agg?.prId ?? null;
   const [comments, setComments] = React.useState<ReviewComment[]>([]);
@@ -29,16 +43,34 @@ export function ReviewPane({ view, token, role }: { view: RunView; token: string
   const [status, setStatus] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   // X-07 KPI: did the diff ever come on screen before Approve? Measured, not assumed.
+  // With R4's scope switch, only a view of the whole change counts: the full
+  // pull request, or a since-last view that covered every hunk of it
+  // (diffViewCountsAsSeen; docs/decisions/2026-11-25-blind-approval-diff-seen-DRAFT.md).
+  // The observer is re-created whenever eligibility flips, so switching scope
+  // while the diff is already on screen is measured too.
   const diffRef = React.useRef<HTMLDivElement | null>(null);
   const [diffSeen, setDiffSeen] = React.useState(false);
+  const [scope, setScope] = React.useState<DiffScope | null>(null);
+  const [iterationFiles, setIterationFiles] = React.useState<CheckpointFile[] | null>(null);
+  const reportScope = React.useRef(onDiffScopeChange);
+  reportScope.current = onDiffScopeChange;
+  const onScope = React.useCallback((s: DiffScope | null) => {
+    setScope(s);
+    reportScope.current?.(s);
+  }, []);
+  const coversAll = React.useMemo(
+    () => sinceLastCoversFullPr(review?.diff, iterationFiles),
+    [review?.diff, iterationFiles],
+  );
+  const counts = diffViewCountsAsSeen(scope, coversAll);
   React.useEffect(() => {
     const el = diffRef.current;
-    if (!el || diffSeen || typeof IntersectionObserver === "undefined") return;
+    if (!el || diffSeen || !counts || typeof IntersectionObserver === "undefined") return;
     const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) setDiffSeen(true); },
       { threshold: 0.25 });
     io.observe(el);
     return () => io.disconnect();
-  }, [diffSeen]);
+  }, [diffSeen, counts]);
 
   React.useEffect(() => {
     if (!prId) return;
@@ -176,8 +208,11 @@ export function ReviewPane({ view, token, role }: { view: RunView; token: string
         </section>
       )}
 
-      <div ref={diffRef}>
-        <DiffPane view={view} compact onComment={ready && canDecide ? comment : undefined} />
+      <div ref={diffRef} data-testid="review-diff-observed" data-diff-counts={counts ? "true" : "false"}>
+        <IterationDiffScope key={runKey ?? runId ?? ""} projectId={projectId} runId={runId} token={token} compact
+          onDiffScopeChange={onScope} onIterationFiles={setIterationFiles}>
+          <DiffPane view={view} compact onComment={ready && canDecide ? comment : undefined} />
+        </IterationDiffScope>
       </div>
     </div>
   );

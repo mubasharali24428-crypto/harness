@@ -71,9 +71,10 @@ def _scope_hit(command: str, cwd: str, scope_paths: list[str]) -> str | None:
 
     Part 52 left items: a path is checked the way ``/bin/sh`` would act on it, so
     ``$VAR`` (against the child's sanitized env), a leading ``~``, ``..`` (via
-    realpath) and a flag's path value (``--flag=path``, ``-o/path``) are resolved
-    before the scope test. A token that resolves outside the workspace is denied
-    here too: the OS boundary stops writes out there, but reads have no boundary.
+    realpath), a flag's path value (``--flag=path``, ``-o/path``) and an unquoted
+    glob word (every match, A-01 G2/G6b) are resolved before the scope test. A
+    token that resolves outside the workspace is denied here too: the OS boundary
+    stops writes out there, but reads have no boundary.
     Symlinks are followed on purpose: a link inside scope that points out is
     denied (stricter than "no symlink follow"). Bare words and code strings
     (``python -c "..."``) are still skipped: code strings stay the write
@@ -84,7 +85,9 @@ def _scope_hit(command: str, cwd: str, scope_paths: list[str]) -> str | None:
     root = os.path.realpath(cwd)
     scopes = [os.path.realpath(os.path.join(root, s)) for s in scope_paths]
     env = policy.sanitize_environment(os.environ)
-    for token in shlex.split(command)[1:]:
+    words = shlex.split(command)
+    globs = _unquoted_globs(command, words)
+    for token, unquoted_glob in list(zip(words, globs, strict=True))[1:]:
         spelling = token
         if token.startswith("-"):
             if "=" in token:
@@ -105,12 +108,76 @@ def _scope_hit(command: str, cwd: str, scope_paths: list[str]) -> str | None:
             path = os.path.expanduser(expanded)
         else:
             path = os.path.join(root, expanded)
+        if unquoted_glob and spelling == token:
+            # sh expands an unquoted glob word before the program sees it (`cat d?cs/y`,
+            # `grep -r x *`), so check every match. A flag word (`--include=*.py`) is not
+            # expanded unless a file is literally named like it; no match = sh passes it as is.
+            matches = glob.glob(path)
+            for match in matches:
+                if not _within(os.path.realpath(match), scopes):
+                    return spelling
+            if matches:
+                continue
         if not _is_path_candidate(path, expanded, root):
             continue
-        real = os.path.realpath(path)
-        if not any(real == s or real.startswith(s + os.sep) for s in scopes):
+        if not _within(os.path.realpath(path), scopes):
             return spelling
     return None
+
+
+def _within(real: str, scopes: list[str]) -> bool:
+    return any(real == s or real.startswith(s + os.sep) for s in scopes)
+
+
+def _unquoted_globs(command: str, words: list[str]) -> list[bool]:
+    """Per ``shlex.split`` word: does it carry a ``*``, ``?`` or ``[`` that sh would expand?
+
+    A quoted pattern (``find src -name '*.py'``) is the program's business, not a path.
+    Operators never reach here (policy refuses them first), so words are split on blanks,
+    quotes and backslashes only. If this scan disagrees with ``shlex`` on the words, every
+    word is treated as a glob: fail closed.
+    """
+    scanned: list[str] = []
+    flags: list[bool] = []
+    cur: list[str] = []
+    in_word = has_glob = False
+    quote = None
+    i, n = 0, len(command)
+    while i < n:
+        ch = command[i]
+        if quote == "'":
+            if ch == "'":
+                quote = None
+            else:
+                cur.append(ch)
+        elif quote == '"':
+            if ch == '"':
+                quote = None
+            elif ch == "\\" and i + 1 < n and command[i + 1] in '"\\':
+                i += 1
+                cur.append(command[i])
+            else:
+                cur.append(ch)
+        elif ch in "'\"":
+            quote, in_word = ch, True
+        elif ch == "\\" and i + 1 < n:
+            i += 1
+            cur.append(command[i])
+            in_word = True
+        elif ch.isspace():
+            if in_word:
+                scanned.append("".join(cur))
+                flags.append(has_glob)
+            cur, in_word, has_glob = [], False, False
+        else:
+            cur.append(ch)
+            in_word = True
+            has_glob = has_glob or ch in "*?["
+        i += 1
+    if in_word:
+        scanned.append("".join(cur))
+        flags.append(has_glob)
+    return flags if scanned == words else [True] * len(words)
 
 
 _UNRESOLVED_VAR = re.compile(r"\$\{?[A-Za-z_]")

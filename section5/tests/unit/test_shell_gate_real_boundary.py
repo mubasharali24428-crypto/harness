@@ -227,7 +227,8 @@ def leak_xfail(command: str, wrong: str):
 # the allow-list range for binaries that are not listed at all). At most 15 rows.
 G_ROWS = [
     pytest.param("G1", "cat *", ["src"], None, id="G1-cat-star-policy.py-91"),
-    pytest.param("G2", "cat d?cs/y.txt", ["src"], "docs marker in output",
+    # G2/G6b: closed 2026-11-25 (shell_gate expands unquoted glob words; OUT_OF_SCOPE).
+    pytest.param("G2", "cat d?cs/y.txt", ["src"], None,
                  id="G2-cat-glob-dir-component-policy.py-91"),
     pytest.param("G3", "cat docs/y.tx[t]", ["src"], None,
                  id="G3-cat-glob-file-component-policy.py-91"),
@@ -235,7 +236,7 @@ G_ROWS = [
     pytest.param("G5", "cat docs/*", ["src"], None, id="G5-cat-docs-star-policy.py-91"),
     pytest.param("G6a", "grep -r {DOCS_MARKER}", ["src"], "docs marker in output",
                  id="G6a-grep-recursive-no-path-policy.py-95"),
-    pytest.param("G6b", "grep -rn {DOCS_MARKER} *", ["src"], "docs marker in output",
+    pytest.param("G6b", "grep -rn {DOCS_MARKER} *", ["src"], None,
                  id="G6b-grep-recursive-star-policy.py-95"),
     pytest.param("G7a", "grep --file=docs/y.txt src/x.txt", ["src"], None,
                  id="G7a-grep-file-equals-policy.py-95"),

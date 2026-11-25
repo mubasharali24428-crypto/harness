@@ -25,6 +25,7 @@ import { InlineApprovals, NextStepBox } from "@/components/workspace/RunPrompts"
 import { LearnedRuleOffer } from "@/components/workspace/LearnedRuleOffer";
 import { runRowTitle } from "@/components/workspace/runRows";
 import { PANES, paneFromSearch, searchWithPane, type PaneId } from "@/components/workspace/panes";
+import { showChangeReview, type DiffScope } from "@/lib/diffScope";
 import { formatMoneyUsd, formatRelativeTime } from "@/lib/format";
 import { ErrorState, LoadingState } from "@/components/States";
 import { Button } from "@/components/ui";
@@ -56,6 +57,10 @@ export default function RunDetailPage({
   const [stagedPending, setStagedPending] = useState(false);
   // A tool denial names a path; the editor is opened by a person, never by the event.
   const [scopePath, setScopePath] = useState<string | null>(null);
+  // R4: the Diff pane's scope. While since-last is primary (or still being
+  // decided), the snapshot history below it would repeat the same hunks.
+  const [diffScope, setDiffScope] = useState<DiffScope | null>(null);
+  useEffect(() => setDiffScope(null), [runId]);
 
   // Next 15 hands route params as a Promise; accept both shapes so tests can
   // construct the component without awaiting a fake Promise.
@@ -224,13 +229,16 @@ export default function RunDetailPage({
 
           {pane === "diff" && (
             <>
-              {agg && token && <ReviewPane view={view} token={token} role={role} />}
+              {agg && token && (
+                <ReviewPane view={view} token={token} role={role} projectId={projectId} runKey={runId}
+                  onDiffScopeChange={setDiffScope} />
+              )}
               {agg?.prId && (
                 <a className="ws-foot-link" href={`/review?pr=${encodeURIComponent(agg.prId)}`}>
                   Approve or request changes →
                 </a>
               )}
-              {projectId && token && (
+              {projectId && token && showChangeReview(pane, diffScope) && (
                 <ChangeReview projectId={projectId} token={token} quietWhenEmpty={Boolean(agg?.prId)} />
               )}
             </>

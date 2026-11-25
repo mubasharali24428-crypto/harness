@@ -143,10 +143,7 @@ export function DiffPane({ view, compact = false, onComment }: {
           {onComment && <CommentForm path={file.path} onComment={onComment} />}
         </section>
       ))}
-      <p className="ws-diff-note">
-        This is the pull request&rsquo;s full diff. The review service does not record
-        earlier revisions, so a &ldquo;since the last iteration&rdquo; view is not available.
-      </p>
+      <p className="ws-diff-note">This is the pull request&rsquo;s full diff.</p>
     </div>
   );
 }
