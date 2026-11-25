@@ -29,7 +29,9 @@ export function AssignmentTable({ v }: { v: PlanVersion }) {
             <td>{a.priority ?? "unspecified"}</td>
             <td>{a.assignee ?? <em>{a.assigneeStatus === "not_a_member"
               ? "Unassigned: named person is not a team member"
-              : "Unassigned: availability unknown"}</em>}</td>
+              : a.assigneeStatus === "read_only"
+                ? "Unassigned: viewer or guest seats cannot take work"
+                : "Unassigned: availability unknown"}</em>}</td>
             <td>{a.rationale}{(a.requiredCapabilities ?? []).length > 0 && (
               <span style={muted} data-testid={`caps-${v.version}-${a.task}`}>
                 {" "}Needs {a.requiredCapabilities!.join(", ")} (fit not verified)</span>)}</td>

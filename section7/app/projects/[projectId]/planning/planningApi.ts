@@ -39,7 +39,7 @@ export interface Assignment {
   missingExpertise: string[];
   costEstimate: string;
   /** 7.1 fields; absent on versions stored before 7.1. */
-  assigneeStatus?: "member" | "not_a_member" | "unnamed";
+  assigneeStatus?: "member" | "not_a_member" | "read_only" | "unnamed";
   priority?: Priority | "unspecified";
   requiredCapabilities?: string[];
   /** Always "unverified" today: no admin-maintained capability store exists (D-07). */
