@@ -18,7 +18,8 @@ def test_empty_and_missing_ts():
     s = bench_stats.split_run([])
     assert s == {"modelSeconds": 0.0, "toolSeconds": 0.0, "overheadSeconds": 0.0,
                  "humanWaitSeconds": 0.0, "wallSeconds": 0.0, "turns": 0,
-                 "cacheReadTokens": 0, "nEvents": 0}
+                 "cacheReadTokens": 0, "inputTokens": 0, "cacheReadRatio": None,
+                 "prefixDigests": 0, "nEvents": 0}
     assert bench_stats.split_run(None)["nEvents"] == 0
     # non-numeric ts dropped, not a crash
     assert bench_stats.split_run([{"type": "tool_call", "ts": "2026-11-14"}])["nEvents"] == 0
@@ -192,3 +193,87 @@ def test_cell_stats_adds_split_only_with_events():
     assert cell["split"]["modelSeconds"]["p50"] == 1.0
     # old keys still present
     assert cell["successRate"] == {"passes": 5, "n": 5, "rate": 1.0}
+
+
+# ------------------------------------------------- S-01 cache-read split / S-02 prefix
+
+
+def test_cache_read_ratio_and_input_tokens_from_events():
+    events = [
+        ev("plan_approved", 0.0, 1),
+        ev("execution_started", 1.0, 2),
+        ev("engine_completed", 2.0, 3, {"usage": {"inputTokens": 250, "cacheReadTokens": 750}}),
+    ]
+    s = bench_stats.split_run(events)
+    assert s["inputTokens"] == 250
+    assert s["cacheReadTokens"] == 750
+    assert s["cacheReadRatio"] == 0.75
+
+
+def test_prefix_digests_count_distinct_prefixes_per_run():
+    same = [
+        ev("engine_completed", 1.0, 1, {"promptPrefix": {"sha256": "aa", "bytes": 10}}),
+        ev("engine_completed", 2.0, 2, {"promptPrefix": {"sha256": "aa", "bytes": 10}}),
+    ]
+    moved = same + [ev("engine_completed", 3.0, 3, {"promptPrefix": {"sha256": "bb"}})]
+    assert bench_stats.split_run(same)["prefixDigests"] == 1
+    assert bench_stats.split_run(moved)["prefixDigests"] == 2
+    cell = bench_stats.split_stats([{"events": same}, {"events": moved}])
+    assert cell["runsWithMovingPrefix"] == 1
+
+
+def test_cache_run_unknown_is_none_not_zero():
+    assert bench_stats.cache_run({"verdict": "PASS"}) is None
+    r = bench_stats.cache_run({"usage": {"outputTokens": 9}})
+    assert r == {"inputTokens": None, "cacheReadTokens": None, "cacheReadRatio": None,
+                 "prefixSha256": None}
+    r = bench_stats.cache_run({"usage": {"inputTokens": 100, "cacheReadTokens": 300},
+                               "promptPrefix": {"sha256": "abc", "bytes": 5}})
+    assert r["cacheReadRatio"] == 0.75 and r["prefixSha256"] == "abc"
+
+
+def _attempt(inp, cr, digest="d1"):
+    return {"taskId": "t", "verdict": "PASS", "durationSec": 10.0, "costUsd": 0.01,
+            "firstOutputS": 1.0, "toolCalls": 5, "interventions": 0, "trial": 1,
+            "usage": {"inputTokens": inp, "outputTokens": 1, "cacheReadTokens": cr},
+            "promptPrefix": {"sha256": digest, "bytes": 100}}
+
+
+def test_cell_cache_stats_pooled_ratio_and_prefix_stability():
+    attempts = [_attempt(100, 900) for _ in range(4)] + [_attempt(500, 500, "d2")]
+    cell = bench_stats.cell_stats("t", "m", "live", attempts)
+    cache = cell["cache"]
+    assert cache["n"] == 5 and cache["nWithUsage"] == 5
+    assert cache["pooledCacheReadRatio"] == round(4100 / 5000, 4)
+    assert cache["cacheReadRatio"]["p50"] == 0.9
+    assert cache["distinctPrefixDigests"] == 2
+    assert cache["claim"] == "descriptive only; no superiority claim"
+
+
+def test_cell_cache_stats_below_min_n_makes_no_claim():
+    cell = bench_stats.cell_stats("t", "m", "live", [_attempt(1, 1)])
+    assert cell["cache"]["claim"] == bench_stats.INSUFFICIENT
+
+
+def test_cell_without_usage_has_no_cache_key():
+    attempts = [{"taskId": "t", "verdict": "PASS", "durationSec": 1.0, "trial": 1}]
+    assert "cache" not in bench_stats.cell_stats("t", "m", "live", attempts)
+
+
+def test_bench_trials_keeps_only_usage_and_digest(tmp_path):
+    import json
+
+    import bench_trials
+
+    evidence = tmp_path / "ev.json"
+    evidence.write_text(json.dumps({
+        "usage": {"inputTokens": 10, "outputTokens": 2, "cacheReadTokens": 30, "x": "drop"},
+        "promptPrefix": {"sha256": "ff", "bytes": 7, "blocks": ["rules_prompt_block"]},
+        "finalResponseExcerpt": "never copied",
+    }))
+    got = bench_trials.engine_cache_fields(f'{{"evidence": "{evidence}"}}')
+    assert got == {"usage": {"inputTokens": 10, "outputTokens": 2, "cacheReadTokens": 30},
+                   "promptPrefix": {"sha256": "ff", "bytes": 7}}
+    assert bench_trials.engine_cache_fields("no json here") == {}
+    inline = bench_trials.engine_cache_fields('log line\n{"usage": {"inputTokens": 3}}')
+    assert inline == {"usage": {"inputTokens": 3}}
