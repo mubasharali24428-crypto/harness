@@ -45,7 +45,19 @@ Actions `e2e-compose` job, which boots the full compose stack. "Stubbed browser"
 | 5 | `npx playwright test e2e/r4-since-last-iteration.e2e.ts --reporter=line` | cloud | NOT RUN: no Docker daemon, global setup exits 246 (stack unreachable) |
 | 5 | same command, against the compose stack | CI, [PR #31](https://github.com/mubasharali24428-crypto/harness/pull/31), run [45645352207](https://github.com/mubasharali24428-crypto/harness/actions/runs/45645352207/job/139314893279), head `30ac5a3` | PASS: 3 passed, 1 skipped. Passed: default since-last with decision visible, no snapshot history and axe clean; toggle to full PR and back; revert body `{ hunks: [{ path, index }] }`. Skipped: "switching runs", because the demo seed returns the same run for a team, so there is no second run to switch to. Needs #31's spec stub fix (CORS headers on the sandbox stubs) |
 
+### On RC (`:3011`), owner's Mac
+
+Source: **owner's report of 2026-11-25, not a cloud run.** Raw logs have not been pasted into the repo yet.
+
+| # | Check | Where | Result |
+|---|-------|-------|--------|
+| 5 | `npx playwright test e2e/r4-since-last-iteration.e2e.ts` against RC | owner's Mac, RC `:3011` | PASS 3/3 (owner-reported). CI compose run of the same spec shows 3 passed, 1 skipped ("switching runs"); the skip is expected with the demo seed |
+| 4 | `node section7/scripts/r4-since-last-check.cjs` against RC | owner's Mac, RC `:3011` | PASS 10/10 (owner-reported) |
+
 ### Manual on RC (`:3011`), for the owner
+
+Rows 6 to 12 below are still unticked by hand; the two automated runs above cover the default scope,
+toggle and revert paths but not the 1440/375 light/dark visual pass (row 12).
 
 | # | Check | Stubbed browser (reference) | RC result |
 |---|-------|-----------------------------|-----------|
@@ -62,9 +74,9 @@ Actions `e2e-compose` job, which boots the full compose stack. "Stubbed browser"
 | # | Check | Where | Result |
 |---|-------|-------|--------|
 | 13 | `./.venv/bin/python -m pytest tests/ -q` | cloud, fresh venv, Python 3.13, SQLite 3.53 | 1261 passed, 63 skipped, 8 errors, all in `tests/test_runs_index_tuning.py` (SQLite "too many SQL variables" in the fixture). R4 does not touch `section1/` |
-| 13 | same | owner's Mac | |
+| 13 | same | owner's Mac | PASS, about 1270 passed (owner-reported; exact count and log not pasted) |
 | 14 | `./.venv/bin/ruff check src tests scripts` | cloud | PASS |
-| 14 | same | owner's Mac | |
+| 14 | same | owner's Mac | PASS, green (owner-reported) |
 
 PR 27 intentionally not merged — reason TBD.
 
