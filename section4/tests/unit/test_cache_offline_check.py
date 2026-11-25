@@ -73,3 +73,11 @@ def test_a_wrong_expected_cache_split_is_caught(tmp_path):
     bad = tmp_path / "bad.json"
     bad.write_text(json.dumps(fx))
     assert mod.main(["--fixture", str(bad)]) == 1
+
+
+def test_the_check_leaves_process_logging_as_it_found_it():
+    import logging
+
+    before = logging.root.manager.disable
+    assert _load().main([]) == 0
+    assert logging.root.manager.disable == before

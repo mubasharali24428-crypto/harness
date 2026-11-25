@@ -67,6 +67,9 @@ CREATE TABLE agent_events (
     seq INTEGER PRIMARY KEY AUTOINCREMENT, run_id VARCHAR(36) NOT NULL, type VARCHAR(80) NOT NULL,
     payload TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT '2026-01-01T00:00:00+00:00');
 CREATE TABLE agent_runs (id VARCHAR(36) PRIMARY KEY, project_id VARCHAR(36) NOT NULL);
+CREATE TABLE run_collab_events (seq INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id VARCHAR(36) NOT NULL, team_id VARCHAR(36) NOT NULL, actor_user_id VARCHAR(36),
+    kind TEXT NOT NULL, request_id VARCHAR(36), payload TEXT, ts TIMESTAMP);
 CREATE TABLE agent_plans (
     id VARCHAR(36) PRIMARY KEY, run_id VARCHAR(36) NOT NULL, goal TEXT NOT NULL,
     files_likely_to_change TEXT DEFAULT '[]', steps TEXT DEFAULT '[]', tests TEXT DEFAULT '[]',
@@ -171,7 +174,7 @@ def evaluate(fixture: dict[str, Any], rep: dict[str, Any]) -> dict[str, Any]:
     sizes = [rec.get("bytes") for rec in records]
     head_ok = all(
         isinstance(n, int) and hashlib.sha256(g[:n]).hexdigest() == d
-        for g, d, n in zip(goals, digests, sizes)
+        for g, d, n in zip(goals, digests, sizes, strict=True)
     )
     checks["C1_same_digest_every_attempt"] = {
         "pass": bool(digests) and None not in digests and len(set(digests)) == 1 and head_ok,
@@ -184,7 +187,7 @@ def evaluate(fixture: dict[str, Any], rep: dict[str, Any]) -> dict[str, Any]:
     leaked = [e for e in edited if any(e.encode("utf-8") in g for g in goals)]
     guidance = [(a.get("guidance") or "").encode("utf-8") for a in fixture["attempts"]]
     volatile_last = all(not v or g.rfind(v) >= prefix_len + len(task)
-                        for g, v in zip(goals, guidance))
+                        for g, v in zip(goals, guidance, strict=True))
     checks["C2_identical_prefix_bytes_no_mid_run_edits"] = {
         "pass": (prefix_len > 0 and all(g.startswith(first_prefix) for g in goals)
                  and not leaked and volatile_last),
@@ -233,10 +236,15 @@ def main(argv: list[str] | None = None) -> int:
     fixture = json.loads(args.fixture.read_text())
     # The executor's best-effort side paths (rules, checkpoints, metering) log warnings
     # against the minimal schema; they do not affect the goal bytes this check reads.
+    # Muted only for the replay and restored after, so an importing process (pytest)
+    # keeps its own logging.
+    previous = logging.root.manager.disable
     logging.disable(logging.WARNING)
-
-    frozen = evaluate(fixture, replay(fixture, freeze=True))
-    control = evaluate(fixture, replay(fixture, freeze=False))
+    try:
+        frozen = evaluate(fixture, replay(fixture, freeze=True))
+        control = evaluate(fixture, replay(fixture, freeze=False))
+    finally:
+        logging.disable(previous)
     control_detected = (not control["checks"]["C1_same_digest_every_attempt"]["pass"]
                         and not control["checks"]["C4_bench_stats_cache_split"]["pass"])
     frozen["checks"]["C5_control_without_freeze_is_detected"] = {
