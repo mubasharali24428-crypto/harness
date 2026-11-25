@@ -1,38 +1,19 @@
 {
-  "captured_at_utc": "2026-11-21T15:12:00Z",
-  "git_head": "0d9da4a (built from w28-s1-delegate tip; identical content to master merge commit 11d2e7a after PR #24)",
-  "project": "harness-rc (DEPLOYED \u2014 this manifest records the live set, superseding image-manifest-vv90r5-proposed.json)",
-  "tag": "vv90r6 (compose v-prefix of HARNESS_IMAGE_TAG=v90r6; all four service images carry it)",
-  "image_digest_note": "local docker image IDs (config digests); no registry push occurred",
+  "captured_at_utc": "2026-11-25T18:06:29Z",
+  "git_head": "5793ce9f540bd8b912c0bd94791f7a70d0d3cd67",
+  "project": "harness-rc (DEPLOYED \u2014 written by scripts/ops/readiness_drift.py --write-manifest)",
+  "tag": "vv90r7",
   "images": {
-    "harness-backend:vv90r6": "sha256:b7f41c773f4a05bb9a857987e582c8625beaa2b7869278174bd780ca0b43b855",
-    "harness-frontend:vv90r6": "sha256:90352300c573d3a158772a65f02ad0ea9e4733f266bcbad02e400fd959192e44",
-    "harness-engine-worker:vv90r6": "sha256:95626aa186560fef570526f6ba0cc12b426342a7f739d68d864e3f62ed30c96a",
-    "harness-worker-daemon:vv90r6": "sha256:3f159455657993755de5e1580d2595208e5f484b04f65d8c3f12aa20c9bbe4e5"
+    "harness-backend:vv90r7": "sha256:726ed4a6432686075c6bbaf1f56f0ff95b1c439ff7009aecfe64c218531e3168",
+    "harness-db-walg:v3.0.9": "sha256:6aa29c2cafbb48620a6882e4ed4d7d6fbbb9af46127b46a8e1ea620cf917a401",
+    "harness-frontend:vv90r7": "sha256:b18b4f89f34c9d24e87c5c585cc96d4a40f69b092814fb48996cb29c97940ea6",
+    "harness-worker-daemon:vv90r7": "sha256:6415ff706e45503dc97d7cef25f735a5c19451bdb31173f49b369ca117668c2e",
+    "prom/alertmanager:v0.28.1": "sha256:27c475db5fb156cab31d5c18a4251ac7ed567746a2483ff264516437a39b15ba",
+    "prom/prometheus:v2.53.0": "sha256:075b1ba2c4ebb04bc3a6ab86c06ec8d8099f8fda1c96ef6d104d9bb1def1d8bc"
   },
-  "verification": {
-    "migrate": "NO migration changes 2de9167..0d9da4a (empty diff), so the vv90r5 selftest (0001->0076, idempotent, fail-closed without HARNESS_MASTER_KEY) carries over; the live stack applied them (74|0076) and the one-shot worker exited 0",
-    "e2e_compose_journey": "CI job 'e2e (compose journey, zero provider keys)' SUCCESS at source revision 0d9da4a (run 44916364554); master merge CI SUCCESS at 11d2e7a (run 44917358323)",
-    "gate_parity": "worker-daemon:vv90r6 /opt/harness-shell/shell_gate.py byte-identical to section5/src/harness_sandbox/shell_gate.py at HEAD (diff 0 lines); argument checks present (OUT_OF_SCOPE)",
-    "pack_route_live": "GET /api/v1/audit/pack present in the deployed identity OpenAPI (148 paths)",
-    "frontend_args": "built with the RC overlay's ten NEXT_PUBLIC_* args (18001/18004/18005/18006/18008/18002/28003/18011/18010, WS 18001)"
-  },
-  "five_point_verify_2026_11_21": {
-    "1_stack_tags": "Agreement: AGREE (vv90r6), Missing: none",
-    "2_schema": "74 | 0076",
-    "3_identity_image": "harness-backend:vv90r6 (untagged abdc28b02505 gone)",
-    "4_guest_gate": "GET /api/v1/me without a session -> 401 (resolver + guest gate deployed)",
-    "5_frontend": "GET http://localhost:3011 -> 200"
-  },
-  "closes": [
-    "week-03 \u00a75 RC drift finding (MIXED vv90i13/vv90r4/untagged) -> RESOLVED",
-    "week-02 deployed-gate delta (vw24b1 failed 4 of 8 probe shapes) -> gate now byte-identical to HEAD",
-    "A-06 'one reviewed image set' -> MET on the live stack"
-  ],
   "schema": {
-    "applied": 74,
-    "max_version": "0076",
-    "verified": "2026-11-21 live psql on harness-rc-db-1 (P0 re-baseline); written by the P1 readiness-drift work"
+    "applied": 80,
+    "max_version": "0082"
   },
-  "shell_gate_sha256": "2d6337ce14bf3561d6e1cb1b6d087a1b857bebe067a9a94b32e504602060ef75"
+  "shell_gate_sha256": "bebf351adda72679ae58834bc8aa493e33fd5dd5c649a3d2e1d6d1f0bc42f9cf"
 }
