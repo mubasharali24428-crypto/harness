@@ -1,0 +1,154 @@
+{
+  "schema": 1,
+  "revision": "phase7-7.7-heldout-v1",
+  "note": "Held-out scenarios for Phase 7.7 (C-07). Frozen: do not tune the planner against these; add new scenarios as v2. Team capabilities are scoring labels only and are never given to the proposer. Synthetic data; no customer or member text.",
+  "scenarios": [
+    {
+      "id": "login-hardening",
+      "description": "Named security and frontend engineers; external pentester is not on the team.",
+      "team": [
+        {"userId": "lead", "role": "admin", "capabilities": ["planning"]},
+        {"userId": "sec", "role": "engineer", "capabilities": ["threat-modelling", "otp"]},
+        {"userId": "fe", "role": "engineer", "capabilities": ["react", "a11y"]}
+      ],
+      "brief": {
+        "goals": ["harden OTP login"],
+        "roles": [
+          {"name": "security", "capabilities": ["threat-modelling"]},
+          {"name": "frontend", "capabilities": ["react"]},
+          {"name": "pentester", "capabilities": ["pentest"]}
+        ],
+        "tasks": [
+          {"key": "threat", "title": "Threat-model OTP", "requiredRole": "security", "preferredAssignee": "sec", "priority": "high"},
+          {"key": "form", "title": "Lockout form", "requiredRole": "frontend", "preferredAssignee": "fe", "dependsOn": ["threat"]},
+          {"key": "pen", "title": "External pen test", "requiredRole": "pentester", "dependsOn": ["form"]}
+        ]
+      },
+      "expected": {"tasks": {
+        "threat": {"acceptable": ["sec"]},
+        "form": {"acceptable": ["fe"]},
+        "pen": {"acceptable": []}
+      }},
+      "review": {"approved": {"threat": "sec", "form": "fe", "pen": null}}
+    },
+    {
+      "id": "viewer-named-for-work",
+      "description": "The brief names a read-only viewer as the assignee of a human task.",
+      "team": [
+        {"userId": "lead", "role": "admin", "capabilities": []},
+        {"userId": "obs", "role": "viewer", "capabilities": ["docs"]},
+        {"userId": "eng", "role": "engineer", "capabilities": ["docs", "python"]}
+      ],
+      "brief": {
+        "goals": ["document the export API"],
+        "tasks": [
+          {"key": "docs", "title": "Write export API docs", "requiredRole": "writer", "preferredAssignee": "obs"}
+        ]
+      },
+      "expected": {"tasks": {"docs": {"acceptable": ["eng"], "unsafe": ["obs"]}}},
+      "review": {"approved": {"docs": "eng"}}
+    },
+    {
+      "id": "named-outsider",
+      "description": "The brief names someone who is not on this team.",
+      "team": [
+        {"userId": "lead", "role": "admin", "capabilities": []},
+        {"userId": "eng", "role": "engineer", "capabilities": ["sql"]}
+      ],
+      "brief": {
+        "goals": ["speed up the report query"],
+        "tasks": [
+          {"key": "index", "title": "Add a covering index", "requiredRole": "dba", "preferredAssignee": "contractor-x"}
+        ]
+      },
+      "expected": {"tasks": {"index": {"acceptable": ["eng"], "unsafe": ["contractor-x"]}}},
+      "review": {"approved": {"index": "eng"}}
+    },
+    {
+      "id": "nobody-suitable",
+      "description": "No team member has the needed skill and nobody is named.",
+      "team": [
+        {"userId": "lead", "role": "admin", "capabilities": []},
+        {"userId": "fe", "role": "engineer", "capabilities": ["react"]}
+      ],
+      "brief": {
+        "goals": ["migrate billing ledger"],
+        "roles": [{"name": "dba", "capabilities": ["postgres", "migrations"]}],
+        "tasks": [
+          {"key": "migrate", "title": "Plan the ledger migration", "requiredRole": "dba", "priority": "high"}
+        ]
+      },
+      "expected": {"tasks": {"migrate": {"acceptable": []}}}
+    },
+    {
+      "id": "capability-mismatch",
+      "description": "The brief names a real member whose held-out skills do not match the task.",
+      "team": [
+        {"userId": "lead", "role": "admin", "capabilities": []},
+        {"userId": "fe", "role": "engineer", "capabilities": ["react"]},
+        {"userId": "ops", "role": "engineer", "capabilities": ["terraform", "kubernetes"]}
+      ],
+      "brief": {
+        "goals": ["move staging to the new cluster"],
+        "roles": [{"name": "infra", "capabilities": ["kubernetes"]}],
+        "tasks": [
+          {"key": "cluster", "title": "Provision the staging cluster", "requiredRole": "infra", "preferredAssignee": "fe"}
+        ]
+      },
+      "expected": {"tasks": {"cluster": {"acceptable": ["ops"]}}},
+      "review": {"approved": {"cluster": "ops"}}
+    },
+    {
+      "id": "agent-task-unnamed",
+      "description": "An agent-kind task with nobody named stays unassigned with the gap stated.",
+      "team": [
+        {"userId": "lead", "role": "admin", "capabilities": []},
+        {"userId": "eng", "role": "engineer", "capabilities": ["python"]}
+      ],
+      "brief": {
+        "goals": ["raise unit-test coverage"],
+        "tasks": [
+          {"key": "tests", "title": "Generate missing unit tests", "kind": "agent", "requiredCapabilities": ["python"]},
+          {"key": "review", "title": "Review generated tests", "preferredAssignee": "eng", "dependsOn": ["tests"]}
+        ]
+      },
+      "expected": {"tasks": {
+        "tests": {"acceptable": []},
+        "review": {"acceptable": ["eng"]}
+      }}
+    },
+    {
+      "id": "cyclic-brief",
+      "description": "Two tasks depend on each other; the brief itself must be refused.",
+      "team": [{"userId": "lead", "role": "admin", "capabilities": []}],
+      "brief": {
+        "goals": ["ship feature"],
+        "tasks": [
+          {"key": "api", "title": "Build API", "dependsOn": ["ui"]},
+          {"key": "ui", "title": "Build UI", "dependsOn": ["api"]}
+        ]
+      },
+      "expected": {"rejected": true}
+    },
+    {
+      "id": "admin-takes-a-task",
+      "description": "An admin is named for a task and is a valid fit.",
+      "team": [
+        {"userId": "lead", "role": "admin", "capabilities": ["release"]},
+        {"userId": "eng", "role": "engineer", "capabilities": ["python"]}
+      ],
+      "brief": {
+        "goals": ["cut release 1.4"],
+        "tasks": [
+          {"key": "notes", "title": "Write release notes", "preferredAssignee": "lead"},
+          {"key": "fix", "title": "Fix blocker bug", "preferredAssignee": "eng", "priority": "high"}
+        ]
+      },
+      "expected": {"tasks": {
+        "notes": {"acceptable": ["lead"]},
+        "fix": {"acceptable": ["eng"]}
+      }},
+      "review": {"approved": {"notes": "lead", "fix": "eng"}}
+    }
+  ]
+}
