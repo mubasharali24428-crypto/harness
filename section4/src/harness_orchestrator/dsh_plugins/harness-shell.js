@@ -10,6 +10,7 @@ export const name = "harness-shell";
 export const inject = ["tools", "workingDirectory"];
 
 const DESCRIPTION = `Run one command in the workspace. Every call is checked by the harness command policy.
+* To search file contents use the grep tool, not bash. Never add 2>/dev/null, &&, ;, | or > to a command: they are always refused and waste a turn. The working directory is already the workspace root, so pwd is not needed.
 * One program per call: no pipes, ;, &&, redirection, backgrounding or $(...). Each call starts fresh; no shell state carries over.
 * Allowed programs: ls, cat, head, tail, find, grep, rg, pwd, echo, git (status, diff, log, show, branch, checkout, switch, add, commit, reset, clean, stash, fetch, pull, rev-parse), python, python3, pytest, npm, npx, yarn, pnpm, vitest, jest, cargo, go, ruff, flake8, mypy, black, isort, eslint, prettier, tsc.
 * A refused command returns the reason; change the command rather than repeating it.`;
