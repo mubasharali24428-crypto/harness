@@ -85,7 +85,29 @@ it recorded but cannot undo one; a module is only as trustworthy as the resolver
 host hands it; Section 4 still cannot pin a multi-file program until `WorkflowRequest`
 carries a program digest; and the track adds no approval surface of its own.
 
-## 2026-11-21 (latest) — weeks 9–13 fleet scope shipped: compliance pack, denial-learning loop, CI race fix, ledgers complete
+## 2026-11-21 (latest) — PR #24 merged to master; vv90r6 one-tag set deployed; A-06 met live
+
+Executed by the owner's instruction ("do it"): **PR #24 merged to master**
+(`1753171..11d2e7a`; master CI run 44917358323 SUCCESS), then the RC stack
+**rebuilt from the post-merge tip and redeployed as `vv90r6`** with the runbook
+flow (dry mode, worker profile). **5-point verification all green**: `stack_tags
+--project harness-rc` = **Agreement: AGREE (vv90r6), Missing none**; schema
+**74|0076**; identity on `harness-backend:vv90r6` (the untagged `abdc28b02505`
+is gone); guest gate **401** without a session; frontend **200**. Bonus checks:
+`/api/v1/audit/pack` is in the deployed identity spec (148 paths) and the
+deployed shell gate is **byte-identical to HEAD** (diff 0, `OUT_OF_SCOPE`
+present). No migration delta since `2de9167`, so the vv90r5 migrate selftest
+carries over; the one-shot worker exited 0. Manifest:
+`image-manifest-vv90r6-deployed.json`. **Closed:** week-03's RC-drift finding
+(MIXED → AGREE), the week-02 deployed-gate delta (vw24b1 failed 4 of 8 probe
+shapes — the live gate now matches HEAD), and **A-06 "one reviewed image set"
+is MET on the live stack**. Also shipped in this wave: the step-3 operations
+checklist (Grafana/offsite/5499/restore drill — `step3-operations-checklist-
+2026-11-21.md`) and the checkpoint-1 redesign design doc
+(`checkpoint1-redesign-2026-11-21.md`) so the next lane builds the faithful
+flow instead of patching the old one green.
+
+## 2026-11-21 (earlier) — weeks 9–13 fleet scope shipped: compliance pack, denial-learning loop, CI race fix, ledgers complete
 
 Engineering slices from the 90-day plan's Month-3 fleet rows, all offline, zero
 spend, on `w28-s1-delegate`:

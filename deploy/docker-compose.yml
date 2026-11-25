@@ -254,8 +254,12 @@ services:
     restart: unless-stopped
     # Dev convenience: host-side access for tests/tools. 5499 avoids clashing
     # with a local Postgres already on 5432 (loopback only either way).
+    # Step-3 fix (2026-11-21): the port is a variable, so a SECOND local stack
+    # (demo/training) coexisting with the live one sets HARNESS_DB_HOST_PORT=
+    # 5498 in its env file instead of failing the bind and silently ending up
+    # network-detached (the November nightly finding).
     ports:
-      - "127.0.0.1:5499:5432"
+      - "127.0.0.1:${HARNESS_DB_HOST_PORT:-5499}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U harness"]
       interval: 2s

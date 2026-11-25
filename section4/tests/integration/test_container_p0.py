@@ -65,7 +65,14 @@ def probe(boundary, code):
         "open('/etc/denied','w')",
         "open('/var/denied','w')",
         "import os; assert not os.path.exists('/var/run/docker.sock')",
-        "import os; assert not any(k.startswith(('AWS_', 'HARNESS_')) for k in os.environ)",
+        # Operator env must not leak through the boundary (AWS credentials,
+        # HARNESS_ operator config). Exempt only the four HARNESS_*_GATE paths
+        # the worker image itself bakes in (section4/worker.Dockerfile) and
+        # engine.py reads — image contract, not leakage.
+        "import os; assert not any("
+        "k.startswith('AWS_') or (k.startswith('HARNESS_') and k not in "
+        "{'HARNESS_SHELL_GATE','HARNESS_WEB_GATE','HARNESS_BROWSER_GATE',"
+        "'HARNESS_IMAGE_GATE'}) for k in os.environ)",
         "s=open('/proc/self/status').read(); assert 'CapEff:\\t0000000000000000' in s",
         "s=open('/proc/self/status').read(); assert 'NoNewPrivs:\\t1' in s",
         "import socket; s=socket.socket(); s.settimeout(1); s.connect(('1.1.1.1',443))",

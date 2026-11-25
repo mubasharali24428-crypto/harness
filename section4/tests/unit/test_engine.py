@@ -87,7 +87,9 @@ def test_live_run_against_openrouter(monkeypatch):
     import json
     import urllib.request
 
-    model = os.environ.get("HARNESS_TEST_OPENROUTER_MODEL", "cohere/north-mini-code:free")
+    # Free-model catalogs rotate; the assert below re-checks against the live
+    # catalog so a stale default fails loudly instead of silently degrading.
+    model = os.environ.get("HARNESS_TEST_OPENROUTER_MODEL", "nvidia/nemotron-3.5-lightning:free")
     # Tests may only select catalog-confirmed free models. No paid fallback.
     with urllib.request.urlopen("https://openrouter.ai/api/v1/models", timeout=20) as response:
         catalog = json.load(response)["data"]

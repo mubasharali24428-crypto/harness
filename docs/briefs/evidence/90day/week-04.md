@@ -180,6 +180,15 @@ start tokenless**. Fresh manifest: `image-manifest-vv90r5-proposed.json`; owner 
 `a06-redeploy-runbook-vv90r5.md` (~10 minutes, dry mode, 5-point verify, rollback path).
 The deploy itself stays with R.
 
+**→ EXECUTED 2026-11-21 (vv90r6, executed in-session by the owner's instruction):**
+PR #24 merged to master (`11d2e7a`, master CI run 44917358323 SUCCESS); the stack rebuilt
+from the post-merge tip as `vv90r6` and redeployed with the runbook's compose flow. The
+5-point verification all green: `stack_tags` **AGREE (vv90r6), Missing none**; schema
+**74|0076**; identity on `harness-backend:vv90r6`; guest gate **401** live; frontend **200**;
+bonus: `/api/v1/audit/pack` present in the deployed spec (148 paths), shell gate byte-identical
+(diff 0). Manifest: `image-manifest-vv90r6-deployed.json`. A-06 is **met on the live stack**;
+week-03's drift finding is closed there.
+
 ### P-13 benchmark — fleet side complete, run owner-gated
 
 Held-out freeze verified (`--check`: 6 tasks, corpus unchanged). Pre-registered
