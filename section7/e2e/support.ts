@@ -138,3 +138,38 @@ export async function readOtpFromLog(logPath: string, email: string): Promise<st
   }
   throw new Error(`No HARNESS-OTP code in ${logPath} for ${email}`);
 }
+
+/** Live specs: one real JSON call with an explicit bearer token (no page.route anywhere). */
+export async function liveApi(
+  request: APIRequestContext, url: string, token: string, method = "GET", data?: object,
+): Promise<{ status: number; body: any }> {
+  const res = await request.fetch(url, { method, data, headers: token ? { authorization: `Bearer ${token}` } : {} });
+  const text = await res.text();
+  return { status: res.status(), body: text ? JSON.parse(text) : null };
+}
+
+/** The session the app itself stored after a real sign-in. */
+export async function storedSession(page: Page): Promise<{ token: string; principal: { userId: string; teamId: string; role: string } }> {
+  const s = await page.evaluate(() => JSON.parse(localStorage.getItem("harness.session") ?? "null"));
+  expect(s?.token, "the app must have stored a real session token").toBeTruthy();
+  return s;
+}
+
+/**
+ * A second real member of the admin's team: the member signs in (own solo team), the admin
+ * mints an invite, the member redeems it with the invited email, then signs into the admin's
+ * team. Returns the member's token for that team and their userId.
+ */
+export async function joinByInvite(
+  request: APIRequestContext, identity: string, adminToken: string, teamId: string, email: string, role: string,
+): Promise<{ token: string; userId: string }> {
+  const solo = await liveApi(request, `${identity}/api/v1/auth/login`, "", "POST", { email });
+  expect(solo.status, JSON.stringify(solo.body)).toBe(200);
+  const invite = await liveApi(request, `${identity}/api/v1/teams/${teamId}/invites`, adminToken, "POST", { email, role });
+  expect(invite.status, JSON.stringify(invite.body)).toBe(201);
+  const redeemed = await liveApi(request, `${identity}/api/v1/invites/redeem`, solo.body.token, "POST", { token: invite.body.token, email });
+  expect(redeemed.status, JSON.stringify(redeemed.body)).toBe(200);
+  const inTeam = await liveApi(request, `${identity}/api/v1/auth/login`, "", "POST", { email, teamId });
+  expect(inTeam.status, JSON.stringify(inTeam.body)).toBe(200);
+  return { token: inTeam.body.token, userId: inTeam.body.principal.userId };
+}
