@@ -1,0 +1,10 @@
+Found 2 known vulnerabilities in 1 package
+Name    Version   ID              Fix Versions
+------- --------- --------------- ------------
+certifi 2026.7.22 PYSEC-2026-4320 2026.10.18
+certifi 2026.7.22 PYSEC-2026-4320 2026.10.18
+
+Name              Skip Reason
+----------------- -----------------------------------------------------------------------------------
+harness-contracts Dependency not found on PyPI and could not be audited: harness-contracts (1.0.0rc7)
+harness-identity  Dependency not found on PyPI and could not be audited: harness-identity (0.1.0)
