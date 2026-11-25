@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "about": "Offline S-02/S-01 replay fixture. Five execution attempts of ONE run (first attempt, resume after a pause, guidance turns, a leader-approval retry) with mid-run edits to rules and memory. The usage numbers are SYNTHETIC, shaped like run_metering usage (inputTokens EXCLUDES cache reads). They exercise bench_stats arithmetic; they are not a provider measurement.",
+  "goal": "Fix the settings dialog so the Save button stays disabled until a field changes.",
+  "sources": {
+    "rules_prompt_block": "PROJECT RULES (advisory)\n- run `make lint` before committing\n- never edit files under migrations/",
+    "skills_prompt_block": "TEAM SKILLS (reviewed)\n## ui-forms@2\nForms keep a dirty flag; buttons read it, never the raw fields.",
+    "memory_prompt_block": "PROJECT MEMORY (reviewed, advisory)\n- the settings dialog lives in frontend/src/settings/Dialog.tsx (u1, reviewed by u2)",
+    "context_bundle": {"rendered": "RETRIEVED CODEBASE CONTEXT\n@@ frontend/src/settings/Dialog.tsx:40-58 (tsx)\nconst [dirty, setDirty] = useState(false);"}
+  },
+  "attempts": [
+    {"label": "first execution attempt", "guidance": "", "edits": {},
+     "usage": {"inputTokens": 4200, "outputTokens": 610, "cacheReadTokens": 0}},
+    {"label": "resume after pause; a rule was edited while paused", "guidance": "\n\nGUIDANCE: keep the existing test ids",
+     "edits": {"rules_prompt_block": "PROJECT RULES (advisory)\n- EDITED MID-RUN: also run `make typecheck`"},
+     "usage": {"inputTokens": 900, "outputTokens": 480, "cacheReadTokens": 3300}},
+    {"label": "guidance turn; a new memory note was reviewed mid-run", "guidance": "\n\nGUIDANCE: the button is in Footer.tsx",
+     "edits": {"memory_prompt_block": "PROJECT MEMORY (reviewed, advisory)\n- EDITED MID-RUN: Footer.tsx owns the buttons"},
+     "usage": {"inputTokens": 1000, "outputTokens": 520, "cacheReadTokens": 3300}},
+    {"label": "retry after leader approval", "guidance": "\n\nGUIDANCE: approved, go ahead", "edits": {},
+     "usage": {"inputTokens": 950, "outputTokens": 300, "cacheReadTokens": 3300}},
+    {"label": "final guidance turn", "guidance": "\n\nGUIDANCE: also update the snapshot test", "edits": {},
+     "usage": {"inputTokens": 1100, "outputTokens": 410, "cacheReadTokens": 3300}}
+  ],
+  "expected": {
+    "note": "Hand-computed from the usage above: pooled = 13200 / (8150 + 13200); per-attempt = cacheRead / (input + cacheRead), rounded to 4 places.",
+    "pooledCacheReadRatio": 0.6183,
+    "perAttemptCacheReadRatio": [0.0, 0.7857, 0.7674, 0.7765, 0.75],
+    "nWithUsage": 5,
+    "distinctPrefixDigests": 1,
+    "claim": "descriptive only; no superiority claim"
+  }
+}
