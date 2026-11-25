@@ -95,11 +95,25 @@ Shipped: self-service rendering in `/settings/account` (display only), similar d
 Gates: static, check-ts-dist, section8, frontend and migrations green; section1 had one order-flaky test, section4 two Docker-only failures.
 **No 10.11 line moved; P-D2/P-D7/payment BLOCKED.** Verdict: **NOT READY**.
 
-## 2026-11-24 — Sprint 4: live stack verified, migrations on compose, Phase 7 gap closed (local, not pushed)
+## 2026-11-21 (latest) — PR #24 merged to master; vv90r6 one-tag set deployed; A-06 met live
 
-Commits `d93ee869`..Task 30 on `w28-s1-delegate` (not pushed); SHAs in `docs/briefs/evidence/sprint4/END-report-2026-11-24.md`.
-Docker recovered, stale image rebuilt; `migrate` applied 0076–0081 on compose `:5499` (`max(version)=0081`), identity/orchestrator health 200. `pg-probe`, compose journey (13/13), live approval e2e (1 live + 6 mocked) and the P1 multiplayer spec passed at named SHAs.
-Section1 flake hardened (two full greens), section4 2445 passed with Docker up; C-05 dependency status + C-07 reject note shipped; collab `viewed_detail` measured (section8 seam still open); operator runbook added. **`make gate` GREEN (rc=0)** — the full ci.yml PR gate. P-D7 stays DEFERRED; no 10.11 line moved; verdict **NOT READY**.
+Executed by the owner's instruction ("do it"): **PR #24 merged to master**
+(`1753171..11d2e7a`; master CI run 44917358323 SUCCESS), then the RC stack
+**rebuilt from the post-merge tip and redeployed as `vv90r6`** with the runbook
+flow (dry mode, worker profile). **5-point verification all green**: `stack_tags
+--project harness-rc` = **Agreement: AGREE (vv90r6), Missing none**; schema
+**74|0076**; identity on `harness-backend:vv90r6` (the untagged `abdc28b02505`
+is gone); guest gate **401** without a session; frontend **200**. Bonus checks:
+`/api/v1/audit/pack` is in the deployed identity spec (148 paths) and the
+deployed shell gate is **byte-identical to HEAD** (diff 0, `OUT_OF_SCOPE`
+present). No migration delta since `2de9167`, so the vv90r5 migrate selftest
+carries over; the one-shot worker exited 0. Manifest:
+`image-manifest-vv90r6-deployed.json`. Also shipped: step-3 operations checklist
+and `checkpoint1-redesign-2026-11-21.md`.
+
+## 2026-11-21 (earlier) — weeks 9–13 fleet scope shipped: compliance pack, denial-learning loop, CI race fix, ledgers complete
+
+Engineering slices from the 90-day plan's Month-3 fleet rows (details in prior STATUS history on master).
 
 ## 2026-11-24 — Sprints 1–2: Phase 7 slice, X-07/X-21 browser-verified, X-14 deferred (local, not pushed)
 

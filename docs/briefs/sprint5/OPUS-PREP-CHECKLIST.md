@@ -9,7 +9,16 @@ Baseline tree: `e4519ae4` on `w28-s1-delegate` (77 commits ahead of `origin`, lo
 - [x] `docs/briefs/sprint5/PR-27-BODY.md` — PR description draft for Sprints 1–4
 - [x] This checklist
 
-## You must do before cloud Opus (Phase 0, $0)
+## Phase 0 status (2026-11-25)
+
+- [x] PR **25** merged (squash)
+- [x] PR **26** merged (`--admin`; branch protection had failed CI on old run)
+- [x] Branch **`w28-s2-sprints1-4`** pushed; merge commit **`35f17626`**; **`make gate` GREEN** locally
+- [x] **PR #27** https://github.com/mubasharali24428-crypto/harness/pull/27
+- **Cloud baseline SHA:** `35f17626`
+- **Stash:** local evidence PNGs in `git stash` (`opus-prep-local-artifacts`) — not pushed
+
+## You must do before cloud Opus (if re-running Phase 0)
 
 1. **Merge PR 25** (green CI, perf branch) if accepted.
 2. **Merge or reject PR 26** — if merged, you get `checkpoint1-redesign` on `master`. **Do not** push 77 commits to `w28-s1-delegate` on origin before deciding: PR 26 uses that branch name.
