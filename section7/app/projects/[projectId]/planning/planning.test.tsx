@@ -62,12 +62,49 @@ describe("admin planning view", () => {
   });
 });
 
+describe("7.1 (C-01) brief completeness in the admin table", () => {
+  const v71 = (): PlanVersion => {
+    const base = v(1, "proposed", null);
+    return { ...base, assignments: [
+      { ...base.assignments[0], priority: "high", assigneeStatus: "member",
+        requiredCapabilities: ["threat-modelling"], capabilityFit: "unverified", availability: "unknown" },
+      { ...base.assignments[1], priority: "unspecified", assigneeStatus: "not_a_member",
+        rationale: "named assignee is not a current team member; availability unknown" },
+    ] };
+  };
+  it("shows priority and says capability fit is not verified, even for a named member", () => {
+    const h = admin([v71()]);
+    expect(h).toContain("<td>high</td>");
+    expect(h).toContain('data-testid="caps-1-threat"');
+    expect(h).toContain("Needs threat-modelling (fit not verified)");
+  });
+  it("tells a named non-member apart from nobody named", () => {
+    const h = admin([v71()]);
+    expect(h).toContain("Unassigned: named person is not a team member");
+    expect(h).not.toContain("Unassigned: availability unknown");
+  });
+  it("pre-7.1 versions (no new fields) still render with honest defaults", () => {
+    const h = admin([v(1, "proposed", null)]);
+    expect(h).toContain("<td>unspecified</td>");
+    expect(h).toContain("Unassigned: availability unknown");
+    expect(h).not.toContain("fit not verified");
+  });
+});
+
 describe("member view", () => {
   it("lists only the caller's tasks", () => {
     const h = renderToStaticMarkup(<MemberTasksView mine={{ version: 3, tasks: [
       { task: "threat", title: "Threat-model the OTP flow", kind: "human", dependsOn: [] }] }} />);
     expect(h).toContain('data-testid="my-task-threat"');
     expect(h).not.toContain("pen");
+  });
+  it("7.1: shows the caller's own priority and outputs; hides 'unspecified'", () => {
+    const h = renderToStaticMarkup(<MemberTasksView mine={{ version: 3, tasks: [
+      { task: "a", title: "Task A", kind: "human", dependsOn: [], priority: "high", outputs: ["threat model doc"] },
+      { task: "b", title: "Task B", kind: "human", dependsOn: [], priority: "unspecified", outputs: [] }] }} />);
+    expect(h).toContain("high priority");
+    expect(h).toContain("delivers threat model doc");
+    expect(h).not.toContain("unspecified");
   });
   it("says so when nothing is approved yet", () => {
     expect(renderToStaticMarkup(<MemberTasksView mine={{ version: null, tasks: [] }} />)).toContain("No approved plan yet.");

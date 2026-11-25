@@ -21,13 +21,18 @@ export function AssignmentTable({ v }: { v: PlanVersion }) {
   return (
     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
       <caption className="sr-only">Assignments in version {v.version}</caption>
-      <thead><tr><th scope="col">Task</th><th scope="col">Assignee</th><th scope="col">Why</th><th scope="col">Missing expertise</th><th scope="col">Cost</th></tr></thead>
+      <thead><tr><th scope="col">Task</th><th scope="col">Priority</th><th scope="col">Assignee</th><th scope="col">Why</th><th scope="col">Missing expertise</th><th scope="col">Cost</th></tr></thead>
       <tbody>
         {v.assignments.map((a) => (
           <tr key={a.task} data-testid={`assignment-${v.version}-${a.task}`}>
             <td>{titles[a.task] ?? a.task}{a.dependsOn.length > 0 && <span style={muted}> (after {a.dependsOn.join(", ")})</span>}</td>
-            <td>{a.assignee ?? <em>Unassigned: availability unknown</em>}</td>
-            <td>{a.rationale}</td>
+            <td>{a.priority ?? "unspecified"}</td>
+            <td>{a.assignee ?? <em>{a.assigneeStatus === "not_a_member"
+              ? "Unassigned: named person is not a team member"
+              : "Unassigned: availability unknown"}</em>}</td>
+            <td>{a.rationale}{(a.requiredCapabilities ?? []).length > 0 && (
+              <span style={muted} data-testid={`caps-${v.version}-${a.task}`}>
+                {" "}Needs {a.requiredCapabilities!.join(", ")} (fit not verified)</span>)}</td>
             <td>{a.missingExpertise.length ? a.missingExpertise.join(", ") : "none"}</td>
             <td>{a.costEstimate === "unknown" ? "unknown" : a.costEstimate}</td>
           </tr>
@@ -113,6 +118,8 @@ export function MemberTasksView({ mine }: { mine: MyTasks | null }) {
       {mine.tasks.length === 0 ? <p style={muted}>Nothing is assigned to you in this plan.</p> : (
         <ul>{mine.tasks.map((t) => (
           <li key={t.task} data-testid={`my-task-${t.task}`}>{t.title}
+            {t.priority && t.priority !== "unspecified" && <span style={muted}> · {t.priority} priority</span>}
+            {(t.outputs ?? []).length > 0 && <span style={muted}> · delivers {t.outputs!.join(", ")}</span>}
             {t.dependsOn.length > 0 && <span style={muted}> ({t.dependsOn.map((k) =>
               `${k}: ${t.dependsOnStatus?.[k] === "ready" ? "ready" : "waiting"}`).join(", ")})</span>}
           </li>
