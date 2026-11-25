@@ -31,6 +31,7 @@ DDL = (
 USERS = {
     "boss": ("team-a", Role.ADMIN), "sec": ("team-a", Role.ENGINEER),
     "ui": ("team-a", Role.ENGINEER), "evil": ("team-b", Role.ADMIN),
+    "obs": ("team-a", Role.VIEWER),
 }
 BRIEF = {
     "goals": ["ship login hardening"],
@@ -300,3 +301,32 @@ def test_pre_7_1_stored_version_still_serves_mine(as_):
     t = as_("sec").get(f"{P}/p/assignment-plans/mine").json()["tasks"]
     assert t == [{"task": "a", "title": "A", "kind": "human", "dependsOn": [],
                   "priority": "unspecified", "outputs": [], "dependsOnStatus": {}}]
+
+
+def test_read_only_seats_are_never_proposed_or_assigned(as_):
+    """7.7 eval finding: a viewer named in the brief used to be proposed for work."""
+    brief = {"goals": ["g"], "tasks": [
+        {"key": "docs", "title": "Write docs", "preferredAssignee": "obs"},
+        {"key": "code", "title": "Write code", "preferredAssignee": "sec"}]}
+    c = as_("boss")
+    by = {a["task"]: a for a in c.post(f"{P}/p/assignment-plans", json=brief).json()["assignments"]}
+    assert by["docs"]["assignee"] is None and by["docs"]["assigneeStatus"] == "read_only"
+    assert "read-only seat" in by["docs"]["rationale"] and by["docs"]["missingExpertise"]
+    assert by["code"]["assignee"] == "sec"
+    r = c.post(f"{P}/p/assignment-plans/1/review",
+               json={"decision": "edit", "reassign": [{"task": "code", "assignee": "obs"}]})
+    assert r.status_code == 422 and r.json()["detail"]["error"]["code"] == "BAD_REASSIGN"
+
+
+def test_read_only_role_match_is_case_insensitive(as_):
+    """ORM writes persist enum NAMES ('VIEWER'); the planner must still see a read-only seat."""
+    async def seed():
+        async with orch_api._service.session_factory() as db:
+            await db.execute(text("INSERT INTO team_members VALUES ('m-v2', 'team-a', 'v2',"
+                                  " 'VIEWER')"))
+            await db.commit()
+
+    asyncio.run(seed())
+    brief = {"goals": ["g"], "tasks": [{"key": "a", "title": "A", "preferredAssignee": "v2"}]}
+    (a,) = as_("boss").post(f"{P}/p/assignment-plans", json=brief).json()["assignments"]
+    assert a["assigneeStatus"] == "read_only" and a["assignee"] is None

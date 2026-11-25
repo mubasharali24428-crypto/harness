@@ -83,6 +83,11 @@ describe("7.1 (C-01) brief completeness in the admin table", () => {
     expect(h).toContain("Unassigned: named person is not a team member");
     expect(h).not.toContain("Unassigned: availability unknown");
   });
+  it("a read-only seat named in the brief is shown as unable to take work", () => {
+    const base = v(1, "proposed", null);
+    const h = admin([{ ...base, assignments: [base.assignments[0], { ...base.assignments[1], assigneeStatus: "read_only" }] }]);
+    expect(h).toContain("Unassigned: viewer or guest seats cannot take work");
+  });
   it("pre-7.1 versions (no new fields) still render with honest defaults", () => {
     const h = admin([v(1, "proposed", null)]);
     expect(h).toContain("<td>unspecified</td>");

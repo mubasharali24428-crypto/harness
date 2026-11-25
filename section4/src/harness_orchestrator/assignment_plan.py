@@ -117,11 +117,17 @@ def _require_admin(p: Principal) -> None:
         raise _err(403, "ROLE_DENIED", "only project admins may plan or review assignments")
 
 
-async def _members(db: Any, team_id: str) -> set[str]:
+READ_ONLY_SEATS = {"viewer", "guest"}  # contracts roles.READ_ONLY: they cannot act on runs
+
+
+async def _members(db: Any, team_id: str) -> tuple[set[str], set[str]]:
+    """(every current seat's user id, the read-only ones). Role is compared case-insensitively
+    because ORM writes persist enum NAMES ('VIEWER') while raw rows may hold values."""
     rows = await db.execute(
-        text("SELECT user_id FROM team_members WHERE team_id = :t AND user_id IS NOT NULL"),
+        text("SELECT user_id, role FROM team_members WHERE team_id = :t AND user_id IS NOT NULL"),
         {"t": team_id})
-    return {r.user_id for r in rows}
+    seats = [(r.user_id, str(r.role or "").lower()) for r in rows]
+    return {u for u, _ in seats}, {u for u, role in seats if role in READ_ONLY_SEATS}
 
 
 def _find_cycle(deps: dict[str, list[str]]) -> list[str] | None:
@@ -171,14 +177,18 @@ def _assignee_fields(assignee: str | None, status: str) -> dict[str, Any]:
         "rationale": {
             "member": "named in brief; current team member",
             "not_a_member": "named assignee is not a current team member; availability unknown",
+            "read_only": "named assignee has a read-only seat (viewer or guest) and cannot take"
+                         " work; availability unknown",
             "unnamed": "no authorized team member named; availability unknown",
         }[status],
         "uncertainty": "low" if status == "member" else "unknown",
     }
 
 
-def propose(brief: Brief, members: set[str]) -> list[dict[str, Any]]:
-    """C-02, deterministic: name only what the authorized context supports."""
+def propose(brief: Brief, members: set[str],
+            read_only: frozenset[str] | set[str] = frozenset()) -> list[dict[str, Any]]:
+    """C-02, deterministic: name only what the authorized context supports. A read-only seat
+    (viewer or guest) named in the brief is never proposed for work (found by 7.7 eval)."""
     validate_brief(brief)
     role_caps = {r.name: r.capabilities for r in brief.roles}
     out = []
@@ -186,7 +196,8 @@ def propose(brief: Brief, members: set[str]) -> list[dict[str, Any]]:
         if t.preferredAssignee is None:
             status = "unnamed"
         else:
-            status = "member" if t.preferredAssignee in members else "not_a_member"
+            status = ("not_a_member" if t.preferredAssignee not in members
+                      else "read_only" if t.preferredAssignee in read_only else "member")
         known = status == "member"
         caps = list(dict.fromkeys([*role_caps.get(t.requiredRole or "", []),
                                    *t.requiredCapabilities]))
@@ -248,7 +259,7 @@ async def create_proposal(projectId: str, brief: Brief, p: _api.RequirePrincipal
         version = 1 if latest is None else latest.version + 1
         return await _insert(db, p, projectId, version, latest.version if latest else None,
                              "proposed", brief.model_dump_json(),
-                             propose(brief, await _members(db, p.teamId)), None)
+                             propose(brief, *await _members(db, p.teamId)), None)
 
 
 @router.post("/projects/{projectId}/assignment-plans/{version}/review", status_code=201)
@@ -267,10 +278,14 @@ async def review(projectId: str, version: int, req: Review, p: _api.RequirePrinc
             raise _err(422, "NOTE_REQUIRED", "a rejection needs a note explaining the disagreement")
         assignments = json.loads(latest.assignments)
         if req.decision == "edit":
-            members, by_task = await _members(db, p.teamId), {a["task"]: a for a in assignments}
+            (members, read_only), by_task = (await _members(db, p.teamId),
+                                             {a["task"]: a for a in assignments})
             for r in req.reassign:
                 if r.task not in by_task or (r.assignee is not None and r.assignee not in members):
                     raise _err(422, "BAD_REASSIGN", f"unknown task or non-member for {r.task}")
+                if r.assignee in read_only:
+                    raise _err(422, "BAD_REASSIGN",
+                               f"{r.task}: a viewer or guest seat cannot be assigned work")
                 by_task[r.task].update(
                     assignee=r.assignee, rationale="set by admin review",
                     assigneeStatus="member" if r.assignee else "unnamed",
