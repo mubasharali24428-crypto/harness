@@ -165,12 +165,14 @@ export function revokeInvite(
   return request(`/api/v1/teams/${teamId}/invites/${inviteId}`, token, { method: "DELETE" });
 }
 
+// M18-C5: the server binds redemption to the invited email; a token alone answers 422.
 export function redeemInvite(
   inviteToken: string,
+  email: string,
   sessionToken: string,
 ): Promise<{ membership: { teamId: string; role: string }; alreadyMember: boolean }> {
   return request(`/api/v1/invites/redeem`, sessionToken, {
     method: "POST",
-    body: JSON.stringify({ token: inviteToken }),
+    body: JSON.stringify({ token: inviteToken, email }),
   });
 }

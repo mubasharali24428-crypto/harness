@@ -132,6 +132,7 @@ export default function TeamSettingsPage() {
 
   // redeem-by-token form
   const [redeemToken, setRedeemToken] = useState("");
+  const [redeemEmail, setRedeemEmail] = useState("");
   const [redeemMsg, setRedeemMsg] = useState<string | null>(null);
   const [redeemErr, setRedeemErr] = useState<string | null>(null);
 
@@ -254,7 +255,7 @@ export default function TeamSettingsPage() {
     setRedeemErr(null);
     setRedeemMsg(null);
     try {
-      const out = await redeemInvite(redeemToken.trim(), session.token);
+      const out = await redeemInvite(redeemToken.trim(), redeemEmail.trim(), session.token);
       setRedeemMsg(
         out.alreadyMember
           ? `Already a member of ${out.membership.teamId} (${out.membership.role}).`
@@ -478,6 +479,18 @@ export default function TeamSettingsPage() {
             placeholder="paste the invite token"
             className="text-input"
             style={{ flex: 1 }}
+            required
+          />
+          <label htmlFor="redeem-email" style={{ alignSelf: "center" }}>
+            Invited email
+          </label>
+          <input
+            id="redeem-email"
+            type="email"
+            value={redeemEmail}
+            onChange={(e) => setRedeemEmail(e.target.value)}
+            placeholder="the address the invite was sent to"
+            className="text-input"
             required
           />
           <button type="submit" className="btn" disabled={busy}>
