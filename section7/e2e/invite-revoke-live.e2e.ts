@@ -42,6 +42,8 @@ test("live B-09: invite engineer + viewer, revoke a third invite, remove the eng
   const viewInvite = await mintInUi(page, viewer, "viewer");
   const ghostInvite = await mintInUi(page, ghost, "engineer");
   await page.getByRole("button", { name: `Revoke invite for ${ghost}` }).click();
+  // Operability slice 4: Revoke confirms in the row before it calls the server.
+  await page.getByRole("button", { name: `Confirm revoking the invite for ${ghost}` }).click();
   await expect.poll(async () => ((await liveApi(request, `${identity}/api/v1/teams/${teamId}/invites`, admin)).body.items as
     { email: string; revokedAt: string | null }[]).find((i) => i.email === ghost)?.revokedAt ?? null).not.toBeNull();
 
