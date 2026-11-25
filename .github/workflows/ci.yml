@@ -132,16 +132,29 @@ jobs:
               - 'section1/migrations/**'
               - 'section1/src/**'
               - 'deploy/runners/**'
+      # Task 44: the filter/forced outputs are JSON ARRAYS (they contain
+      # double quotes). Inlining `${{ ... }}` into a double-quoted shell
+      # string broke the quoting (`"["section1",...]"`) and json.loads died
+      # with "Expecting value" on every PR. Hand the values to the shell via
+      # env instead — expressions never become shell text.
       - name: resolve the lists for the job outputs
         id: resolve
+        env:
+          EVENT: ${{ github.event_name }}
+          FILTER_CHANGES: ${{ steps.filter.outputs.changes }}
+          FORCED_CHANGES: ${{ steps.forced.outputs.changes }}
+          FORCED_SECTIONS: ${{ steps.forced.outputs.sections }}
         run: |
-          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "changes=${{ steps.filter.outputs.changes }}" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT" = "push" ] || [ "$EVENT" = "pull_request" ]; then
+            # paths-filter prints nothing useful when nothing matched; make
+            # that an explicit empty list so fromJSON() downstream never sees "".
+            changes="${FILTER_CHANGES:-[]}"
+            echo "changes=$changes" >> "$GITHUB_OUTPUT"
             # pytest legs = matched filters ∩ the section-name list
-            python3 -c 'import json,sys; changed=json.loads(sys.argv[1]); sections=["section1","section2","section3","section4","section5","section6","section8","section10","section11"]; print("sections="+json.dumps([s for s in sections if s in changed]))' "${{ steps.filter.outputs.changes }}" >> "$GITHUB_OUTPUT"
+            python3 -c 'import json,sys; changed=json.loads(sys.argv[1]); sections=["section1","section2","section3","section4","section5","section6","section8","section10","section11"]; print("sections="+json.dumps([s for s in sections if s in changed]))' "$changes" >> "$GITHUB_OUTPUT"
           else
-            echo "changes=${{ steps.forced.outputs.changes }}" >> "$GITHUB_OUTPUT"
-            echo "sections=${{ steps.forced.outputs.sections }}" >> "$GITHUB_OUTPUT"
+            echo "changes=${FORCED_CHANGES:-[]}" >> "$GITHUB_OUTPUT"
+            echo "sections=${FORCED_SECTIONS:-[]}" >> "$GITHUB_OUTPUT"
           fi
 
   static-gates:
