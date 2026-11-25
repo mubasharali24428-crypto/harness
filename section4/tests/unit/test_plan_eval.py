@@ -63,10 +63,18 @@ def test_fit_verdicts():
 
 
 def test_unsafe_assignments_are_flagged():
+    def naive(brief, members):  # a proposer that ignores seat roles (the pre-fix planner)
+        return propose(brief, members)
+
+    _, t = only_task(plan_eval.evaluate(doc(scenario(
+        [{"key": "a", "title": "A", "preferredAssignee": "obs"}],
+        {"a": {"acceptable": ["sec"], "unsafe": ["obs"]}})), naive))
+    assert t["unsafe"] and {"read_only_assignee", "listed_unsafe"} <= set(t["issues"])
+    # The live planner (default proposer) refuses the viewer and names the gap instead.
     _, t = only_task(plan_eval.evaluate(doc(scenario(
         [{"key": "a", "title": "A", "preferredAssignee": "obs"}],
         {"a": {"acceptable": ["sec"], "unsafe": ["obs"]}}))))
-    assert t["unsafe"] and {"read_only_assignee", "listed_unsafe"} <= set(t["issues"])
+    assert not t["unsafe"] and t["assignee"] is None and t["fit"] == "unfilled"
 
     def outsider(brief, members):  # a proposer that fabricates a non-member assignee
         out = propose(brief, members)
@@ -146,10 +154,16 @@ def test_cli_exit_codes_and_outputs(tmp_path):
     assert plan_eval.main([str(safe), "--md-out", str(md), "--json-out", str(js)]) == 0
     assert "PASS" in md.read_text()
     assert json.loads(js.read_text())["scenarioSha256"]
-    unsafe = tmp_path / "unsafe.json"
-    unsafe.write_text(json.dumps(doc(scenario(
-        [{"key": "a", "title": "A", "preferredAssignee": "obs"}], {"a": {"acceptable": ["sec"]}}))))
-    assert plan_eval.main([str(unsafe)]) == 1
+    omitted = tmp_path / "omitted.json"  # an expected task the brief never had -> omission
+    sc = scenario([{"key": "a", "title": "A"}], {"a": {"acceptable": []}})
+    sc["brief"]["tasks"].append({"key": "b", "title": "B"})
+    omitted.write_text(json.dumps(doc(sc)))
+    assert plan_eval.main([str(omitted)]) == 0  # b is scored (unexpected but present), safe
+    outsider = tmp_path / "outsider.json"
+    outsider.write_text(json.dumps(doc(scenario(
+        [{"key": "a", "title": "A", "preferredAssignee": "obs"}], {"a": {"acceptable": ["sec"]}},
+        team=[{"userId": "obs", "role": "engineer", "capabilities": []}]))))
+    assert plan_eval.main([str(outsider)]) == 0  # an engineer seat is a safe (if misfit) pick
 
 
 def test_unknown_schema_is_refused():

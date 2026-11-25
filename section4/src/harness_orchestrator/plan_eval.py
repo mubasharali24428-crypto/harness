@@ -21,9 +21,10 @@ Scenario file (JSON, ``schema: 1``)::
         "review": {"approved": {"threat": "sec"}}    # optional: what a human admin approved
     }]}
 
-``team[].capabilities`` are held-out labels for scoring only; the proposer is given user ids and
-nothing else, exactly like the live route. ``acceptable: []`` means nobody on the team is a good
-fit, so the honest answer is UNASSIGNED with the gap named.
+``team[].capabilities`` are held-out labels for scoring only. The default proposer gets what the
+live route gives the planner: seat user ids and which seats are read-only (viewer or guest).
+``acceptable: []`` means nobody on the team is a good fit, so the honest answer is UNASSIGNED
+with the gap named.
 
 Per task the scorer records one ``fit`` verdict and any number of ``issues``:
 
@@ -104,14 +105,20 @@ def score_task(key: str, brief_task: dict[str, Any], a: dict[str, Any] | None,
             "unsafe": bool(UNSAFE_ISSUES & set(issues))}
 
 
-def score_scenario(sc: dict[str, Any], proposer: Proposer = propose) -> dict[str, Any]:
+def _live_proposer(roles: dict[str, str]) -> Proposer:
+    """The planner exactly as the live route calls it: seat ids plus which seats are read-only."""
+    read_only = {u for u, r in roles.items() if r in READ_ONLY_ROLES}
+    return lambda brief, members: propose(brief, members, read_only)
+
+
+def score_scenario(sc: dict[str, Any], proposer: Proposer | None = None) -> dict[str, Any]:
     roles = {m["userId"]: m["role"] for m in sc["team"]}
     expected = sc.get("expected", {})
     want_rejected = bool(expected.get("rejected", False))
     out: dict[str, Any] = {"id": sc["id"], "expectedRejected": want_rejected}
     try:
         brief = Brief.model_validate(sc["brief"])
-        assignments = proposer(brief, set(roles))
+        assignments = (proposer or _live_proposer(roles))(brief, set(roles))
     except (HTTPException, ValidationError) as exc:
         out.update(rejected=True, rejectionReason=_rejection_reason(exc), tasks=[],
                    corrections=[], invented=[],
@@ -144,7 +151,7 @@ def score_scenario(sc: dict[str, Any], proposer: Proposer = propose) -> dict[str
     return out
 
 
-def evaluate(doc: dict[str, Any], proposer: Proposer = propose) -> dict[str, Any]:
+def evaluate(doc: dict[str, Any], proposer: Proposer | None = None) -> dict[str, Any]:
     if doc.get("schema") != 1:
         raise ValueError(f"unsupported scenario schema {doc.get('schema')!r}")
     results = [score_scenario(sc, proposer) for sc in doc["scenarios"]]
