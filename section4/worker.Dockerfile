@@ -36,6 +36,10 @@ COPY deploy/patches /opt/harness/patches
 # file a running service can swap. DSH_MCP_SERVERS names the path; the engine
 # refuses to start a run when a declared list is unreadable or malformed.
 COPY deploy/mcp /opt/harness/mcp
+# The slim base ships no .pyc and user 10001 cannot write them, so every bash call
+# recompiled ~29 modules: shell gate 406 ms -> 86 ms per call with this
+# (docs/briefs/perf-audit-2026-11-21.md). Must run after the last COPY into /opt/harness-shell.
+RUN python -m compileall -q -j0 /usr/local/lib/python3.12 /opt/harness-shell
 USER 10001:10001
 WORKDIR /tmp
 ENTRYPOINT ["python", "-m", "harness_orchestrator.engine_worker"]
