@@ -1,7 +1,8 @@
 # Task 36 — Live B-09 invite → revoke journey (G-B09-1)
 
 - Date (UTC): 2026-11-25
-- Status: **FAIL — the journey runs and found two product defects; revoke does not work.**
+- Status: **FAIL at 2026-11-25 first run (historical; see Phase B update at the bottom — Playwright PASS pending owner Mac run).**
+  Original: the journey runs and found two product defects; revoke does not work.
   P-D7 stays DEFERRED; this is engineering evidence only, not a Gate 6 verdict.
 - Stack: compose dev stack rebuilt from `5932eaf1` (+ the D1 client fix below, frontend image rebuilt).
 
@@ -61,9 +62,19 @@ Final run with the marking in place:
   1 passed (3.0s)          # = failed as expected; identity log shows the DELETE … members 500 again
 ```
 
-The spec carries `test.fail(...)` so the suite stays honest: it is reported as an expected failure
-until D2 is fixed, and Playwright flags it as soon as it starts passing.
+Historical: the spec carried `test.fail(...)` while D2 was open. That marker was removed after D2
+shipped (migration 0082); see the Phase B update below.
 
 Rate limit note: identity throttles `/auth/login`, invite minting and redeem at 10/min per IP; a
 burst of live specs from one machine gets 429, which the browser shows as "Failed to fetch" (the
 429 carries no CORS headers). Run this spec on its own or after a minute's pause.
+
+## Phase B update (2026-11-25, owner Mac, after migration 0082)
+
+- Journey (API/log level): **passed** after 0082 was applied. `DELETE` member answered **204** and the
+  removed engineer's tokens were dead. Source: owner's Mac Phase B report (B3/B4), not reproduced in cloud.
+- Playwright: the owner's Mac run reported **FAIL** at that time only because `test.fail(true, ...)`
+  was still in the spec ("Expected to fail, but passed"). The marker is now removed from
+  `section7/e2e/invite-revoke-live.e2e.ts`.
+- **Playwright PASS is NOT claimed.** Only the owner's Mac re-run (`--retries=0`, command above) can confirm it
+  without the marker. Status stays pending until that log exists.

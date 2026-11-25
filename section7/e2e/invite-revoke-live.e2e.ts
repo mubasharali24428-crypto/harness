@@ -28,10 +28,6 @@ async function mintInUi(page: Page, email: string, role: string): Promise<string
 }
 
 test("live B-09: invite engineer + viewer, revoke a third invite, remove the engineer", async ({ page, browser, request }) => {
-  // Expected to fail until D2 is fixed: on Postgres, removing a member who has an audit row answers
-  // 500 (audit_log.actor_member_id RESTRICT). See docs/briefs/evidence/sprint5/task-36-live-invite-revoke.md.
-  // When this starts passing, Playwright reports it: drop this line then.
-  test.fail(true, "B-09 D2: member removal 500s once the member has acted");
   const stamp = Date.now().toString(36);
   const eng = `e2e-eng-${stamp}@harness.dev`;
   const viewer = `e2e-view-${stamp}@harness.dev`;

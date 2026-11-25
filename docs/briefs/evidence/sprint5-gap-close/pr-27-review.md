@@ -14,7 +14,7 @@ PR #27 `w28-s2-sprints1-4` → master. **Do not merge from cloud**; owner decide
 
 ## 2. Owner gate checklist (what is still BLOCKED)
 - [ ] **D2 / Task 42** — soft-remove memberships; until built, removing a member who has acted 500s on Postgres. *(Opus thread)*
-- [ ] **Task 43** — drop `test.fail` from `section7/e2e/invite-revoke-live.e2e.ts`; full journey PASS on the Mac, `--retries=0`.
+- [ ] **Task 43** — `test.fail` removed from `section7/e2e/invite-revoke-live.e2e.ts` (cloud edit); Mac journey passed after 0082 (DELETE 204, tokens dead) but **Playwright PASS awaits the owner's Mac re-run without the marker**, `--retries=0`.
 - [ ] **Task 45b** — redeploy RC, `make readiness-manifest`, commit manifest; CI job `readiness drift` turns green. Do this **after** Task 42 (new migration). Commands: `task-45-readiness-drift.md`.
 - [ ] **Task 50** — `make gate` and `HARNESS_TEST_PG=1 TEST_ALL_DOCKER=1 make test-all` at the final SHA; append to `mac-gate-<sha>.md`.
 - [ ] Owner-only, untouched: 10.11 gate lines, P-D2 rail, P-D7 (DEFERRED), SOW signatures, F-SEC-05 redeploy, P-13 benchmark budget, G1/G2 acceptance. Payment and global P-D6 stay off.
