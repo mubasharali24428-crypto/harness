@@ -2,16 +2,23 @@
 
 Proves: protocol conformance to frozen contracts, event semantics ⊆ contracts,
 S1 bus persistence + replay of an S4 run, S3 powering S4's reviewer,
-S5 executing S4's engine work.
+S5 executing S4's engine work — through the faithful flow that obeys the three
+product laws (staged-approval gate, I-09 verification-first, reviewer integrity);
+see docs/briefs/evidence/90day/checkpoint1-redesign-2026-11-21.md.
 """
 
 import asyncio
+import concurrent.futures
+import json
+import re
+import shutil
 import sys
 from pathlib import Path
 
+import httpx
 import pytest
 import pytest_asyncio
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,11 +28,15 @@ sys.path.insert(0, str(ROOT / "section4" / "src"))
 sys.path.insert(0, str(ROOT / "section5" / "src"))
 
 import harness_contracts as contracts
+from fastapi import FastAPI
 from harness_contracts.events import EventType
-from harness_contracts.signatures import ModelRouter, Orchestrator, Sandbox
-
+from harness_contracts.roles import Principal, Role
+from harness_contracts.signatures import ModelRouter, Sandbox
 from harness_identity.eventbus import EventBus
 from harness_identity.models import Base as S1Base
+from harness_orchestrator import api as orch_api
+from harness_orchestrator.api import get_principal
+from harness_orchestrator.api import router as orch_router
 from harness_orchestrator.engine import DeepSeekHarnessWrapper
 from harness_orchestrator.reviewer import ReviewerSubAgent
 from harness_orchestrator.service import OrchestratorService
@@ -74,31 +85,15 @@ def router():
 
 
 @pytest.fixture
-def sandbox(tmp_path):
-    return SandboxService(runner=LocalSandboxRunner(storage_root=tmp_path / "tasks"))
-
-
-def sandbox_backend(sandbox_svc):
-    """S4 engine backend backed by S5: runs a real command inside the sandbox."""
-
-    import asyncio
-    import concurrent.futures
-
-    def run(goal: str) -> str:
-        handle = sandbox_svc.run_task("int-001", "org/repo", "agent/demo", [])
-
-        async def collect():
-            chunks = []
-            async for chunk in sandbox_svc.runner.exec(handle, "echo integration-ok"):
-                chunks.append(chunk)
-            return "".join(chunks)
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            output = pool.submit(lambda: asyncio.run(collect())).result()
-        sandbox_svc.destroy(handle)
-        return f"{goal} => {output.strip()}"
-
-    return run
+def sandbox(tmp_path, monkeypatch):
+    """S5 local runner, unconfined through the explicit opt-in — the same convention
+    section5/tests/conftest.py uses. Confinement itself is S5's own suite
+    (test_landlock_read_isolation, test_phase4_confinement_gate); this checkpoint
+    proves the cross-section flow, and must not depend on the host offering Landlock."""
+    monkeypatch.setenv("HARNESS_SANDBOX_ALLOW_UNCONFINED", "1")
+    return SandboxService(
+        runner=LocalSandboxRunner(storage_root=tmp_path / "tasks", confinement="off")
+    )
 
 
 @pytest.mark.asyncio
@@ -107,98 +102,274 @@ async def test_protocols_conform_to_contracts(router, sandbox):
     assert isinstance(sandbox, Sandbox)
 
 
-@pytest.mark.asyncio
-@pytest.mark.skip(reason=(
-    "checkpoint-1 predates three product laws the flow now hits: (1) the staged-"
-    "approval completion gate (signal_done refuses while high-impact staged "
-    "changes are unapplied - the engine's run creates them), (2) I-09 "
-    "verification-first default-on (a done-signal needs the run's own recorded "
-    "green test), and (3) reviewer integrity (unknown/absent test evidence is "
-    "never a pass). A faithful redesign must approve+apply the staged changes "
-    "through the collab path and record real green evidence before signalling; "
-    "patching the old happy path would fabricate a pass the product refuses. "
-    "Tracked in week-04 ledger §7 for the owner/next lane."
-))
-async def test_checkpoint1_full_flow(bus, router, sandbox):
-    emitted: list[tuple[str, dict]] = []
+# ----------------------------------------------------------------- faithful flow
+# Checkpoint-1 redesign (docs/briefs/evidence/90day/checkpoint1-redesign-2026-11-21.md).
+# The flow obeys the three product laws instead of patching around them:
+#   1. staged-approval completion gate: high-impact changes are withheld and the
+#      leader approves + applies them through the collab routes before done;
+#   2. I-09 verification-first (default on, never set here): the run's OWN test
+#      run, executed for real in the S5 sandbox, reaches agent_tool_calls through
+#      the live writer (record_engine_tool_calls) — nothing is inserted by hand;
+#   3. reviewer integrity: the verdict only passes on that recorded green run.
 
-    reviewer = ReviewerSubAgent(model_router=router)
-    # I-09 default-on (2026-11-14 decision) + reviewer integrity: a done-signal
-    # needs the run's OWN recorded green test, so the checkpoint flow carries a
-    # session factory and records the executor's pytest run before signalling —
-    # exactly what a live supervised run does.
-    eng = create_async_engine("sqlite+aiosqlite://")
+MIGRATIONS = ROOT / "section1" / "migrations"
+# The real migration files for the tables the flow touches beyond the S1 ORM.
+FLOW_MIGRATIONS = (
+    "0006_run_claims.sql",  # durable queue: start_execution enqueues, poll_once claims
+    "0007_team_budget.sql",  # teams.budget_usd: the pre-spawn + reviewer budget gates read it
+    "0035_run_collaboration.sql",  # participants/leader + high_impact_approvals
+    "0043_control.sql",  # control lease: the leader IS the lease holder
+    "0044_agents.sql",  # agent_tool_calls: where the engine's calls are recorded
+    "0049_artifacts.sql",  # run_changes: the done-signal route records the diff's files
+)
+
+TEAM, PROJECT, LEADER = "team-int", "proj-int", "lead-int"
+P = "/api/v1/orchestrator/runs"
+LIFECYCLE = {
+    "plan_proposed", "plan_approved", "execution_started", "engine_completed",
+    "engine_failed", "done_signal_received", "review_passed", "review_failed",
+}
+PYTEST = f"{sys.executable} -m pytest -q -p no:cacheprovider"
+
+# Seed repo: 30 small functions (60 lines) and a test pinning one of them.
+SEED_CALC = "".join(f"def f{i}(x):\n    return x + {i}\n" for i in range(30))
+SEED_TEST = "from calc import f7\n\n\ndef test_f7():\n    assert f7(1) == 8\n"
+# The agent's refactor: same behaviour, every seed line rewritten -> a
+# SUBSTANTIAL modify, which staging withholds for leader approval.
+AGENT_CALC = (
+    "def _offset(i):\n"
+    "    def f(x):\n"
+    "        return x + i\n"
+    "    return f\n\n\n"
+    "for _i in range(30):\n"
+    "    globals()[f'f{_i}'] = _offset(_i)\n"
+)
+BROKEN_CALC = AGENT_CALC.replace("return x + i", "return x - i")
+
+
+def _sqlite_statements(sql: str) -> list[str]:
+    """A migration file's statements, with the two PG-only spellings swapped."""
+    body = "\n".join(line.split("--", 1)[0] for line in sql.splitlines())
+    body = re.sub(r"\bBIGSERIAL PRIMARY KEY\b", "INTEGER PRIMARY KEY AUTOINCREMENT", body)
+    body = re.sub(r"\bnow\(\)", "CURRENT_TIMESTAMP", body)
+    return [s.strip() for s in body.split(";") if s.strip()]
+
+
+@pytest_asyncio.fixture
+async def flow_db(tmp_path):
+    eng = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'flow.db'}")
     async with eng.begin() as conn:
         await _build_schema(conn)
-        # agent_tool_calls is section-4 SQL (migration 0044), not an S1 ORM
-        # table — mirror the migrated shape the verification reader queries.
-        await conn.execute(text(
-            "CREATE TABLE IF NOT EXISTS run_claims ("
-            " run_id VARCHAR(36) PRIMARY KEY, project_id VARCHAR(36) NOT NULL,"
-            " state VARCHAR(20) NOT NULL, claimed_at TEXT NOT NULL,"
-            " heartbeat_at TEXT NOT NULL, worker_id VARCHAR(80) NOT NULL)"
-        ))
-        await conn.execute(text(
-            "CREATE TABLE IF NOT EXISTS agent_tool_calls ("
-            " id VARCHAR(36) PRIMARY KEY, assignment_id VARCHAR(36) NOT NULL,"
-            " run_id VARCHAR(36) NOT NULL, team_id VARCHAR(36) NOT NULL,"
-            " tool VARCHAR(80) NOT NULL, target VARCHAR(200),"
-            " summary VARCHAR(500) NOT NULL, outcome VARCHAR(16) NOT NULL,"
-            " fallback_tool VARCHAR(80), cost_microusd BIGINT NOT NULL DEFAULT 0,"
-            " duration_ms INTEGER, reported_by VARCHAR(36) NOT NULL,"
-            " request_id VARCHAR(64), created_at TIMESTAMPTZ NOT NULL"
-            " DEFAULT CURRENT_TIMESTAMP)"
-        ))
-    factory = async_sessionmaker(eng, expire_on_commit=False)
-    orchestrator = OrchestratorService(
-        reviewer=reviewer,
-        engine=DeepSeekHarnessWrapper(backend_runner=sandbox_backend(sandbox)),
-        on_event=lambda etype, payload: emitted.append((etype, payload)),
-        session_factory=factory,
-    )
-
-    plan_id = await orchestrator.propose_plan("run-int-001")
-    assert plan_id
-    await orchestrator.approve_plan("run-int-001", plan_id, principal_user_id="u1")
-    await orchestrator.start_execution("run-int-001")
-    import uuid as _uuid
-
-    async with factory() as db:
-        await db.execute(
-            text(
-                "INSERT INTO agent_tool_calls"
-                " (id, assignment_id, run_id, team_id, tool, target, summary,"
-                " outcome, reported_by)"
-                " VALUES (:id, 'a-1', 'run-int-001', 'team-int', 'bash',"
-                " 'pytest -q', 'engine bash call (exit 0)', 'ok', 'engine')"
-            ),
-            {"id": str(_uuid.uuid4())},
+        for name in FLOW_MIGRATIONS:
+            for stmt in _sqlite_statements((MIGRATIONS / name).read_text()):
+                await conn.execute(text(stmt))
+        await conn.execute(text("INSERT INTO teams (id, name) VALUES (:t, 'cp1')"), {"t": TEAM})
+        await conn.execute(
+            text("INSERT INTO projects (id, team_id, name) VALUES (:p, :t, 'cp1')"),
+            {"p": PROJECT, "t": TEAM},
         )
-        await db.commit()
-    findings = await orchestrator.signal_done(
-        "run-int-001", diff_text="+print('hello from agent')"
+        await conn.execute(
+            text(
+                "INSERT INTO team_members (id, team_id, user_id, display_name, member_type, role)"
+                " VALUES ('m-lead', :t, :u, 'Lead', 'human', 'engineer')"
+            ),
+            {"t": TEAM, "u": LEADER},
+        )
+    yield async_sessionmaker(eng, expire_on_commit=False)
+    await eng.dispose()
+
+
+def _sandbox_pytest(sandbox_svc, task_id: str, tree: Path) -> tuple[int, str]:
+    """Run the scratch repo's tests for real inside an S5 sandbox task."""
+    handle = sandbox_svc.run_task(task_id, "org/repo", "agent/demo", [])
+    try:
+        task_ws = sandbox_svc.runner.active_tasks[handle.taskId]["workspace"]
+        shutil.copytree(tree, task_ws, dirs_exist_ok=True)
+
+        async def go():
+            return await sandbox_svc.runner.exec_structured(handle, PYTEST)
+
+        # The engine calls this from its worker thread, and tests from the loop.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            res = pool.submit(lambda: asyncio.run(go())).result()
+    finally:
+        sandbox_svc.destroy(handle)
+    return res.exit_code, f"{res.passed_count} passed, {res.failed_count} failed: {res.summary}"
+
+
+class ScratchRuntime:
+    """The injected engine runtime: edits the run workspace, runs the tests in S5,
+    and reports both as the runtime's own session events (tool/call + tool/result)."""
+
+    def __init__(self, sandbox_svc, *, new_calc: str, run_tests: bool = True) -> None:
+        self.sandbox, self.new_calc, self.run_tests = sandbox_svc, new_calc, run_tests
+        self.engine: DeepSeekHarnessWrapper | None = None
+        self.run_id = ""
+        self.test_runs: list[tuple[int, str]] = []
+
+    def __call__(self, goal: str) -> dict:
+        ws = Path(self.engine.run_workspace(self.run_id))
+        (ws / "calc.py").write_text(self.new_calc)
+        events: list[dict] = []
+        if self.run_tests:
+            code, output = _sandbox_pytest(self.sandbox, f"{self.run_id}-pytest", ws)
+            self.test_runs.append((code, output))
+            events = [
+                {"type": "tool/call", "data": {
+                    "callId": "call-1", "name": "bash",
+                    "arguments": json.dumps({"command": PYTEST})}},
+                {"type": "tool/result", "data": {"message": {
+                    "toolCallId": "call-1", "isError": False,
+                    "content": f"{output}\n[exit code: {code}]"}}},
+            ]
+        return {"finalResponse": f"{goal} => rewrote calc.py", "events": events}
+
+
+async def _flow(tmp_path, monkeypatch, flow_db, router, sandbox, runtime, run_id):
+    """Wire S1 (db) + S3 (router) + S4 (service + real routes) + S5 (sandbox) and run the
+    engine through the durable queue to the done-gate. Returns (orchestrator, client, emitted)."""
+    monkeypatch.delenv("HARNESS_VERIFICATION_FIRST", raising=False)  # the default IS the law
+    monkeypatch.delenv("HARNESS_AUTHZ_TEST_MODE", raising=False)
+    seed = tmp_path / "seed"
+    seed.mkdir()
+    (seed / "calc.py").write_text(SEED_CALC)
+    (seed / "test_calc.py").write_text(SEED_TEST)
+    monkeypatch.setenv("HARNESS_WORKSPACE_SEED", str(seed))
+
+    engine = DeepSeekHarnessWrapper(
+        backend_runner=runtime,
+        workspace_dir=str(tmp_path / "workspaces"),
+        session_root=str(tmp_path / "sessions"),
+        isolated=True,  # staging (B3) applies to isolated engines: the production default
     )
-    assert findings.passed, f"reviewer verdict: {findings.summary!r}"
+    runtime.engine, runtime.run_id = engine, run_id
+    emitted: list[tuple[str, dict]] = []
+    orchestrator = OrchestratorService(
+        reviewer=ReviewerSubAgent(model_router=router),
+        engine=engine,
+        on_event=lambda etype, payload: emitted.append((etype, payload)),
+        session_factory=flow_db,
+        bus=EventBus(flow_db),  # S1 owns delivery: agent_events persistence + replay
+    )
+    monkeypatch.setattr(orch_api, "_service", orchestrator)
+    app = FastAPI()
+    app.include_router(orch_router)
+    app.dependency_overrides[get_principal] = lambda: Principal(
+        userId=LEADER, teamId=TEAM, role=Role.ENGINEER
+    )
+    client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://cp1")
 
-    sm = orchestrator.runs["run-int-001"]["state_machine"]
-    sm.open_pr({"number": 7, "url": "https://github.com/org/repo/pull/7"})
+    plan_id = await orchestrator.propose_plan(
+        run_id, goal="refactor calc into a table", project_id=PROJECT
+    )
+    await orchestrator.approve_plan(run_id, plan_id, principal_user_id=LEADER)
+    await orchestrator.start_execution(run_id)  # enqueues: run_claims is migrated
+    assert await orchestrator.poll_once() == run_id  # the worker path claims + spawns
+    await orchestrator.runs[run_id]["task"]
+    return orchestrator, client, emitted
 
+
+async def _drain(orchestrator) -> None:
+    """Wait for the service's ordered bus publishes to land."""
+    while orchestrator._bg_tasks:
+        await asyncio.gather(*list(orchestrator._bg_tasks), return_exceptions=True)
+
+
+def _done(client, run_id):
+    return client.post(f"{P}/{run_id}/done-signal", json={"diffText": "+refactor calc"})
+
+
+async def _staged_approval(client, run_id) -> dict:
+    res = await client.get(f"{P}/{run_id}/approvals")
+    assert res.status_code == 200, res.text
+    staged = [a for a in res.json()["approvals"] if a["requester"] == "system:staging"]
+    assert len(staged) == 1, staged
+    return staged[0]
+
+
+@pytest.mark.asyncio
+async def test_checkpoint1_full_flow(flow_db, router, sandbox, tmp_path, monkeypatch):
+    run_id = "run-int-001"
+    runtime = ScratchRuntime(sandbox, new_calc=AGENT_CALC)
+    orchestrator, client, emitted = await _flow(
+        tmp_path, monkeypatch, flow_db, router, sandbox, runtime, run_id
+    )
+    ws = Path(orchestrator.engine.run_workspace(run_id))
+
+    # The engine ran the scratch repo's tests for real, in S5, green.
+    assert [code for code, _ in runtime.test_runs] == [0]
+    assert "1 passed" in runtime.test_runs[0][1]
+    # ...and the live writer recorded that call as the run's own evidence.
+    async with flow_db() as db:
+        calls = (await db.execute(text(
+            "SELECT tool, target, summary, outcome, reported_by FROM agent_tool_calls"
+            " WHERE run_id = :r"), {"r": run_id})).all()
+    assert [(c.tool, c.target, c.summary, c.outcome, c.reported_by) for c in calls] == [
+        ("bash", PYTEST, "engine bash call (exit 0)", "ok", "engine")
+    ]
+
+    # Law 1: the substantial rewrite is WITHHELD — the workspace still has the seed.
+    staged = orchestrator.runs[run_id]["staged"]
+    assert [g["paths"] for g in staged["withheld"]] == [["calc.py"]]
+    assert (ws / "calc.py").read_text() == SEED_CALC
+
+    async with client:
+        res = await client.post(f"{P}/{run_id}/leader")
+        assert res.status_code == 200, res.text
+        # Refusal 1: done before approval -> the staged gate's specific 409.
+        res = await _done(client, run_id)
+        assert res.status_code == 409, res.text
+        assert res.json()["detail"]["error"]["code"] == "STAGED_APPROVAL_PENDING"
+
+        approval = await _staged_approval(client, run_id)
+        assert approval["state"] == "pending" and approval["paths"] == ["calc.py"]
+        res = await client.post(
+            f"{P}/{run_id}/approvals/{approval['id']}/decision",
+            json={"approve": True, "digest": approval["digest"], "viewed_detail": True},
+        )
+        assert res.status_code == 200, res.text
+        assert res.json()["state"] == "approved" and res.json()["decidedBy"] == LEADER
+        async with flow_db() as db:
+            audit = (await db.execute(text(
+                "SELECT detail FROM audit_log WHERE action = 'approval.approved'"))).all()
+        assert len(audit) == 1 and json.loads(audit[0].detail)["viewedDetail"] is True
+
+        # Refusal 2: approved but not applied is still not done.
+        res = await _done(client, run_id)
+        assert res.status_code == 409, res.text
+        assert res.json()["detail"]["error"]["code"] == "STAGED_APPROVAL_PENDING"
+
+        res = await client.post(
+            f"{P}/{run_id}/approvals/{approval['id']}/apply", json={"digest": approval["digest"]}
+        )
+        assert res.status_code == 200, res.text
+        assert res.json()["state"] == "completed"
+        assert (ws / "calc.py").read_text() == AGENT_CALC  # the approved bytes landed
+
+        # The applied tree is still green (same S5 path, not recorded: evidence is the run's own).
+        assert _sandbox_pytest(sandbox, "post-apply-check", ws)[0] == 0
+
+        # All three laws satisfied -> the gate opens and the reviewer passes.
+        res = await _done(client, run_id)
+        assert res.status_code == 200, res.text
+        findings = res.json()["findings"]
+        assert findings["passed"] is True, findings
+
+    # S1 delivery: every lifecycle event the service emitted is in the durable log,
+    # in causal order, with the frozen envelope — the run was driven through the bus.
+    await _drain(orchestrator)
     names = [e.value if hasattr(e, "value") else e for e, _ in emitted]
-    assert names == [
+    assert [n for n in names if n in LIFECYCLE] == [
         "plan_proposed",
         "plan_approved",
         "execution_started",
+        "engine_completed",
         "done_signal_received",
         "review_passed",
-        "pr_opened",
-    ]
+    ], names
     assert set(names) <= {t.value for t in contracts.EVENT_TYPES}
-
-    for etype, payload in emitted:
-        await bus.publish(EventType(etype), "proj-int", payload, run_id="run-int-001")
-
-    replayed = await bus.replay("proj-int", after_seq=0)
-    assert [e.type.value for e in replayed] == names
+    replayed = await EventBus(flow_db).replay(PROJECT, after_seq=0)
+    assert [e.type.value for e in replayed if e.runId == run_id] == names
     for env in replayed:
         assert {"type", "payload", "ts", "seq", "projectId", "runId", "schemaVersion"} == set(
             env.model_dump()
@@ -207,17 +378,74 @@ async def test_checkpoint1_full_flow(bus, router, sandbox):
     review_calls = [c for c in router.call_history if c["role"] == "reviewer"]
     assert len(review_calls) >= 1, "reviewer must call models through Section 3"
 
-    engine_out = orchestrator.engine.execute_goal("wire sections")
-    assert "integration-ok" in engine_out["finalResponse"], "engine must run through Section 5"
+
+@pytest.mark.asyncio
+async def test_checkpoint1_refuses_done_without_recorded_tests(
+    flow_db, router, sandbox, tmp_path, monkeypatch
+):
+    """Law 2: approve + apply alone never opens the gate — no recorded green run, no done."""
+    run_id = "run-int-002"
+    runtime = ScratchRuntime(sandbox, new_calc=AGENT_CALC, run_tests=False)
+    orchestrator, client, _ = await _flow(
+        tmp_path, monkeypatch, flow_db, router, sandbox, runtime, run_id
+    )
+    async with client:
+        res = await client.post(f"{P}/{run_id}/leader")
+        assert res.status_code == 200, res.text
+        approval = await _staged_approval(client, run_id)
+        await client.post(
+            f"{P}/{run_id}/approvals/{approval['id']}/decision",
+            json={"approve": True, "digest": approval["digest"]},
+        )
+        res = await client.post(
+            f"{P}/{run_id}/approvals/{approval['id']}/apply", json={"digest": approval["digest"]}
+        )
+        assert res.json()["state"] == "completed"
+        res = await _done(client, run_id)
+        assert res.status_code == 400, res.text
+        assert res.json()["detail"]["error"]["code"] == "VERIFICATION_REQUIRED"
+
+    # Law 3: even a caller that skips the route's gate gets no pass from the reviewer.
+    findings = await orchestrator.signal_done(run_id, diff_text="+refactor calc")
+    assert findings.passed is False
+    assert "No green test evidence" in findings.summary
+
+
+@pytest.mark.asyncio
+async def test_checkpoint1_red_tests_never_pass(flow_db, router, sandbox, tmp_path, monkeypatch):
+    """Laws 2+3: a real RED run is recorded as red — the gate and the reviewer both refuse."""
+    run_id = "run-int-003"
+    runtime = ScratchRuntime(sandbox, new_calc=BROKEN_CALC)
+    orchestrator, client, _ = await _flow(
+        tmp_path, monkeypatch, flow_db, router, sandbox, runtime, run_id
+    )
+    assert runtime.test_runs[0][0] != 0  # pytest really failed in the sandbox
+    async with client:
+        res = await client.post(f"{P}/{run_id}/leader")
+        assert res.status_code == 200, res.text
+        approval = await _staged_approval(client, run_id)
+        await client.post(
+            f"{P}/{run_id}/approvals/{approval['id']}/decision",
+            json={"approve": True, "digest": approval["digest"]},
+        )
+        await client.post(
+            f"{P}/{run_id}/approvals/{approval['id']}/apply", json={"digest": approval["digest"]}
+        )
+        res = await _done(client, run_id)
+        assert res.status_code == 400, res.text
+        assert res.json()["detail"]["error"]["code"] == "VERIFICATION_REQUIRED"
+    findings = await orchestrator.signal_done(run_id, diff_text="+refactor calc")
+    assert findings.passed is False
+    assert "Automated test suite failed." in findings.summary
 
 
 @pytest.mark.asyncio
 async def test_orchestrator_rehydrates_state_from_event_log():
     """dsh-inspired core: agent_events is the source of truth. A fresh S4 process
     with only a DB handle rebuilds run state by replaying persisted events."""
-    from sqlalchemy.ext.asyncio import async_sessionmaker as _asm, create_async_engine as _cae
-
     from harness_identity.eventbus import EventBus
+    from sqlalchemy.ext.asyncio import async_sessionmaker as _asm
+    from sqlalchemy.ext.asyncio import create_async_engine as _cae
 
     eng = _cae("sqlite+aiosqlite://")
     async with eng.begin() as conn:
@@ -259,11 +487,10 @@ async def test_cross_instance_live_fanout_via_pg_notify():
     if os.environ.get("HARNESS_TEST_PG") != "1":
         pytest.skip("requires Postgres (set HARNESS_TEST_PG=1)")
 
-    from sqlalchemy.ext.asyncio import async_sessionmaker as _asm2, create_async_engine as _cae2
-
-    from sqlalchemy import text
-
     from harness_identity.eventbus import EventBus
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import async_sessionmaker as _asm2
+    from sqlalchemy.ext.asyncio import create_async_engine as _cae2
 
     url = os.environ["HARNESS_DATABASE_URL"]
     eng_a = _cae2(url)
