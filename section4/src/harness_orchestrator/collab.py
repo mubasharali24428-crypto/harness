@@ -225,12 +225,45 @@ async def _approval_change(
     before: dict[str, Any] | None,
     after: dict[str, Any],
     extra: dict[str, Any] | None = None,
+    audit_only: dict[str, Any] | None = None,
 ) -> None:
     """One approval transition = a product event (shown live to collaborators, no diff
-    or free text) plus a security audit row with before/after values, same transaction."""
+    or free text) plus a security audit row with before/after values, same transaction.
+    ``audit_only`` keys land on the audit row but never on the collaborator event."""
     detail = {"approvalId": approval_id, "before": before, "after": after, **(extra or {})}
     await _event(db, p, run_id, name, detail, None)
-    await _audit(db, p, name, run_id, detail)
+    await _audit(db, p, name, run_id, {**detail, **(audit_only or {})})
+
+
+# X-07: the closed rendering label set, identical to section8 decision_context.RENDERINGS
+# (no cross-section import: the isolation law). "unknown" = no row, pre-0077 schema, any error.
+RENDERINGS: tuple[str, ...] = ("technical", "plain", "decision", "unknown")
+
+
+async def member_rendering(factory: Any, team_id: str | None, user_id: str | None) -> str:
+    """The approval rendering this member had selected (``team_members.approval_rendering``,
+    migration 0077, written by section1's ``/me/rendering`` doors), else ``"unknown"``.
+
+    Read in its OWN short session, before the decision transaction: on Postgres a failed
+    statement (e.g. a pre-0077 schema) would otherwise abort the decision itself. Fail-open:
+    telemetry context must never turn a working approval into an error."""
+    if not team_id or not user_id:
+        return "unknown"
+    try:
+        async with factory() as db:
+            row = (
+                await db.execute(
+                    text(
+                        "SELECT approval_rendering FROM team_members"
+                        " WHERE team_id = :t AND user_id = :u LIMIT 1"
+                    ),
+                    {"t": team_id, "u": user_id},
+                )
+            ).first()
+    except Exception:  # noqa: BLE001 - best-effort instrumentation
+        return "unknown"
+    value = str(row[0] or "").strip() if row is not None else ""
+    return value if value in RENDERINGS[:3] else "unknown"
 
 
 async def _participant(db: Any, run_id: str, user_id: str) -> Any:
@@ -1035,6 +1068,7 @@ async def decide_approval(
     ``viewed_detail`` is the client's X-07 blind-approval signal (was the diff on screen
     before Approve; ``None`` = not measured). It never affects the decision itself."""
     new = "approved" if approve else "rejected"
+    rendering = await member_rendering(factory, p.teamId, p.userId)
     async with factory() as db:
         await _require_leader(db, p, run_id, "approval.decide")
         row = await _get_approval(db, run_id, approval_id)
@@ -1084,6 +1118,10 @@ async def decide_approval(
             db, p, run_id, f"approval.{new}", approval_id,
             {"state": "pending"}, {"state": new, "decidedBy": p.userId},
             {"requester": row.requester_user_id, "digest": digest, "paths": row.paths},
+            # X-07 blind-approval KPI context (section8 kpi.py reads it; teamId comes from
+            # _audit). Audit row only: a member's rendering and attention are not broadcast.
+            audit_only={"rendering": rendering,
+                        **({"viewedDetail": viewed_detail} if approve else {})},
         )
         await db.commit()
         row = await _get_approval(db, run_id, approval_id)

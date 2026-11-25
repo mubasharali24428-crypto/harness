@@ -65,3 +65,26 @@ never as blind. **Rate** = blind / measured approvals, `null` ("insufficient dat
 | `GET /api/v1/review-kpi/blind-approval` — admin only, team-scoped, counts only (no user ids) | **Verified (unit)** | `test_kpi_reads_audit_rows_for_the_team_only`, `test_kpi_splits_by_rendering_and_never_counts_unknown_as_blind` |
 | Admin tile on `/dashboard/cost` | **Verified (static render)** | `section7/app/dashboard/blindApproval.test.tsx` |
 | Real rate on pilot tasks | **Not measured** — no pilot reviews yet; trend not tracked; no 5-minute cache (bounded 500-row scan) |
+
+## Sprint 5 Tasks 31–32 — collab approvals enter the KPI (2026-11-25)
+
+Closes the seam gap documented in `docs/briefs/evidence/sprint4/task-27-collab-viewed-detail.md`
+(G-X07-3). No second audit store, no section4→section8 import: section4 writes the same three
+fields onto its existing `approval.approved` audit row, and section8's KPI reads one more action pair
+from the same `audit_log`.
+
+| Claim | Status | Evidence |
+|---|---|---|
+| `POST /runs/{runId}/approvals/{approvalId}/decision` accepts optional `viewed_detail` (bool \| null), threaded to `collab.decide_approval`; never changes the decision | **Verified (unit)** | Task 31 — `section4/tests/unit/test_collab_viewed_detail.py`; spec + Python/TS SDK + TS dist regenerated, `make check-ts-dist` clean |
+| `approval.approved` audit row carries `teamId`, `rendering` (approver's `team_members.approval_rendering`, fail-open `unknown`) and `viewedDetail` (`null` when not measured) | **Verified (unit, SQLite)** | Task 32 — same file, 13/13 |
+| `approval.rejected` carries `rendering` (denominator), no `viewedDetail` (same shape as `review.changes_requested`) | **Verified (unit)** | `test_reject_records_rendering_but_no_viewed_signal` |
+| Rendering lookup runs in its own short session before the decision transaction, so a pre-0077 schema (or any error) cannot abort the approval on Postgres | **Verified (SQLite)**; PG path reasoned, not run (no PG in cloud) | `test_pre_0077_schema_is_unknown_and_the_approval_still_lands` |
+| Collaborator event (`run_collab_events`) does not carry the approver's rendering or attention signal | **Verified (unit)** | `test_signal_and_rendering_stay_off_the_collaborator_event` |
+| KPI counts `approval.approved` exactly like `review.approved`, `approval.rejected` like `review.changes_requested`; other `approval.*` lifecycle rows are ignored | **Verified (unit)** | `section8/tests/unit/test_decision_context.py` — 3 new tests; `make test-section8` 111 passed |
+| Collab approvals written before Task 32 (teamId, no `viewedDetail`) count as **unknown**, never blind | **Verified (unit)** | `test_collab_rows_before_task_32_are_unknown_never_blind` |
+| Live blind-KPI fetch against the compose stack | **Not run** — Task 33, owner Mac (no Docker in cloud) |
+
+**Delta to the KPI response:** shape unchanged (`window`, `minSample`, `overall`, `byRendering`).
+Counts now include shared-run collab decisions, still inside the same newest-500-row window, which
+is now shared by both surfaces (ponytail note in `kpi.py` unchanged: add a team column/index if
+volume makes it slow). No per-surface split is reported; add one only if the pilot needs it.

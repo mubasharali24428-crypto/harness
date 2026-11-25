@@ -80,3 +80,46 @@ async def test_kpi_reads_audit_rows_for_the_team_only(tmp_path):
         k = await blind_approval_kpi(db, "t")
     assert k["overall"]["approvals"] == 12 and k["overall"]["rate"] == 0.5
     await engine.dispose()
+
+
+# --- Sprint 5 Task 32: shared-run collab approvals count with the same semantics -------------
+
+
+def test_collab_approval_rows_count_exactly_like_review_rows():
+    review = ([_row("t", "plain", False)] * 3 + [_row("t", "plain", True)] * 7
+              + [_row("t", "plain", None, "review.changes_requested")])
+    collab = [(("approval." + a[0].split(".")[1].replace("changes_requested", "rejected")), d)
+              for a, d in ((r, r[1]) for r in review)]
+    assert aggregate(collab, "t") == aggregate(review, "t")
+
+
+def test_collab_rows_before_task_32_are_unknown_never_blind():
+    # pre-Task-32 collab audit rows: teamId (from collab._audit) but no rendering/viewedDetail
+    old = [("approval.approved", {"teamId": "t", "approvalId": "a", "userId": "u"})] * 5
+    k = aggregate(old + [_row("t", "decision", False, "approval.approved")] * 2, "t")
+    assert k["overall"]["approvals"] == 7 and k["overall"]["unknownSignal"] == 5
+    assert k["overall"]["blind"] == 2 and k["byRendering"]["unknown"]["blind"] == 0
+
+
+@pytest.mark.asyncio
+async def test_kpi_query_reads_both_surfaces_and_ignores_other_approval_events(tmp_path):
+    import json
+
+    engine, f = await _factory(tmp_path, "CREATE TABLE audit_log (seq INTEGER PRIMARY KEY"
+                               " AUTOINCREMENT, action TEXT, detail TEXT)")
+    rows = ([("review.approved", False)] * 6 + [("approval.approved", True)] * 6
+            + [("approval.rejected", None)] * 2
+            # lifecycle rows with a teamId that are NOT decisions must not be counted
+            + [("approval.requested", False), ("approval.claimed", False),
+               ("approval.amended", False), ("approval.expired", False)])
+    async with f() as db:
+        for action, seen in rows:
+            d = {"teamId": "t", "rendering": "technical", "viewedDetail": seen}
+            await db.execute(text("INSERT INTO audit_log (action, detail) VALUES (:a, :d)"),
+                             {"a": action, "d": json.dumps(d)})
+        await db.commit()
+        k = await blind_approval_kpi(db, "t")
+    assert k["overall"]["decisions"] == 14 and k["overall"]["approvals"] == 12
+    assert k["overall"]["withSignal"] == 12 and k["overall"]["blind"] == 6
+    assert k["overall"]["rate"] == 0.5
+    await engine.dispose()

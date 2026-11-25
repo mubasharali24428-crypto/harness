@@ -1,9 +1,15 @@
 """X-07 standing KPI: blind-approval rate, split by the rendering the reviewer used.
 
-Source: ``review.approved`` / ``review.changes_requested`` audit rows (Section 1's audit_log,
-read with raw parameterized SQL like decision_context.py). Since 2026-11-24 an approval row
-carries ``teamId``, ``rendering`` and ``viewedDetail`` (was the diff on screen before Approve,
-measured by the client; ``None`` = not measured).
+Source: Section 1's audit_log (raw parameterized SQL like decision_context.py), two decision
+surfaces with the SAME semantics:
+
+* PR review — ``review.approved`` / ``review.changes_requested`` (this section, since 2026-11-24).
+* Shared-run collab approvals — ``approval.approved`` / ``approval.rejected`` (section4
+  collab.py, since Sprint 5 Task 32, 2026-11-25).
+
+An approval row carries ``teamId``, ``rendering`` and ``viewedDetail`` (was the diff on screen
+before Approve, measured by the client; ``None`` or absent = not measured). Collab rows written
+before Task 32 have ``teamId`` but no ``viewedDetail``: they count as unknown, never blind.
 
 * blind      = an approval whose ``viewedDetail`` is ``False``.
 * rate       = blind / approvals-with-a-signal; ``None`` below MIN_SAMPLE ("insufficient data").
@@ -26,7 +32,8 @@ from .decision_context import RENDERINGS
 
 WINDOW = 500
 MIN_SAMPLE = 10
-_ACTIONS = ("review.approved", "review.changes_requested")
+_APPROVED = ("review.approved", "approval.approved")
+_ACTIONS = (*_APPROVED, "review.changes_requested", "approval.rejected")
 
 
 def _bucket() -> dict[str, Any]:
@@ -47,7 +54,7 @@ def aggregate(details: list[tuple[str, dict]], team_id: str) -> dict[str, Any]:
         rendering = d.get("rendering") if d.get("rendering") in RENDERINGS else "unknown"
         for b in (by[rendering], overall):
             b["decisions"] += 1
-            if action == "review.approved":
+            if action in _APPROVED:
                 b["approvals"] += 1
                 seen = d.get("viewedDetail")
                 if seen is None:
@@ -60,8 +67,10 @@ def aggregate(details: list[tuple[str, dict]], team_id: str) -> dict[str, Any]:
 
 
 async def blind_approval_kpi(db: Any, team_id: str) -> dict[str, Any]:
+    marks = ", ".join(f":a{i}" for i in range(len(_ACTIONS)))
     rows = (await db.execute(text(
-        "SELECT action, detail FROM audit_log WHERE action IN (:a, :b)"
-        " ORDER BY seq DESC LIMIT :n"), {"a": _ACTIONS[0], "b": _ACTIONS[1], "n": WINDOW})).all()
+        f"SELECT action, detail FROM audit_log WHERE action IN ({marks})"  # noqa: S608 - fixed marks
+        " ORDER BY seq DESC LIMIT :n"),
+        {**{f"a{i}": a for i, a in enumerate(_ACTIONS)}, "n": WINDOW})).all()
     details = [(r[0], r[1] if isinstance(r[1], dict) else json.loads(r[1] or "{}")) for r in rows]
     return aggregate(details, team_id)
