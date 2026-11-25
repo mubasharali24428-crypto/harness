@@ -1927,3 +1927,21 @@ a[href] {
 .ws-report ol { margin: 0; padding-left: var(--space-5); font-size: var(--text-sm); }
 .ws-report-kicker, .ws-report-meta { margin: 0; font-size: var(--text-xs); color: var(--muted); }
 .ws-report-meta a { color: var(--accent); }
+
+/* ==========================================================================
+   Operability slice 1: Home "Needs you" list (reuses shell tokens).
+   ========================================================================== */
+.ny { display: flex; flex-direction: column; gap: var(--space-2); }
+.ny-heading { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 6px; }
+.ny-note { margin: 0; font-size: var(--text-sm); color: var(--muted); }
+.ny-error { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--text-2); }
+.ny-error p { margin: 0; }
+.ny-rows { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); }
+.ny-rows:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ny-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); }
+.ny-row + .ny-row { border-top: 1px solid var(--border-soft); }
+.ny-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ny-title { font-size: var(--text-sm); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ny-meta { font-size: var(--text-xs); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ny-kind { color: var(--text-2); font-weight: 600; }
+.ny-open { flex: none; text-decoration: none; }
