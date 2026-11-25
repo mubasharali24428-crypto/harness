@@ -53,6 +53,8 @@ Table-stakes gaps verified in-repo: no context compaction (`section4/src/harness
 - **Curator subagents** (W28 delegation) maintain similarity edges and propose coarsenings **off the request path** (Letta "sleep-time compute"), gated by the existing reviewed-status injection rule (`memory_loader` injects only reviewed rows) — no new authority (§2 boundary).
 - **Caps:** per-project triangle/link caps mirroring `memory_loader` `MAX_MEMORY_ENTRIES`/`MAX_TOTAL_BYTES`; LRU/decay feeds collapse.
 
+**Where this sits in the memory picture:** built vs proposed for the whole hybrid (project memory, case memory, this store) is mapped in `docs/briefs/memory/hybrid-memory-architecture.md`.
+
 **Honest cache note:** a store cannot raise provider cache-hit rate directly — hits are byte-identical prefix matches. The chain is: store → stable canonical serialization (S-02) → prefix stability → hits. Within-run 80–95% is realistic with a stable prefix; cross-run depends on workload similarity; **the number is measured (S-01 discipline), never promised.** The geometric store is a **registered candidate experiment under Phase 9 discipline** (adopt/pilot/defer/reject with evidence), benchmarked against the plain-graph baseline — see X-14.
 
 ## 4. The wave program (IDs `X-*`; normative table lives in FUTURE PLAN 2.0 §20)
