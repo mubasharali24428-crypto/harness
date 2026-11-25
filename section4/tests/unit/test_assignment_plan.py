@@ -165,3 +165,138 @@ def test_mine_dependency_readiness_has_no_oracle(as_):
     assert "SECRET-A-BODY" not in ui_blob and "SECRET-B-BODY" not in ui_blob
     assert [t["task"] for t in sec["tasks"]] == ["a", "b"]
     assert [t["task"] for t in ui["tasks"]] == ["c"]
+
+
+# --- 7.1 (C-01) brief completeness: roles, capabilities, priorities, outputs, cycles ---------
+
+FULL_BRIEF = {
+    "goals": ["ship login hardening"],
+    "outputs": ["hardened OTP flow", "threat model doc"],
+    "roles": [
+        {"name": "security", "capabilities": ["threat-modelling", "otp"]},
+        {"name": "frontend", "capabilities": ["react"]},
+    ],
+    "tasks": [
+        {"key": "threat", "title": "Threat-model the OTP flow", "requiredRole": "security",
+         "preferredAssignee": "sec", "priority": "high", "outputs": ["threat model doc"]},
+        {"key": "form", "title": "Lockout form", "requiredRole": "frontend",
+         "preferredAssignee": "evil", "requiredCapabilities": ["a11y"], "dependsOn": ["threat"]},
+        {"key": "pen", "title": "External pen test", "requiredRole": "security"},
+    ],
+}
+
+
+def test_full_brief_round_trips_and_is_honest(as_):
+    v1 = as_("boss").post(f"{P}/p/assignment-plans", json=FULL_BRIEF)
+    assert v1.status_code == 201, v1.text
+    body = v1.json()
+    assert body["brief"]["outputs"] == ["hardened OTP flow", "threat model doc"]
+    assert body["brief"]["roles"][0] == {"name": "security",
+                                         "capabilities": ["threat-modelling", "otp"]}
+    by = {a["task"]: a for a in body["assignments"]}
+    # A named member: assigned, but capability fit and availability are never asserted.
+    assert by["threat"]["assignee"] == "sec" and by["threat"]["assigneeStatus"] == "member"
+    assert by["threat"]["priority"] == "high"
+    assert by["threat"]["requiredCapabilities"] == ["threat-modelling", "otp"]
+    assert by["threat"]["capabilityFit"] == "unverified"
+    assert by["threat"]["availability"] == "unknown"
+    assert by["threat"]["missingExpertise"] == []
+    # A named person from ANOTHER team is not a member here: unassigned, and the role plus
+    # every required capability (role's and task's own, de-duplicated) is listed as missing.
+    assert by["form"]["assignee"] is None and by["form"]["assigneeStatus"] == "not_a_member"
+    assert by["form"]["missingExpertise"] == ["frontend", "react", "a11y"]
+    assert by["form"]["uncertainty"] == "unknown" and by["form"]["priority"] == "unspecified"
+    assert "not a current team member" in by["form"]["rationale"]
+    # Nobody named: a different, equally honest status.
+    assert by["pen"]["assigneeStatus"] == "unnamed" and by["pen"]["assignee"] is None
+    assert "team-b" not in v1.text  # the other team is never described
+
+
+def test_dependency_cycles_are_rejected(as_):
+    def tasks(*edges):
+        return {"goals": ["g"], "tasks": [
+            {"key": k, "title": k, "dependsOn": list(d)} for k, d in edges]}
+
+    for brief, cycle in (
+        (tasks(("a", ["a"])), "a -> a"),
+        (tasks(("a", ["b"]), ("b", ["a"])), "a -> b -> a"),
+        (tasks(("a", []), ("b", ["c"]), ("c", ["d"]), ("d", ["b"])), "b -> c -> d -> b"),
+    ):
+        r = as_("boss").post(f"{P}/p/assignment-plans", json=brief)
+        assert r.status_code == 422, brief
+        err = r.json()["detail"]["error"]
+        assert err["code"] == "BAD_BRIEF" and cycle in err["message"]
+    diamond = tasks(("a", []), ("b", ["a"]), ("c", ["a"]), ("d", ["b", "c"]))
+    assert as_("boss").post(f"{P}/p/assignment-plans", json=diamond).status_code == 201
+
+
+def test_undeclared_role_and_duplicate_roles_are_rejected(as_):
+    undeclared = {**FULL_BRIEF, "tasks": [{"key": "x", "title": "x", "requiredRole": "dba"}]}
+    r = as_("boss").post(f"{P}/p/assignment-plans", json=undeclared)
+    assert r.status_code == 422 and "'dba'" in r.json()["detail"]["error"]["message"]
+    dup = {**FULL_BRIEF, "roles": [{"name": "security"}, {"name": "security"}]}
+    assert as_("boss").post(f"{P}/p/assignment-plans", json=dup).status_code == 422
+    # With no roles declared, a free-text requiredRole stays allowed (pre-7.1 briefs).
+    assert as_("boss").post(f"{P}/p/assignment-plans", json=BRIEF).status_code == 201
+
+
+def test_bad_priority_and_unknown_fields_are_rejected(as_):
+    bad = {"goals": ["g"], "tasks": [{"key": "a", "title": "a", "priority": "urgent"}]}
+    assert as_("boss").post(f"{P}/p/assignment-plans", json=bad).status_code == 422
+    extra = {"goals": ["g"], "tasks": [{"key": "a", "title": "a", "availability": "free"}]}
+    assert as_("boss").post(f"{P}/p/assignment-plans", json=extra).status_code == 422
+
+
+def test_edit_updates_assignee_status(as_):
+    c = as_("boss")
+    c.post(f"{P}/p/assignment-plans", json=FULL_BRIEF)
+    v2 = c.post(f"{P}/p/assignment-plans/1/review",
+                json={"decision": "edit", "reassign": [
+                    {"task": "form", "assignee": "ui"},
+                    {"task": "threat", "assignee": None}]}).json()
+    by = {a["task"]: a for a in v2["assignments"]}
+    assert by["form"]["assigneeStatus"] == "member" and by["form"]["assignee"] == "ui"
+    assert by["threat"]["assigneeStatus"] == "unnamed" and by["threat"]["assignee"] is None
+    assert by["form"]["capabilityFit"] == "unverified"  # an admin pick is not a skill check
+
+
+def test_mine_shows_own_priority_and_outputs_only(as_):
+    c = as_("boss")
+    brief = {**FULL_BRIEF, "tasks": [
+        {"key": "threat", "title": "Threat-model", "preferredAssignee": "sec",
+         "priority": "high", "outputs": ["SECRET-SEC-OUTPUT"]},
+        {"key": "form", "title": "Form", "preferredAssignee": "ui", "priority": "low",
+         "outputs": ["SECRET-UI-OUTPUT"], "dependsOn": ["threat"]},
+    ]}
+    c.post(f"{P}/p/assignment-plans", json=brief)
+    c.post(f"{P}/p/assignment-plans/1/review", json={"decision": "approve"})
+    sec = as_("sec").get(f"{P}/p/assignment-plans/mine")
+    ui = as_("ui").get(f"{P}/p/assignment-plans/mine")
+    assert sec.json()["tasks"][0]["priority"] == "high"
+    assert sec.json()["tasks"][0]["outputs"] == ["SECRET-SEC-OUTPUT"]
+    assert ui.json()["tasks"][0]["priority"] == "low"
+    assert "SECRET-UI-OUTPUT" not in sec.text and "SECRET-SEC-OUTPUT" not in ui.text
+
+
+def test_pre_7_1_stored_version_still_serves_mine(as_):
+    """A version stored before 7.1 has no priority/outputs keys; /mine must not 500."""
+    old_brief = json.dumps({"goals": ["g"], "constraints": [], "acceptanceCriteria": [],
+                            "tasks": [{"key": "a", "title": "A", "kind": "human",
+                                       "requiredRole": None, "preferredAssignee": "sec",
+                                       "dependsOn": []}]})
+    old_assign = json.dumps([{"task": "a", "kind": "human", "dependsOn": [], "assignee": "sec",
+                              "rationale": "x", "uncertainty": "low", "missingExpertise": [],
+                              "costEstimate": "unknown"}])
+
+    async def seed():
+        async with orch_api._service.session_factory() as db:
+            await db.execute(text(
+                "INSERT INTO assignment_plan_versions VALUES ('old', 'team-a', 'p', 1, NULL,"
+                " 'approved', :b, :a, 'boss', NULL, '2026-11-20 00:00:00')"),
+                {"b": old_brief, "a": old_assign})
+            await db.commit()
+
+    asyncio.run(seed())
+    t = as_("sec").get(f"{P}/p/assignment-plans/mine").json()["tasks"]
+    assert t == [{"task": "a", "title": "A", "kind": "human", "dependsOn": [],
+                  "priority": "unspecified", "outputs": [], "dependsOnStatus": {}}]
