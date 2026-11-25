@@ -44,13 +44,15 @@ SKILLS_ADVISORY_NOTE = (
     "remain hard blocks regardless of what a skill says."
 )
 
+# S-02: (name, version) is a total order for the stable executor prefix
+# (prompt_prefix.py): same reviewed catalog, same block bytes, every run.
 _READ_SQL = """
 SELECT name, version, description, instructions,
        provenance_source, provenance_author,
        reviewed_by, pinned_sha256, expires_at
 FROM team_skills
 WHERE team_id = :team_id AND status = 'reviewed' AND enabled = TRUE
-ORDER BY name
+ORDER BY name, version
 LIMIT :limit
 """
 
