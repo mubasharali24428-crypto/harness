@@ -1088,6 +1088,17 @@
      "role": {
       "title": "Role",
       "type": "string"
+     },
+     "userId": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Userid"
      }
     },
     "required": [

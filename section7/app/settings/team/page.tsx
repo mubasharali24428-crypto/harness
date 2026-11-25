@@ -285,13 +285,13 @@ export default function TeamSettingsPage() {
     const outcome = await runOptimistic<TeamMemberDto[], null>({
       apply: () => {
         const snapshot = members;
-        setMembers(members.filter((m) => m.id !== userId)); // instant removal
+        setMembers(members.filter((m) => m.userId !== userId)); // instant removal
         return snapshot;
       },
       request: () => removeMember(teamId, userId, token),
       rollback: (_snapshot) => {
         // Restore only THIS row from the pre-mutation snapshot.
-        const prior = members.find((m) => m.id === userId);
+        const prior = members.find((m) => m.userId === userId);
         if (prior) setMembers((cur) => restoreRow(cur, prior));
       },
       onError: (message) => setRosterError(message),
@@ -314,18 +314,18 @@ export default function TeamSettingsPage() {
     await runOptimistic<TeamMemberDto[], { userId: string; role: string }>({
       apply: () => {
         const snapshot = members;
-        setMembers(members.map((m) => (m.id === userId ? { ...m, role } : m)));
+        setMembers(members.map((m) => (m.userId === userId ? { ...m, role } : m)));
         return snapshot;
       },
       request: () => updateMemberRole(teamId, userId, role, token),
       // Reconcile with SERVER truth (the echoed {userId, role}), not the guess.
       commit: (res) =>
         setMembers((cur) =>
-          cur.map((m) => (m.id === res.userId ? { ...m, role: res.role } : m)),
+          cur.map((m) => (m.userId === res.userId ? { ...m, role: res.role } : m)),
         ),
       rollback: (_snapshot) => {
         // Snap THIS row back to its pre-mutation state only.
-        const prior = members.find((m) => m.id === userId);
+        const prior = members.find((m) => m.userId === userId);
         if (prior) setMembers((cur) => restoreRow(cur, prior));
       },
       onError: (message) => setRosterError(message),

@@ -222,6 +222,7 @@ export interface MemberItem {
     id: string;
     memberType?: string | null;
     role: string;
+    userId?: string | null;
 }
 /** MemberListResponse. Required keys: items. */
 export interface MemberListResponse {

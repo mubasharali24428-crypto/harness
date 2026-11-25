@@ -126,6 +126,10 @@ class MemberItem(BaseModel):
     """M13-G5a typing island: one roster row (camelCase per api-conventions)."""
 
     id: str
+    # D3: the user id (NOT the membership id) — the roster mutation routes
+    # DELETE/PATCH /teams/{id}/members/{userId} key on it. Null for non-human
+    # (agent) memberships that have no user row.
+    userId: str | None = None
     displayName: str | None = None
     email: str | None = None
     memberType: str | None = None
@@ -262,6 +266,7 @@ async def list_members(
             "items": [
                 {
                     "id": m.id,
+                    "userId": m.user_id,
                     "displayName": m.display_name,
                     "email": u.email if u is not None else None,
                     "memberType": m.member_type,

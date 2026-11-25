@@ -248,6 +248,7 @@ export interface MemberItem {
   id: string;
   memberType?: string | null;  // optional
   role: string;
+  userId?: string | null;  // optional
 }
 
 /** MemberListResponse. Required keys: items. */

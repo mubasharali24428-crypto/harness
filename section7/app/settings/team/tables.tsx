@@ -204,13 +204,13 @@ export function MembersTable({
             <td style={cellStyle}>{m.email ?? "—"}</td>
             <td style={cellStyle}>{m.memberType}</td>
             <td style={cellStyle}>
-              {isAdmin ? (
+              {isAdmin && m.userId ? (
                 <select
-                  data-testid={`role-select-${m.id}`}
+                  data-testid={`role-select-${m.userId}`}
                   aria-label={`Role for ${m.displayName}`}
                   value={m.role}
-                  disabled={busyUserId === m.id}
-                  onChange={(e) => actions.onRoleChange(m.id, e.target.value as TeamRole)}
+                  disabled={busyUserId === m.userId}
+                  onChange={(e) => actions.onRoleChange(m.userId as string, e.target.value as TeamRole)}
                   style={selectStyle}
                 >
                   {/* Unknown server roles still render as the selected option
@@ -230,24 +230,26 @@ export function MembersTable({
             </td>
             {isAdmin && (
               <td style={cellStyle}>
-                {pendingRemovalId === m.id ? (
+                {!m.userId ? (
+                  "—" /* agent member: no user id, no roster mutation route */
+                ) : pendingRemovalId === m.userId ? (
                   <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
                     <span style={{ color: "var(--red)" }}>Remove this member?</span>
                     <Button
                       variant="danger"
-                      testId={`confirm-remove-${m.id}`}
-                      loading={busyUserId === m.id}
+                      testId={`confirm-remove-${m.userId}`}
+                      loading={busyUserId === m.userId}
                       loadingText="Removing…"
-                      onClick={() => actions.onConfirmRemove(m.id)}
+                      onClick={() => actions.onConfirmRemove(m.userId as string)}
                       aria-label={`Confirm removal of ${m.displayName}`}
                     >
                       Yes, remove
                     </Button>
                     <Button
                       variant="secondary"
-                      testId={`cancel-remove-${m.id}`}
-                      disabled={busyUserId === m.id}
-                      onClick={() => actions.onCancelRemove(m.id)}
+                      testId={`cancel-remove-${m.userId}`}
+                      disabled={busyUserId === m.userId}
+                      onClick={() => actions.onCancelRemove(m.userId as string)}
                     >
                       Cancel
                     </Button>
@@ -255,9 +257,9 @@ export function MembersTable({
                 ) : (
                   <Button
                     variant="danger"
-                    testId={`ask-remove-${m.id}`}
-                    disabled={busyUserId === m.id}
-                    onClick={() => actions.onAskRemove(m.id)}
+                    testId={`ask-remove-${m.userId}`}
+                    disabled={busyUserId === m.userId}
+                    onClick={() => actions.onAskRemove(m.userId as string)}
                     aria-label={`Remove ${m.displayName}`}
                   >
                     Remove

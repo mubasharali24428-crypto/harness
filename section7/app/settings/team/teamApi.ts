@@ -28,7 +28,10 @@ export const INVITE_STATUSES = [
 export type InviteStatus = (typeof INVITE_STATUSES)[number];
 
 export interface TeamMemberDto {
+  /** Membership row id — React key only; NEVER send it to the mutation routes. */
   id: string;
+  /** D3: user id the DELETE/PATCH member routes key on (null for agent members). */
+  userId: string | null;
   displayName: string;
   email: string | null;
   memberType: string;

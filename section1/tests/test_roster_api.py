@@ -193,6 +193,20 @@ async def test_delete_removes_membership_204_and_audits(
     assert admin["memberId"] in ids  # admin untouched
 
 
+async def test_roster_items_expose_userid_distinct_from_membership_id(
+    roster_factory, roster_client
+):
+    """D3: the roster carries userId so the UI can call the {userId} routes."""
+    team = await _seed_team(
+        roster_factory, ("boss@x.com", "admin"), ("eng@x.com", "engineer")
+    )
+    admin, eng = team["boss@x.com"], team["eng@x.com"]
+    by_member_id = {m["id"]: m for m in await _members_of(roster_client, admin)}
+    assert by_member_id[eng["memberId"]]["userId"] == eng["userId"]
+    assert by_member_id[admin["memberId"]]["userId"] == admin["userId"]
+    assert eng["memberId"] != eng["userId"]
+
+
 async def test_patch_role_returns_200_userid_role_and_persists(
     roster_factory, roster_client
 ):

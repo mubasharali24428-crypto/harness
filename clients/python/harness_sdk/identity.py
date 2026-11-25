@@ -225,6 +225,7 @@ class MemberItem(typing.TypedDict, total=False):
     id: str  # required
     memberType: str | None
     role: str  # required
+    userId: str | None
 
 class MemberListResponse(typing.TypedDict, total=False):
     """MemberListResponse. Required keys: items."""
