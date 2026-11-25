@@ -87,3 +87,18 @@ def test_a_run_with_no_recorded_case_has_no_similar_cases(tmp_path):
         assert asyncio.run(collab.similar_cases_for_run(factory, "r-unknown")) == []
     finally:
         asyncio.run(engine.dispose())
+
+
+def test_approvals_list_recalls_an_exact_repeat_beyond_the_scan_window(tmp_path, monkeypatch):
+    """Track 2: with the window full of newer unrelated cases, the exact repeat still shows."""
+    from harness_orchestrator import case_memory
+
+    monkeypatch.setattr(case_memory, "MAX_SCAN", 1)  # window = only r-unrelated (newest tie)
+    engine, factory = _db(tmp_path)
+    try:
+        similar = asyncio.run(collab.similar_cases_for_run(factory, "r-now"))
+        assert [c["runId"] for c in similar] == ["r-old", "r-old2"]
+        assert len(similar) <= MAX_RECALLED
+        assert "r-foreign" not in json.dumps(similar)
+    finally:
+        asyncio.run(engine.dispose())

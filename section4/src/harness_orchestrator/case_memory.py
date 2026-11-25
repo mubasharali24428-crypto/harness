@@ -14,8 +14,15 @@ Laws (CD-02, denial_learning.py):
 Persistence (migration 0080): ``recall_and_record`` is what the denial stop calls. It reads
 the team's recent cases FIRST (so a case never matches itself), ranks them, then stores the
 new one. Every query filters ``team_id``.
-ponytail: similarity runs in Python over the team's latest MAX_SCAN cases; pgvector
-fingerprint search is the upgrade if a team's case count outgrows that window.
+
+Candidate set (Track 2 hardening, 2026-11-25): similarity still runs in Python, but over the
+union of (a) the team's newest ``MAX_SCAN`` cases and (b) up to ``MAX_FINGERPRINT_MATCHES``
+cases whose fingerprint equals the query's, at any age. (b) is an equality lookup on the
+fingerprint column inside the team, so an exact repeat of a denial is recalled even after
+the team has logged more than ``MAX_SCAN`` newer cases. The union only ever adds candidates;
+for a team with at most ``MAX_SCAN`` cases the result is identical to the old window scan.
+Partial-overlap cases older than the window are still not seen; a path-token index (or
+pgvector, which 0030 installs only when the host image ships it) is the proposed next step.
 """
 
 from __future__ import annotations
@@ -35,6 +42,7 @@ OUTCOME_WEIGHT = {"recovered": 1.0, "denied": 0.6, "repeat": 0.3}  # what fixed 
 DEFAULT_HALF_LIFE_HOURS = 168.0
 MAX_SCAN = 200  # newest cases per team considered for similarity
 MAX_RECALLED = 3  # what rides on the run record next to a stop
+MAX_FINGERPRINT_MATCHES = 50  # exact repeats fetched beyond the window, newest first
 
 
 def fingerprint(failure_class: str, tool: str, paths: list[str]) -> str:
@@ -88,15 +96,48 @@ def _aware(ts: Any) -> datetime:
     return ts if ts.tzinfo else ts.replace(tzinfo=UTC)
 
 
+def _row_to_case(r: Any) -> dict[str, Any]:
+    return {"caseId": r["case_id"], "runId": r["run_id"], "failureClass": r["failure_class"],
+            "tool": r["tool"], "paths": json.loads(r["paths"]), "fingerprint": r["fingerprint"],
+            "outcome": r["outcome"], "weight": float(r["weight"]),
+            "recordedAt": _aware(r["recorded_at"]), "suggestedRule": r["suggested_rule"],
+            "status": r["status"]}
+
+
 async def load_cases(db: Any, team_id: str) -> list[dict[str, Any]]:
+    """The team's newest ``MAX_SCAN`` cases (ties on recorded_at broken by case_id)."""
     rows = (await db.execute(text(
-        "SELECT * FROM case_memory WHERE team_id = :t ORDER BY recorded_at DESC LIMIT :n"),
+        "SELECT * FROM case_memory WHERE team_id = :t"
+        " ORDER BY recorded_at DESC, case_id LIMIT :n"),
         {"t": team_id, "n": MAX_SCAN})).mappings().all()
-    return [{"caseId": r["case_id"], "runId": r["run_id"], "failureClass": r["failure_class"],
-             "tool": r["tool"], "paths": json.loads(r["paths"]), "fingerprint": r["fingerprint"],
-             "outcome": r["outcome"], "weight": float(r["weight"]),
-             "recordedAt": _aware(r["recorded_at"]), "suggestedRule": r["suggested_rule"],
-             "status": r["status"]} for r in rows]
+    return [_row_to_case(r) for r in rows]
+
+
+async def load_fingerprint_matches(db: Any, team_id: str, fp: str) -> list[dict[str, Any]]:
+    """Exact repeats of ``fp`` in this team, any age, newest ``MAX_FINGERPRINT_MATCHES``."""
+    rows = (await db.execute(text(
+        "SELECT * FROM case_memory WHERE team_id = :t AND fingerprint = :fp"
+        " ORDER BY recorded_at DESC, case_id LIMIT :n"),
+        {"t": team_id, "fp": fp, "n": MAX_FINGERPRINT_MATCHES})).mappings().all()
+    return [_row_to_case(r) for r in rows]
+
+
+def merge_candidates(*groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Union of candidate lists, first occurrence of each caseId wins, order preserved."""
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for group in groups:
+        for c in group:
+            if c["caseId"] not in seen:
+                seen.add(c["caseId"])
+                out.append(c)
+    return out
+
+
+async def load_candidates(db: Any, team_id: str, fp: str) -> list[dict[str, Any]]:
+    """Window scan plus exact-fingerprint lookup, both team-scoped (see module docstring)."""
+    return merge_candidates(await load_cases(db, team_id),
+                            await load_fingerprint_matches(db, team_id, fp))
 
 
 async def recall_and_record(factory: Any, team_id: str, project_id: str | None, run_id: str,
@@ -105,8 +146,8 @@ async def recall_and_record(factory: Any, team_id: str, project_id: str | None, 
     """Similar earlier cases (bounded, JSON-safe), then persist this one as ``denied``."""
     case = record_case(run_id, failure_class, tool, paths, "denied", now)
     async with factory() as db:
-        similar = retrieve_similar_cases(await load_cases(db, team_id), case["paths"], tool, now,
-                                         limit=MAX_RECALLED)
+        candidates = await load_candidates(db, team_id, case["fingerprint"])
+        similar = retrieve_similar_cases(candidates, case["paths"], tool, now, limit=MAX_RECALLED)
         await db.execute(text(
             "INSERT INTO case_memory (case_id, team_id, project_id, run_id, failure_class, tool,"
             " paths, fingerprint, outcome, weight, suggested_rule, status, recorded_at) VALUES"
