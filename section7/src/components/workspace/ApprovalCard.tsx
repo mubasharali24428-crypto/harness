@@ -39,10 +39,12 @@ export type DecisionResult =
   | { ok: false; error: string; approve: boolean };
 
 /** Receipt text from the server's answer: its state and who decided, never a guess. */
-export function receiptText(r: Extract<DecisionResult, { ok: true }>): string {
+export function receiptText(r: Extract<DecisionResult, { ok: true }>, selfId?: string | null): string {
   const a = r.approval;
   const word = a.state === "approved" ? "Approved" : a.state === "rejected" ? "Denied" : `Recorded (${a.state})`;
-  const who = a.decidedBy ? ` by ${a.decidedBy}` : "";
+  // F3 (live check 2026-11-26): the server sends a user id; the receipt is shown to whoever just
+  // decided, so name them plainly. ponytail: other deciders stay ids until the API carries names.
+  const who = !a.decidedBy ? "" : a.decidedBy === selfId ? " by you" : ` by ${a.decidedBy}`;
   const when = a.decidedAt ? ` on ${formatDateTime(a.decidedAt)}` : "";
   const after =
     a.state === "approved" && a.requester === "system:staging"
@@ -65,10 +67,12 @@ export interface ApprovalCardProps {
   canAct: boolean;
   busy: boolean;
   result?: DecisionResult | null;
+  /** The signed-in user's id, so a receipt for their own decision says "you". */
+  selfId?: string | null;
   onDecide: (a: Approval, approve: boolean) => void;
 }
 
-export function ApprovalCard({ approval: a, canAct, busy, result = null, onDecide }: ApprovalCardProps) {
+export function ApprovalCard({ approval: a, canAct, busy, result = null, selfId = null, onDecide }: ApprovalCardProps) {
   const names = decisionNames(a);
   const titleId = `approval-${a.id}-title`;
   const decided = result?.ok === true;
@@ -108,8 +112,8 @@ export function ApprovalCard({ approval: a, canAct, busy, result = null, onDecid
       </details>
 
       {decided ? (
-        <p role="status" className="ws-approval-receipt" data-field="receipt">
-          {receiptText(result)}
+        <p role="status" className="ws-approval-receipt" data-field="receipt" id={`approval-${a.id}-receipt`} tabIndex={-1}>
+          {receiptText(result, selfId)}
         </p>
       ) : (
         <div className="ws-planpin-actions" role="group" aria-label="Decide">
@@ -127,7 +131,7 @@ export function ApprovalCard({ approval: a, canAct, busy, result = null, onDecid
         </div>
       )}
       {result && !result.ok ? (
-        <p role="alert" className="ws-composer-error" data-field="error">
+        <p role="alert" className="ws-composer-error" data-field="error" id={`approval-${a.id}-error`} tabIndex={-1}>
           {result.approve ? "Approve" : "Deny"} did not go through: {result.error}
         </p>
       ) : null}

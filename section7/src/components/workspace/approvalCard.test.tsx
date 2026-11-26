@@ -19,9 +19,9 @@ const approval = (over: Partial<Approval> = {}): Approval => ({
   decidedAt: null, outcome: null, expiresAt: "2026-12-01T00:00:00Z", ...over,
 });
 
-const card = (a: Approval, extra: { result?: DecisionResult | null; canAct?: boolean } = {}) => {
+const card = (a: Approval, extra: { result?: DecisionResult | null; canAct?: boolean; selfId?: string } = {}) => {
   const onDecide = vi.fn();
-  const props = { approval: a, canAct: extra.canAct ?? true, busy: false, result: extra.result ?? null, onDecide };
+  const props = { approval: a, canAct: extra.canAct ?? true, busy: false, result: extra.result ?? null, selfId: extra.selfId ?? null, onDecide };
   return { onDecide, nodes: expand(React.createElement(ApprovalCard, props)), html: renderToStaticMarkup(<ApprovalCard {...props} />) };
 };
 const field = (nodes: Node[], f: string) => findAll(nodes, (n) => n.props["data-field"] === f);
@@ -112,6 +112,18 @@ describe("after a mocked decision", () => {
     expect(receipt.props.role).toBe("status");
     expect(textOf(receipt)).toMatch(/^Approved by lead on /);
     expect(findAll(nodes, (n) => n.type === "button")).toHaveLength(0);
+  });
+
+  it("F3/F4: your own decision reads 'by you'; receipt and error can take focus", async () => {
+    vi.stubGlobal("fetch", stub(200, approval({ state: "rejected", decidedBy: "user-me" })));
+    const mine = await decide("r1", "tok", approval(), false);
+    const [receipt] = field(card(approval(), { result: mine, selfId: "user-me" }).nodes, "receipt");
+    expect(textOf(receipt)).toBe("Denied by you.");
+    expect(receipt.props.id).toBe("approval-a1-receipt");
+    expect(receipt.props.tabIndex).toBe(-1);
+    const [err] = field(card(approval(), { result: { ok: false, error: "nope", approve: true } }).nodes, "error");
+    expect(err.props.id).toBe("approval-a1-error");
+    expect(err.props.tabIndex).toBe(-1);
   });
 
   it("a denial receipt says Denied; an approved staged change says applying is a separate step", async () => {

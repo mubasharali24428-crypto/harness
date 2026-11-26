@@ -49,6 +49,7 @@ export default function RunDetailPage({
   const [runId, setRunId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [selfId, setSelfId] = useState<string | null>(null);
   // M19-N4 (C10): the canned demo lands here with ?demo=1. The banner is a
   // UI honesty marker ONLY — the run's own events carry the durable replay
   // marker server-side.
@@ -79,6 +80,7 @@ export default function RunDetailPage({
   useEffect(() => {
     setToken(loadSession()?.token ?? null);
     setRole(loadSession()?.principal.role ?? null);
+    setSelfId(loadSession()?.principal.userId ?? null);
     // Read markers off window so the statically prerendered page never needs
     // a Suspense boundary (same pattern as the login page).
     const read = () => {
@@ -199,7 +201,7 @@ export default function RunDetailPage({
 
           {agg && runId && token && (
             <>
-              <InlineApprovals runId={runId} token={token} role={role} tick={agg} />
+              <InlineApprovals runId={runId} token={token} role={role} selfId={selfId} tick={agg} />
               {/* I-08: a repeated-denial stop offers its lesson as a rule to copy; never saved here. */}
               <LearnedRuleOffer runId={runId} token={token} steps={agg.steps} />
               <NextStepBox state={agg.state} busy={controlBusy}

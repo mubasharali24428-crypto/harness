@@ -17,11 +17,14 @@ export function InlineApprovals({
   runId,
   token,
   role,
+  selfId = null,
   tick,
 }: {
   runId: string;
   token: string;
   role?: string | null;
+  /** The signed-in user's id (receipts say "you" for their own decision). */
+  selfId?: string | null;
   /** Changes whenever the run is re-read, so the list follows the run. */
   tick: unknown;
 }) {
@@ -50,6 +53,9 @@ export function InlineApprovals({
     const result = await decide(runId, token, a, approve);
     setResults((prev) => ({ ...prev, [a.id]: { approval: a, result } }));
     setBusy(null);
+    // F4: the buttons just went away (or were disabled), so move focus to what replaced them
+    // instead of letting it fall to <body>.
+    requestAnimationFrame(() => document.getElementById(`approval-${a.id}-${result.ok ? "receipt" : "error"}`)?.focus());
     void load();
   }
 
@@ -57,7 +63,7 @@ export function InlineApprovals({
     <section className="ws-approvals" aria-label="Approval requests">
       {cards.map(({ approval, result }) => (
         <ApprovalCard key={approval.id} approval={approval} canAct={canAct} busy={busy !== null}
-          result={result} onDecide={(x, ok) => void onDecide(x, ok)} />
+          result={result} selfId={selfId} onDecide={(x, ok) => void onDecide(x, ok)} />
       ))}
     </section>
   );
