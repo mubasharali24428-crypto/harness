@@ -135,7 +135,7 @@ export default function TeamSettingsPage() {
   // roster management (H-010)
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [pendingRemovalId, setPendingRemovalId] = useState<string | null>(null);
-  const [rosterError, setRosterError] = useState<string | null>(null);
+  const [rosterError, setRosterError] = useState<{ userId: string; message: string } | null>(null);
 
   // M14-F2a — invite lifecycle mutations
   const [busyInviteId, setBusyInviteId] = useState<string | null>(null);
@@ -244,8 +244,12 @@ export default function TeamSettingsPage() {
     onAskRevoke: (id: string) => {
       setInviteError(null);
       setPendingRevokeId(id);
+      focusSoon(`[data-testid="confirm-revoke-${id}"]`);
     },
-    onCancelRevoke: (id: string) => setPendingRevokeId((cur) => (cur === id ? null : cur)),
+    onCancelRevoke: (id: string) => {
+      setPendingRevokeId((cur) => (cur === id ? null : cur));
+      focusSoon(`[data-testid="revoke-invite-${id}"]`);
+    },
   };
 
   const onRedeem = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -283,6 +287,14 @@ export default function TeamSettingsPage() {
   // Operability slice 4: the mutations live in ./rosterOps (same optimistic apply / row-scoped
   // rollback as M14-F4) so the button-to-URL path is tested. Actions carry the user id (D3).
   const store = { get: () => members, set: setMembers };
+  // F4 (live check 2026-11-26): when a control is replaced, move focus to what replaced it
+  // instead of letting it fall to <body>.
+  const focusSoon = (selector: string) =>
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(selector)?.focus());
+  const failRow = (row: TeamMemberDto, verb: string, error: string) => {
+    setRosterError({ userId: row.userId as string, message: `Could not ${verb} ${row.displayName}: ${error}` });
+    focusSoon(`#row-error-${row.userId}`);
+  };
 
   const onConfirmRemove = async (userId: string) => {
     if (!teamId) return;
@@ -294,9 +306,10 @@ export default function TeamSettingsPage() {
     const out = await removeMemberOptimistic(store, teamId, row, loadSession()?.token ?? "");
     if (out.ok) {
       setError(null);
-      setNotice("Member removed from the team.");
+      setNotice(`${row.displayName} was removed from the team.`);
+      focusSoon("#team-notice");
     } else {
-      setRosterError(out.error);
+      failRow(row, "remove", out.error);
     }
     setBusyUserId(null);
   };
@@ -308,7 +321,7 @@ export default function TeamSettingsPage() {
     setBusyUserId(userId);
     setRosterError(null);
     const out = await changeRoleOptimistic(store, teamId, row, role, loadSession()?.token ?? "");
-    if (!out.ok) setRosterError(out.error);
+    if (!out.ok) failRow(row, "change the role of", out.error);
     setBusyUserId(null);
   };
 
@@ -316,9 +329,11 @@ export default function TeamSettingsPage() {
     onAskRemove: (userId: string) => {
       setRosterError(null);
       setPendingRemovalId(userId);
+      focusSoon(`[data-testid="confirm-remove-${userId}"]`);
     },
     onCancelRemove: (userId: string) => {
       setPendingRemovalId((cur) => (cur === userId ? null : cur));
+      focusSoon(`[data-testid="ask-remove-${userId}"]`);
     },
     onConfirmRemove,
     onRoleChange,
@@ -346,7 +361,7 @@ export default function TeamSettingsPage() {
           </div>
         ))}
       {!error && notice && (
-        <div role="status" style={{ color: "var(--green)", marginBottom: 16 }}>
+        <div role="status" id="team-notice" tabIndex={-1} style={{ color: "var(--green)", marginBottom: 16 }}>
           {notice}
         </div>
       )}
@@ -358,16 +373,12 @@ export default function TeamSettingsPage() {
             Roster management (remove / change roles) is restricted to team admins.
           </p>
         )}
-        {rosterError && (
-          <p role="alert" style={{ color: "var(--red)" }}>
-            {rosterError}
-          </p>
-        )}
         <MembersTable
           members={members}
           isAdmin={isAdmin}
           busyUserId={busyUserId}
           pendingRemovalId={pendingRemovalId}
+          rowError={rosterError}
           actions={rosterActions}
         />
       </section>

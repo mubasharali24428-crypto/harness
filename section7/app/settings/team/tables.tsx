@@ -207,6 +207,7 @@ export function MembersTable({
   isAdmin,
   busyUserId,
   pendingRemovalId,
+  rowError = null,
   actions,
 }: {
   members: TeamMemberDto[];
@@ -215,6 +216,8 @@ export function MembersTable({
   busyUserId: string | null;
   /** Member id showing the inline Remove confirmation. */
   pendingRemovalId: string | null;
+  /** F5 (live check 2026-11-26): a failed remove / role change, shown in that member's row. */
+  rowError?: { userId: string; message: string } | null;
   actions: RosterActions;
 }) {
   return (
@@ -295,6 +298,12 @@ export function MembersTable({
                   >
                     Remove
                   </Button>
+                )}
+                {m.userId && rowError?.userId === m.userId && (
+                  <p role="alert" id={`row-error-${m.userId}`} tabIndex={-1} data-testid={`row-error-${m.userId}`}
+                    style={{ color: "var(--red)", margin: "6px 0 0" }}>
+                    {rowError.message}
+                  </p>
                 )}
               </td>
             )}

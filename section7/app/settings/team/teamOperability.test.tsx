@@ -54,6 +54,21 @@ function rosterHarness() {
 const rows = (nodes: Node[]) => findAll(nodes, (n) => n.type === "tr").slice(1);
 const cells = (row: Node) => findAll([row], (n) => n.type === "td").map(textOf);
 
+describe("F5: a failed member action shows its error in that member's row", () => {
+  it("renders the named error inside the right row only, focusable", () => {
+    const h = rosterHarness();
+    const rowError = { userId: "user-bo", message: "Could not remove Bo: nope" };
+    const nodes = expand(React.createElement(MembersTable, { members: h.members(), isAdmin: true, busyUserId: null, pendingRemovalId: null, rowError, actions: h.actions }));
+    const alerts = findAll(nodes, (n) => n.props?.role === "alert");
+    expect(alerts).toHaveLength(1);
+    expect(textOf(alerts[0])).toBe("Could not remove Bo: nope");
+    expect(alerts[0].props.tabIndex).toBe(-1);
+    const r = rows(nodes);
+    expect(cells(r[1]).join(" ")).toContain("Could not remove Bo");
+    expect(cells(r[2]).join(" ")).not.toContain("Could not");
+  });
+});
+
 describe("member list and invites show email and role from the fixture", () => {
   it("each member row shows name, email and role", () => {
     const h = rosterHarness();
