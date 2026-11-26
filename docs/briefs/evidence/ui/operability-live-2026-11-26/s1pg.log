@@ -1,0 +1,116 @@
+/Users/user/untitled folder 2/harness-ui-live/section1/.venv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:306: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to "function" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session". Set it to "fixture-scope" to keep the current behavior.
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+........................................................................ [  5%]
+........................................................................ [ 10%]
+........................................................................ [ 15%]
+........................................................................ [ 21%]
+........................................................................ [ 26%]
+........................................................................ [ 31%]
+........................................................................ [ 36%]
+........................................................................ [ 42%]
+........................................................................ [ 47%]
+........................................................................ [ 52%]
+........................................................................ [ 57%]
+........................................................................ [ 63%]
+........................................................................ [ 68%]
+........................................................................ [ 73%]
+........................................................................ [ 78%]
+........................................................................ [ 84%]
+........................................................................ [ 89%]
+........................................................................ [ 94%]
+........................................................................ [ 99%]
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/test_auth_verification.py:47
+  /Users/user/untitled folder 2/harness-ui-live/section1/tests/test_auth_verification.py:47: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient
+
+tests/test_account_erasure.py: 281 warnings
+tests/test_agents.py: 46 warnings
+tests/test_audit_export_and_collab_push.py: 25 warnings
+tests/test_audit_pack.py: 5 warnings
+tests/test_csp_rollout.py: 32 warnings
+tests/test_events_retention.py: 18 warnings
+tests/test_identity_expiry.py: 17 warnings
+tests/test_member_soft_remove.py: 45 warnings
+tests/test_notifications_delivery.py: 189 warnings
+tests/test_notifications_inbox.py: 115 warnings
+tests/test_notifications_prefs.py: 93 warnings
+tests/test_orgs.py: 290 warnings
+tests/test_partitioned_retention.py: 13 warnings
+tests/test_policy_api.py: 37 warnings
+tests/test_policy_gate.py: 5 warnings
+tests/test_policy_sockets.py: 6 warnings
+tests/test_realtime.py: 43 warnings
+tests/test_roster_api.py: 6 warnings
+tests/test_runs_index_tuning.py: 3 warnings
+tests/test_session_owner_transfer.py: 14 warnings
+tests/test_sessions_core.py: 64 warnings
+tests/test_sessions_lifecycle.py: 168 warnings
+tests/test_team_budget.py: 8 warnings
+tests/test_workspaces_core.py: 105 warnings
+tests/test_workspaces_lifecycle.py: 128 warnings
+  /Users/user/untitled folder 2/harness-ui-live/section1/.venv/lib/python3.13/site-packages/aiosqlite/core.py:63: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    result = function()
+
+tests/test_backup_metrics_pg.py::test_backup_and_wal_series_come_from_postgres
+tests/test_backup_metrics_pg.py::test_cost_gauges_and_latency_quantiles_come_from_postgres
+tests/test_deploy_observability.py::test_orchestrator_domain_gauges_render
+tests/test_deploy_observability.py::test_orchestrator_domain_poll_works_over_deployed_async_factory
+tests/test_deploy_observability.py::test_cost_and_call_gauges_render_from_ledger
+  /Users/user/untitled folder 2/harness-ui-live/deploy/runners/observability.py:945: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+tests/test_backup_metrics_pg.py: 4 warnings
+tests/test_deploy_observability.py: 10 warnings
+  /Users/user/untitled folder 2/harness-ui-live/section1/.venv/lib/python3.13/site-packages/fastapi/applications.py:5039: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+tests/test_backup_metrics_pg.py::test_backup_and_wal_series_come_from_postgres
+tests/test_backup_metrics_pg.py::test_cost_gauges_and_latency_quantiles_come_from_postgres
+tests/test_deploy_observability.py::test_orchestrator_domain_gauges_render
+tests/test_deploy_observability.py::test_orchestrator_domain_poll_works_over_deployed_async_factory
+tests/test_deploy_observability.py::test_cost_and_call_gauges_render_from_ledger
+  /Users/user/untitled folder 2/harness-ui-live/deploy/runners/observability.py:954: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+tests/test_deploy_observability.py::test_identity_app_serves_request_ids_and_metrics_over_real_factory
+tests/test_deploy_observability.py::test_identity_assembly_taps_run_terminal_events_for_notifications
+  /Users/user/untitled folder 2/harness-ui-live/deploy/runners/services.py:303: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+tests/test_deploy_observability.py::test_identity_app_serves_request_ids_and_metrics_over_real_factory
+tests/test_deploy_observability.py::test_identity_assembly_taps_run_terminal_events_for_notifications
+  /Users/user/untitled folder 2/harness-ui-live/deploy/runners/services.py:309: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1370 passed, 1785 warnings in 212.17s (0:03:32)
+s1pg exit=0

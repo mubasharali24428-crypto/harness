@@ -1,0 +1,86 @@
+[
+  {
+    "row": 6,
+    "name": "default scope is since-last",
+    "ok": false,
+    "note": "since-last pressed=false disabled=true; full-PR pressed=true; pane says: No iteration snapshots are recorded for this project yet, so this is the full pull request."
+  },
+  {
+    "row": 8,
+    "name": "review-decide visible",
+    "ok": true,
+    "note": "scope shown: full PR"
+  },
+  {
+    "row": 9,
+    "name": "no ChangeReview flash during load",
+    "ok": true,
+    "note": "history mounted at any point=false; mounted now=0"
+  },
+  {
+    "row": 7,
+    "name": "keyboard toggle full PR <-> since-last",
+    "ok": false,
+    "note": "since-last button is disabled (no checkpoints), so there is nothing to toggle to"
+  },
+  {
+    "row": 11,
+    "name": "hunk revert available on real data",
+    "ok": false,
+    "note": "since-last disabled=true; revertable hunk controls=0"
+  },
+  {
+    "row": 10,
+    "name": "run switch opens on since-last again",
+    "ok": false,
+    "note": "other run: since-last pressed=false disabled=true"
+  },
+  {
+    "row": 12,
+    "name": "axe clean in pane at 1440-light",
+    "ok": true,
+    "note": "0 violations"
+  },
+  {
+    "row": 12,
+    "name": "no horizontal page scroll at 1440-light",
+    "ok": true,
+    "note": "scrollWidth - innerWidth = 0"
+  },
+  {
+    "row": 12,
+    "name": "axe clean in pane at 1440-dark",
+    "ok": true,
+    "note": "0 violations"
+  },
+  {
+    "row": 12,
+    "name": "no horizontal page scroll at 1440-dark",
+    "ok": true,
+    "note": "scrollWidth - innerWidth = 0"
+  },
+  {
+    "row": 12,
+    "name": "axe clean in pane at 375-light",
+    "ok": true,
+    "note": "0 violations"
+  },
+  {
+    "row": 12,
+    "name": "no horizontal page scroll at 375-light",
+    "ok": true,
+    "note": "scrollWidth - innerWidth = 0"
+  },
+  {
+    "row": 12,
+    "name": "axe clean in pane at 375-dark",
+    "ok": true,
+    "note": "0 violations"
+  },
+  {
+    "row": 12,
+    "name": "no horizontal page scroll at 375-dark",
+    "ok": true,
+    "note": "scrollWidth - innerWidth = 0"
+  }
+]

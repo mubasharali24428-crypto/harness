@@ -1,0 +1,18 @@
+== bootstrap: python = /Users/user/1/bin/python3.13 ==
+== section1 ==
+== section2 ==
+== section3 ==
+== section4 ==
+== section5 ==
+== section6 ==
+== section8 ==
+== section10 ==
+== section11 ==
+== section7 (npm ci) ==
+
+added 133 packages in 7s
+== mcp ==
+== packages/language (Hx) ==
+
+Bootstrap complete. Try: make test-section1
+bootstrap exit=0
