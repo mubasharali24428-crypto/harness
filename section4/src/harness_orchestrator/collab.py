@@ -948,13 +948,13 @@ async def similar_cases_for_run(factory: Any, run_id: str) -> list[dict[str, Any
     try:
         async with factory() as db:
             own = (await db.execute(text(
-                "SELECT team_id, tool, paths, recorded_at FROM case_memory"
+                "SELECT team_id, tool, paths, fingerprint, recorded_at FROM case_memory"
                 " WHERE run_id = :r ORDER BY recorded_at DESC LIMIT 1"),
                 {"r": run_id},
             )).mappings().first()
             if own is None:
                 return []
-            cases = await case_memory.load_cases(db, own["team_id"])
+            cases = await case_memory.load_candidates(db, own["team_id"], own["fingerprint"])
         paths = json.loads(own["paths"]) if isinstance(own["paths"], str) else own["paths"]
         others = [c for c in cases if c["runId"] != run_id]
         similar = case_memory.retrieve_similar_cases(
