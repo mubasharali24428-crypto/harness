@@ -6,7 +6,7 @@ approved plan's commands, report each tool call/result into the run's event log
 settled state. Section 4 replays that log, so what lands in ``agent_events`` IS
 the orchestrator's view of the run.
 
-Trust assumptions pinned here (docs/m2-w13-plan.md): the host is trusted to run
+Trust assumptions pinned here (docs/archive/m2-w13-plan.md): the host is trusted to run
 and report honestly, but plan approval, the command allow-list, caps and the
 terminal verdict are derived server-side from durable rows - never from what
 the runner claims.

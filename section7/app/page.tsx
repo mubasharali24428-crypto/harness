@@ -10,6 +10,7 @@ import * as React from "react";
 import AppShell from "@/components/AppShell";
 import { LandingView } from "@/components/Landing";
 import { Composer } from "@/components/workspace/Composer";
+import { NeedsYouList } from "@/components/home/NeedsYouList";
 import { getProjectId, loadSession, type Session } from "@/lib/auth";
 import { PlanGateCard } from "./dashboard/planGate";
 
@@ -25,6 +26,9 @@ export default function Home() {
   return (
     <AppShell active="/">
       <div className="ws-home">
+        {/* Operability slice 1: what is waiting on a person comes first; "g h" lands here and
+            focuses the list when nothing else holds focus. */}
+        <NeedsYouList token={session.token} />
         <h1 className="ws-run-title">New run</h1>
         <p className="ws-run-meta">
           Describe the goal. The agent proposes a plan, and nothing runs before you approve it.

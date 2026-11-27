@@ -59,4 +59,26 @@ regexes = [
     # under generic-api-key; neither is a credential shape.
     '''presence/typing/cursor''',
     '''reserved_usd=amount''',
+    # First gitleaks execution in this repo's history (2026-11-22: ci-local
+    # 2026-11-22T0451Z + a redacted rerun, 871 commits reachable from HEAD)
+    # surfaced 7 findings. Every one was inspected at its source the same day
+    # and is a synthetic fixture in a redaction-behavior test — a fake value
+    # whose entire purpose is to assert that strings shaped like it get
+    # scrubbed. No live credential; recorded in the findings ledger 2026-11-22.
+    # section7/src/lib/redact.test.ts:10,14,16 + runTimeline.test.ts:168,174
+    '''abc123SECRET''',
+    '''sk-SECRET123''',
+    '''abcdef123456''',
+    # section4/tests/unit/test_verdict_comment.py:53,55,57,63,116,121
+    '''sk-abc123secret''',
+    '''abc123token''',
+    '''sk-zzz99999999''',
+    '''sk-leak99999''',
+    # section4/tests/unit/test_verdict_post.py:26 — its own header comment
+    # (line 12) explains the runtime-assembly trick for token-shaped literals;
+    # this one literal was missed by that trick.
+    '''tok-live-secret-123''',
+    # section8/tests/unit/test_pre_review.py:87,129 — truncated, non-functional
+    # PEM stub asserting private-key scrubbing.
+    '''MIIBOgIBAAJ''',
 ]

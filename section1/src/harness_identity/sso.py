@@ -1029,6 +1029,7 @@ async def _is_last_admin(db, member) -> bool:
                 TeamMember.team_id == member.team_id,
                 TeamMember.role == DbRole.ADMIN,
                 TeamMember.id != member.id,
+                TeamMember.removed_at.is_(None),  # Task 42: a removed admin is no admin
             )
         )
     ).scalar_one()

@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-05
 **Status:** ACCEPTED by the decision owner (Mubashar Ali, in session), scope W28 S1b.
-**Related:** [`roadmap-3.0.md`](../roadmap-3.0.md) (stage 6, W27 approval binding),
+**Related:** [`roadmap-3.0.md`](../archive/roadmap-3.0.md) (stage 6, W27 approval binding),
 [`2026-11-04-w31-scheduler.md`](2026-11-04-w31-scheduler.md)
 
 ## Question

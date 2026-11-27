@@ -54,6 +54,13 @@ DDL = (
     " diff TEXT NOT NULL DEFAULT '', digest VARCHAR(64) NOT NULL,"
     " state VARCHAR(16) NOT NULL DEFAULT 'pending', decided_by VARCHAR(36),"
     " decided_at TIMESTAMP, expires_at TIMESTAMP NOT NULL, outcome TEXT, created_at TIMESTAMP)",
+    # 0049: signal_done records the done diff's files here (artifacts.record_done_changes).
+    "CREATE TABLE run_changes (id VARCHAR(36) PRIMARY KEY, run_id VARCHAR(36) NOT NULL,"
+    " team_id VARCHAR(36) NOT NULL, path VARCHAR(512) NOT NULL, change_kind VARCHAR(8) NOT NULL,"
+    " before_sha VARCHAR(64), after_sha VARCHAR(64), diff_sha VARCHAR(64) NOT NULL,"
+    " flags TEXT NOT NULL DEFAULT '{}', plan_version INTEGER,"
+    " review_state VARCHAR(8) NOT NULL DEFAULT 'pending', reviewed_by VARCHAR(64),"
+    " reviewed_at TIMESTAMP, superseded INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP NOT NULL)",
 )
 
 USERS = {  # user -> (team, role)
@@ -169,6 +176,25 @@ def test_foreign_team_gets_404_everywhere(env):
     assert c.post(f"{P}/r1/redirect", json={"content": "x"}).status_code == 404
 
 
+def test_foreign_approval_reads_are_not_an_oracle(env):
+    """Task 2 / B-04: a foreign member asking for a REAL run's approvals (one pending, with a
+    diff) gets byte-for-byte the answer for a run that does not exist - no status, code or
+    message difference to probe existence with, and no approval body leaks."""
+    as_, _ = env
+    lead_run(as_)
+    real = new_approval(as_)
+    c = as_("evil")
+    decide = {"approve": True, "digest": real["digest"]}
+    for ask in (
+        lambda run: c.get(f"{P}/{run}/approvals"),
+        lambda run: c.post(f"{P}/{run}/approvals/{real['id']}/decision", json=decide),
+    ):
+        hit, miss = ask("r1"), ask("nope")
+        assert hit.status_code == miss.status_code == 404
+        assert hit.json() == miss.json()
+        assert real["digest"] not in hit.text and PROPOSAL["summary"] not in hit.text
+
+
 # ----------------------------------------------------------------------- redirect
 
 
@@ -267,6 +293,17 @@ def new_approval(as_, user="eng2"):
     r = as_(user).post(f"{P}/r1/approvals", json=PROPOSAL)
     assert r.status_code == 201, r.text
     return r.json()
+
+
+def test_approvals_carry_plain_sentence_and_grid_beside_technical(env):
+    """X-07/X-21: translation rides beside the technical record; it never replaces it."""
+    as_, _ = env
+    lead_run(as_)
+    new_approval(as_)
+    a = as_("view").get(f"{P}/r1/approvals").json()["approvals"][0]
+    assert a["plain"] == "The agent wants to delete 1 file (src/old.py)."
+    assert a["decisionGrid"]["dominantBand"] == "elevated"
+    assert a["paths"] == ["src/old.py"] and a["diff"] == "-x"  # technical detail unchanged
 
 
 def test_approval_flow_blocks_until_leader_approves_exact_digest(env):
@@ -688,3 +725,59 @@ def test_guidance_items_are_numbered_for_replay(env):
     assert f"- #{seq} [guidance from eng2]" in first
     assert "skip any numbered item you already acted on" in first
     assert again == first and seq2 == seq
+
+
+@pytest.mark.parametrize("flag", ["0", "1"])
+def test_risk_envelope_is_classification_only(env, monkeypatch, flag):
+    """X-08 under D-U4/P-D6 (not enabled): the tier is computed either way; with the flag on it
+    is shown as an advisory envelope, and a critical request still cannot be executed until the
+    leader approves the exact digest."""
+    monkeypatch.setenv("HARNESS_RISK_ENVELOPES", flag)
+    as_, _ = env
+    lead_run(as_)
+    r = as_("eng2").post(f"{P}/r1/approvals", json={**PROPOSAL, "action": "modify",
+                                                   "paths": ["deploy/.env"]})
+    a = r.json()
+    listed = as_("view").get(f"{P}/r1/approvals").json()["approvals"][0]
+    assert listed["riskTier"] == "critical"
+    if flag == "1":
+        assert listed["envelope"] == {"tier": "critical", "advisory": True, "autoApprove": False}
+    else:
+        assert "envelope" not in listed
+    claim = as_("eng2").post(f"{P}/r1/approvals/{a['id']}/claim", json={"digest": a["digest"]})
+    assert claim.status_code == 409 and listed["state"] == "pending"  # no tier skips approval
+    as_("lead").post(f"{P}/r1/approvals/{a['id']}/decision",
+                     json={"approve": True, "digest": a["digest"]})
+    ok = as_("eng2").post(f"{P}/r1/approvals/{a['id']}/claim", json={"digest": a["digest"]})
+    assert ok.status_code == 200 and ok.json()["state"] == "executing"
+
+
+def test_p_d6_flag_on_critical_tier_claim_never_auto_executes(env, monkeypatch):
+    """P-D6 negative (D-U4 accepted): with the advisory envelope flag ON in this test only,
+    a critical-tier approval still needs the leader's exact-digest decision before claim.
+    Re-reads state after the refusal — a stale pre-claim snapshot cannot mask an execution."""
+    monkeypatch.setenv("HARNESS_RISK_ENVELOPES", "1")
+    as_, factory = env
+    lead_run(as_)
+    a = as_("eng2").post(f"{P}/r1/approvals", json={**PROPOSAL, "action": "modify",
+                                                    "paths": ["deploy/.env"]}).json()
+    listed = as_("view").get(f"{P}/r1/approvals").json()["approvals"][0]
+    assert listed["riskTier"] == "critical"
+    assert listed["envelope"] == {"tier": "critical", "advisory": True, "autoApprove": False}
+    run_before = q(factory, "SELECT state FROM agent_runs WHERE id = 'r1'")
+
+    claim = as_("eng2").post(f"{P}/r1/approvals/{a['id']}/claim", json={"digest": a["digest"]})
+    assert claim.status_code == 409
+    assert claim.json()["detail"]["error"]["code"] == "NOT_APPROVED"
+
+    after = as_("view").get(f"{P}/r1/approvals").json()["approvals"][0]
+    assert after["state"] == "pending"  # fresh read, not the pre-claim snapshot
+    assert q(factory, "SELECT state FROM agent_runs WHERE id = 'r1'") == run_before
+    assert q(factory, "SELECT seq FROM run_collab_events WHERE run_id = 'r1'"
+                      " AND kind = 'approval.claimed'") == []
+
+    # The flag is advisory only: the leader's decision, not the tier, unlocks execution.
+    as_("lead").post(f"{P}/r1/approvals/{a['id']}/decision",
+                     json={"approve": True, "digest": a["digest"]})
+    assert as_("eng2").post(f"{P}/r1/approvals/{a['id']}/claim",
+                            json={"digest": a["digest"]}).json()["state"] == "executing"

@@ -3,6 +3,8 @@
 The parallel behaviour is proved on a real PostgreSQL (`test_session11_pg.py`). These two cases are
 deterministic and need no database: the code is consumed by someone else between this caller's guess
 and its redeem, and a stored row is already at the attempt limit.
+
+P4 follow-up (findings ledger): the two cap refusals also emit `auth.otp_locked`.
 """
 
 import pytest
@@ -11,7 +13,7 @@ from sqlalchemy import func, select, text
 
 from harness_identity import auth
 from harness_identity.config import Settings
-from harness_identity.models import AuthSession
+from harness_identity.models import AuditLog, AuthSession
 
 EMAIL = "otp@a.io"
 
@@ -75,3 +77,63 @@ async def test_a_row_already_at_the_attempt_limit_is_refused_even_for_the_right_
         err = await refusal(auth.verify_otp(s, settings(), EMAIL, code))
     assert err["code"] == "LOCKED"
     assert await sessions(db) == 0
+
+
+async def locked_events(db):
+    async with db() as s:
+        return (
+            await s.execute(select(AuditLog).where(AuditLog.action == "auth.otp_locked"))
+        ).scalars().all()
+
+
+async def test_the_already_locked_refusal_is_audited(db):
+    """P4 follow-up: LOCKED refuses used to consume the row silently."""
+    code = await issue(db)
+    async with db() as s:
+        await s.execute(text("UPDATE login_otps SET attempts = :n"),
+                        {"n": settings().otp_max_attempts})
+        await s.commit()
+    async with db() as s:
+        await refusal(auth.verify_otp(s, settings(), EMAIL, code))
+    (ev,) = await locked_events(db)
+    assert ev.target_type == "login_otp"
+    assert ev.target_id == EMAIL
+    assert ev.detail == {
+        "email": EMAIL,
+        "attempts": settings().otp_max_attempts,
+        "maxAttempts": settings().otp_max_attempts,
+        "reason": "already_at_cap",
+    }
+
+
+async def test_the_guess_that_reaches_the_cap_is_audited(db):
+    """The final wrong guess consumes the row and is the one recorded event."""
+    await issue(db)  # an active row is what the guesses run against
+    limit = settings().otp_max_attempts
+    for n in range(limit):
+        async with db() as s:
+            err = await refusal(auth.verify_otp(s, settings(), EMAIL, "000000"))
+        assert err["code"] == "INVALID_CODE"
+        assert len(await locked_events(db)) == (1 if n == limit - 1 else 0)
+    (ev,) = await locked_events(db)
+    assert ev.detail == {
+        "email": EMAIL,
+        "attempts": settings().otp_max_attempts,
+        "maxAttempts": settings().otp_max_attempts,
+        "reason": "cap_reached",
+    }
+    assert await sessions(db) == 0
+
+
+async def test_non_lockout_refusals_emit_no_lockout_event(db):
+    """A wrong guess under the cap, a rival-consumed code and a success record nothing."""
+    await issue(db)
+    async with db() as s:
+        await refusal(auth.verify_otp(s, settings(), EMAIL, "000000"))
+    code2 = await issue(db)
+    async with db() as s:
+        await refusal(auth.verify_otp(Rival(s), settings(), EMAIL, code2))
+    code3 = await issue(db)
+    async with db() as s:
+        await auth.verify_otp(s, settings(), EMAIL, code3)
+    assert await locked_events(db) == []

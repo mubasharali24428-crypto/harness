@@ -83,7 +83,7 @@ function SettingsInner() {
           <li><a href="/settings/keys">API keys (BYO providers)</a></li>
           <li><a href="/settings/integrations">Integrations &amp; webhooks</a></li>
           <li><a href="/settings/billing">Billing &amp; plan</a></li>
-          <li><a href="/settings/account">Your account (erase)</a></li>
+          <li><a href="/settings/account">Your account (approval rendering, erase)</a></li>
           <li><a href="/onboarding">Onboarding checklist</a></li>
         </ul>
       </section>

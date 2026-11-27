@@ -13,15 +13,15 @@ import { Card } from "@/components/ui";
 import { Notice } from "@/components/ui/Notice";
 import { Pill } from "@/components/ui";
 import { loadSession } from "@/lib/auth";
-import { ApiError, getPlan } from "@/lib/api";
+import { ApiError, IDENTITY_BASE, getPlan } from "@/lib/api";
 import { createRefetchCoalescer } from "@/lib/backoff";
 import { parkFocus } from "@/lib/focus";
 import { formatDateTime } from "@/lib/intl";
 import { AnnounceContext, useAnnouncer } from "@/components/LiveAnnouncer";
 import {
-  type Approval, type CollabEvent, type RedirectKind, type Roster,
+  type Approval, type CollabEvent, type RedirectKind, type Roster, type SchedulerProposal,
   hasUnappliedStaged, applyApproval, claimLeader, decideApproval, decideHandoff, getRoster, joinRun,
-  listApprovals, requestHandoff, sendRedirect,
+  call, getSchedulerProposal, listApprovals, requestHandoff, sendRedirect,
 } from "./collabApi";
 import {
   type CollabView, approvalAnnouncements, approvalLabel, clipDiff, deriveCollabView, describeDecision,
@@ -38,6 +38,9 @@ import { RunControlSection } from "./controlSection";
 import { RunIntentSection } from "./intentSection";
 import { RunOwnerSection } from "./ownerSection";
 import { PresenceSection } from "./presenceSection";
+import { DecisionCardGrid } from "./decisionGrid";
+import { SchedulerProposalCard } from "./schedulerProposalCard";
+import { ObserversSection } from "./observersSection";
 
 const muted = { color: "var(--muted)" } as const;
 const mono = { fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12 } as const;
@@ -56,6 +59,10 @@ export interface SharedRunViewProps {
   goal?: string | null;
   /** A polite note about the last thing you did (e.g. your direction was queued, not sent). */
   notice?: string | null;
+  /** X-07: the member's approval rendering (GET /api/v1/me/rendering); technical when unknown. */
+  rendering?: "technical" | "plain" | "decision";
+  /** Task 18: admin's stored W31 proposal, or null when absent/flag-off/error. Read-only. */
+  schedulerProposal?: SchedulerProposal | null;
   /** Part 46: live connection state; the indicator renders only when given. */
   connection?: StreamView;
   onReload?: () => void;
@@ -65,7 +72,7 @@ export interface SharedRunViewProps {
   discussion?: React.ReactNode;
   onJoin: () => void;
   onClaim: () => void;
-  onDecide: (a: Approval, approve: boolean) => void;
+  onDecide: (a: Approval, approve: boolean, viewedDetail?: boolean) => void;
   onApply: (a: Approval) => void;
   onHandoff: (toUserId: string) => void;
   onHandoffDecision: (id: string, accept: boolean) => void;
@@ -94,6 +101,22 @@ const keepFocus = (e: React.SyntheticEvent<HTMLElement>) =>
   (e.currentTarget.closest("[data-approval-card]") as HTMLElement | null)?.focus();
 
 export function SharedRunView(p: SharedRunViewProps) {
+  // X-07 KPI on the collab path: measure whether the proposed diff was ever 25% on
+  // screen before Approve, using the same threshold as ReviewPane. Unknown (no diff
+  // or no observer) is left unset — never reported as a blind approval.
+  const seenDiff = React.useRef<Record<string, boolean>>({});
+  React.useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        const id = (e.target as HTMLElement).getAttribute("data-approval-diff");
+        if (id) seenDiff.current[id] = true;
+      }
+    }, { threshold: 0.25 });
+    document.querySelectorAll("[data-approval-diff]").forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [p.approvals]);
   const { view } = p;
   const ids = React.useId();
   const [kind, setKind] = useState<RedirectKind>("guidance");
@@ -163,6 +186,8 @@ export function SharedRunView(p: SharedRunViewProps) {
 
       {p.children}
 
+      {p.schedulerProposal && <SchedulerProposalCard proposal={p.schedulerProposal} />}
+
       <section aria-label="Pending decisions">
         <h3 style={{ fontSize: 13 }}>Pending decisions ({open.filter((a) => a.state === "pending").length})</h3>
         {open.length === 0 && <p style={muted}>No high-impact requests.</p>}
@@ -175,7 +200,27 @@ export function SharedRunView(p: SharedRunViewProps) {
               <Pill tone={stateTone(a.state)}>
                 {approvalLabel(a, view.leader)}
               </Pill>
+              {a.envelope && (
+                <span data-testid={`envelope-${a.id}`} style={{ ...muted, marginLeft: 6 }}>
+                  Risk envelope: {a.envelope.tier} (advisory; still needs your decision)
+                </span>
+              )}
             </div>
+            {p.rendering === "plain" && a.plain && <p style={{ margin: "4px 0" }} data-testid={`plain-${a.id}`}>{a.plain}</p>}
+            {p.rendering === "decision" && a.decisionGrid && <DecisionCardGrid grid={a.decisionGrid} testId={`grid-${a.id}`} />}
+            {a.similarCases && a.similarCases.length > 0 && (
+              <div data-testid={`similar-${a.id}`} style={{ margin: "4px 0" }}>
+                <p style={{ ...muted, margin: 0 }}>Similar past denials</p>
+                <ul style={{ margin: "2px 0", paddingLeft: 18 }}>
+                  {a.similarCases.slice(0, 3).map((c) => (
+                    <li key={c.caseId}>
+                      Earlier run <span style={mono}>{c.runId}</span> ({c.outcome})
+                      {c.suggestedRule ? `: ${c.suggestedRule}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <p style={{ margin: "4px 0" }}>{a.summary}</p>
             {reopened.includes(a.id) && a.state === "pending" && (
               <Notice tone="warning" role="status" testId={`reopened-${a.id}`}>
@@ -190,7 +235,7 @@ export function SharedRunView(p: SharedRunViewProps) {
               </p>
             )}
             <p style={{ ...muted, margin: "4px 0" }}>Requested by {a.requester}{a.decidedBy ? `, decided by ${a.decidedBy}` : ""}{a.decidedAt && <> on <time dateTime={a.decidedAt} data-testid={`decided-${a.id}`}>{formatDateTime(a.decidedAt)}</time></>}. Files: <span style={mono}>{a.paths.join(", ")}</span>. Proposal version <span style={mono} data-testid={`digest-${a.id}`}>{a.digest.slice(0, 8)}</span>.</p>
-            {a.diff ? <pre aria-label="Proposed change" tabIndex={0} style={{ ...mono, maxHeight: 160, overflow: "auto", background: "var(--panel-2)", padding: 8 }}>{clipDiff(a.diff)}</pre> : null}
+            {a.diff ? <div data-approval-diff={a.id}><pre aria-label="Proposed change" tabIndex={0} style={{ ...mono, maxHeight: 160, overflow: "auto", background: "var(--panel-2)", padding: 8 }}>{clipDiff(a.diff)}</pre></div> : null}
             {a.requester === "system:staging" && (
               <p style={muted}>This change is withheld. Approval and application are separate steps.</p>
             )}
@@ -199,7 +244,7 @@ export function SharedRunView(p: SharedRunViewProps) {
               : <p style={muted}>Waiting for {view.leader ?? "the session leader"} to apply this change.</p>)}
             {a.state === "pending" && (view.isLeader
               ? <div role="group" aria-label="Decide" style={{ display: "flex", gap: 8 }}>
-                  <Button size="sm" variant="primary" disabled={p.busy} aria-describedby={`${ids}-${a.id}`} onClick={(e) => { keepFocus(e); p.onDecide(a, true); }}>Approve this change</Button>
+                  <Button size="sm" variant="primary" disabled={p.busy} aria-describedby={`${ids}-${a.id}`} onClick={(e) => { keepFocus(e); p.onDecide(a, true, a.diff ? seenDiff.current[a.id] === true : undefined); }}>Approve this change</Button>
                   <Button size="sm" variant="danger" disabled={p.busy} aria-describedby={`${ids}-${a.id}`} onClick={(e) => { keepFocus(e); p.onDecide(a, false); }}>Reject</Button>
                 </div>
               : <p style={muted}>Only {view.leader ?? "a session leader"} can decide this.</p>)}
@@ -277,9 +322,27 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
   const [goal, setGoal] = useState<string | null>(null);
   const [reopened, setReopened] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [rendering, setRendering] = useState<SharedRunViewProps["rendering"]>("technical");
+  const [schedulerProposal, setSchedulerProposal] = useState<SchedulerProposal | null>(null);
   const seen = useRef<Approval[] | null>(null);
   const meRef = useRef({ me, leader: null as string | null });
   const { announce, region } = useAnnouncer();
+
+  useEffect(() => {
+    if (!token) return;
+    // X-07: presentation only. Any failure keeps "technical", the historical rendering.
+    call<{ rendering: SharedRunViewProps["rendering"] }>(`${IDENTITY_BASE}/api/v1/me/rendering`, token)
+      .then((r) => setRendering(r.rendering)).catch(() => undefined);
+  }, [token]);
+
+  useEffect(() => {
+    // Task 18: admin-only, flag-gated read. 404 FEATURE_OFF, 403, 503 and an empty
+    // latest all mean "show nothing" — never an error banner on an ordinary run page.
+    if (!token || session?.principal.role !== "admin") return;
+    getSchedulerProposal(runId, token)
+      .then((r) => setSchedulerProposal(r.latest))
+      .catch(() => setSchedulerProposal(null));
+  }, [token, runId, session?.principal.role]);
 
   const refresh = useCallback(async () => {
     if (!token) return;
@@ -360,13 +423,14 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
       {region}
       <SharedRunView
         me={me} roster={roster} view={view} approvals={approvals} events={events}
-        error={error} busy={busy || cooling} reopened={reopened} goal={goal} notice={notice}
+        error={error} busy={busy || cooling} reopened={reopened} goal={goal} notice={notice} rendering={rendering}
+        schedulerProposal={schedulerProposal}
         connection={stream} onReload={() => window.location.reload()}
         discussion={<DiscussionSection scope={{ kind: "run", id: runId }} token={token} me={me} role={session?.principal.role} canSteer={canLead && view.joined} people={people} tick={tick} />}
         onJoin={() => run(() => joinRun(runId, token))}
         onClaim={() => run(() => claimLeader(runId, token))}
         onApply={(a) => run(() => applyApproval(runId, token, a))}
-        onDecide={(a, ok) => run(() => decideApproval(runId, token, a, ok))}
+        onDecide={(a, ok, viewedDetail) => run(() => decideApproval(runId, token, a, ok, viewedDetail))}
         onHandoff={(to) => run(() => requestHandoff(runId, token, to))}
         onHandoffDecision={(id, ok) => run(() => decideHandoff(runId, token, id, ok))}
         onRedirect={(kind, content, reason) =>
@@ -384,6 +448,7 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
         <RunIntentSection runId={runId} token={token} tick={tick} canEdit={canLead} onChanged={changed} />
         <RunOwnerSection runId={runId} token={token} tick={tick} me={me} />
         <AgentTreeSection runId={runId} token={token} tick={tick} canSteer={canLead && view.joined} />
+        <ObserversSection runId={runId} token={token} tick={tick} />
       </SharedRunView>
     </AnnounceContext.Provider>
   );

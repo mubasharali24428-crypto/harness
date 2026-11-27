@@ -1,0 +1,32 @@
+{
+  "version": "x14-dry/1",
+  "note": "Frozen. Facts restate docs/decisions/* records; queries are paraphrases written before any run. Change => bump version.",
+  "facts": [
+    {"id": "du4", "entities": ["decision:D-U4", "file:docs/decisions/2026-11-13-du4-risk-tiers.md", "topic:risk-tiers"], "fact": "Risk tiers stay advisory and nothing is auto-approved until P-D6 is decided."},
+    {"id": "w31", "entities": ["decision:W31", "file:docs/decisions/2026-11-04-w31-scheduler.md", "topic:scheduler"], "fact": "The W31 allocation module is only a proposal source behind the approval boundary with no dispatch or vendoring."},
+    {"id": "hx", "entities": ["decision:hx-surface", "file:docs/decisions/2026-10-31-hx-language-surface.md", "topic:language"], "fact": "Hx is the agent workflow language; Hermes and .hms files are out of scope."},
+    {"id": "vf", "entities": ["decision:verification-first", "file:docs/decisions/2026-11-14-verification-first-default-on.md", "topic:verification"], "fact": "Verification-first mode is switched on by default."},
+    {"id": "pd2", "entities": ["decision:P-D2", "file:docs/decisions/2026-11-12-payment-rail-P-D2-DRAFT.md", "topic:billing"], "fact": "Billing stays disabled until the payment provider confirms seller eligibility."},
+    {"id": "pd7", "entities": ["decision:P-D7", "file:docs/decisions/2026-11-24-owner-register-defaults.md", "topic:multiplayer"], "fact": "The multiplayer build is deferred; design work only, no build authorization."},
+    {"id": "cd02", "entities": ["decision:CD-02", "file:docs/decisions/2026-11-24-owner-register-defaults.md", "topic:learned-memory"], "fact": "Learned memory and skills are proposals only and never applied automatically."},
+    {"id": "adapter", "entities": ["decision:adapter-v1", "file:docs/decisions/2026-11-24-external-agent-adapter.md", "topic:external-agents"], "fact": "External agents receive observer leases with empty authority; requested scope is never applied."},
+    {"id": "d01", "entities": ["decision:D-01", "file:docs/decisions/2026-11-11-d01-deployment-priority-DRAFT.md", "topic:deployment"], "fact": "Self-host first and preserve a later managed cloud option."},
+    {"id": "pd3", "entities": ["decision:P-D3", "file:docs/decisions/2026-11-11-rename-shortlist-DRAFT.md", "topic:naming"], "fact": "No public launch under the colliding product name before counsel trademark clearance."},
+    {"id": "xd1", "entities": ["decision:X-D1", "file:docs/decisions/2026-11-24-owner-register-defaults.md", "topic:approval-rendering"], "fact": "Members choose their own approval rendering and an admin may set it for a member."},
+    {"id": "d05", "entities": ["decision:D-05", "file:docs/decisions/2026-11-24-owner-register-defaults.md", "topic:planning"], "fact": "AI proposes assignments and an admin approves every assignment."}
+  ],
+  "queries": [
+    {"q": "can low risk changes get approved automatically", "expect": "du4"},
+    {"q": "is the scheduler allowed to dispatch work", "expect": "w31"},
+    {"q": "which language do agent workflows use, and what about hermes", "expect": "hx"},
+    {"q": "is verification on by default", "expect": "vf"},
+    {"q": "when will billing be turned on", "expect": "pd2"},
+    {"q": "are we building multiplayer now", "expect": "pd7"},
+    {"q": "does learned memory get applied without review", "expect": "cd02"},
+    {"q": "what authority does an external agent get", "expect": "adapter"},
+    {"q": "self hosted or cloud first", "expect": "d01"},
+    {"q": "can we launch publicly under the current name", "expect": "pd3"},
+    {"q": "who decides how approvals are rendered for a member", "expect": "xd1"},
+    {"q": "who approves task assignments", "expect": "d05"}
+  ]
+}

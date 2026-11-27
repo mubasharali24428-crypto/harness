@@ -6,7 +6,7 @@ or acting on any option requires a decision record and, for options B/C, the W28
 delegation gate plus owner approval for a contract change.
 **Recorded by:** the coding agent (post PR #19 merge, after the owner ratified
 the W31 pilot ADR).
-**Related:** [`roadmap-3.0.md`](../roadmap-3.0.md) stage 9,
+**Related:** [`roadmap-3.0.md`](../archive/roadmap-3.0.md) stage 9,
 [`m2-continuation-plan.md`](../m2-continuation-plan.md) (W32),
 [`hx-execution-architecture.md`](../hx-execution-architecture.md),
 [`agents.md`](../agents.md),
@@ -122,3 +122,8 @@ W31 ACCEPTED (2026-11-05)  →  W30 records or explicit out-of-tree ruling
 Not a plan to dispatch anything; not an approval to modify contracts; not a W28
 waiver; not a claim that execution is safe today. It is the map the owner asked
 for, to decide the next move.
+
+
+## 2026-11-24 addendum — tier proposals on runs (Sprint 2 Task 15)
+
+W31's memory-tier solver (`experiments/w31-scheduler/w31/tier_ttl.py`, schema `w31-tier-ttl/1`) is now reachable from section4 as a **proposal store only**: `POST/GET /api/v1/orchestrator/runs/{runId}/scheduler-proposals` (`section4/src/harness_orchestrator/scheduler_proposal.py`, migration 0081). It is off unless `HARNESS_SCHEDULER_PROPOSALS=1`, loads the solver by path from `HARNESS_W31_ROOT` (no vendoring, 503 when absent), is admin-only, stores the W31 validator's violations next to the proposal, and nothing reads the table to move memory or dispatch work. This seam's approval boundary is unchanged.

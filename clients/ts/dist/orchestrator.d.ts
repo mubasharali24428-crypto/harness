@@ -13,8 +13,19 @@ export interface AbandonBody {
     reason: string;
     requestId?: string | null;
 }
+/** AdapterRegistration. Required keys: agentId, capabilities, protocolVersion, pubkey. */
+export interface AdapterRegistration {
+    agentId: string;
+    capabilities: ("read_events" | "read_plan" | "propose_patch" | "comment")[];
+    maxScope?: string[];
+    protocolVersion: string;
+    pubkey: string;
+}
 /** AggregateStepOut. Required keys: seq, ts, type. */
 export interface AggregateStepOut {
+    detail?: {
+        [key: string]: unknown;
+    } | null;
     reason?: string | null;
     seq: number;
     ts: string;
@@ -24,6 +35,7 @@ export interface AggregateStepOut {
 export interface ApprovalDecision {
     approve: boolean;
     digest: string;
+    viewed_detail?: boolean | null;
 }
 /** ApprovalDigest. Required keys: digest. */
 export interface ApprovalDigest {
@@ -44,6 +56,22 @@ export interface ApprovalRequest {
 /** BlockBody. Required keys: reason. */
 export interface BlockBody {
     reason: string;
+}
+/** Brief. Required keys: goals, tasks. */
+export interface Brief {
+    acceptanceCriteria?: string[];
+    constraints?: string[];
+    goals: string[];
+    tasks: BriefTask[];
+}
+/** BriefTask. Required keys: key, title. */
+export interface BriefTask {
+    dependsOn?: string[];
+    key: string;
+    kind?: "human" | "agent";
+    preferredAssignee?: string | null;
+    requiredRole?: string | null;
+    title: string;
 }
 /** BudgetDegradedOut. */
 export interface BudgetDegradedOut {
@@ -171,6 +199,13 @@ export interface IntentBody {
     requestId?: string | null;
     scopePaths?: string[] | null;
 }
+/** Item. Required keys: bytes, hits_per_day, id. */
+export interface Item {
+    billing_approved?: boolean;
+    bytes: number;
+    hits_per_day: number;
+    id: string;
+}
 /** LeaseBody. */
 export interface LeaseBody {
     ttlSeconds?: number | null;
@@ -254,10 +289,12 @@ export interface PlanOut {
     steps?: string[];
     tests?: string[];
 }
-/** PlanProposedResponse. Required keys: plan, planId. */
+/** PlanProposedResponse. Required keys: plan, planId, runId. */
 export interface PlanProposedResponse {
     plan: PlanOut;
     planId: string;
+    projectId?: string | null;
+    runId: string;
 }
 /** PlanRejectedResponse. Required keys: audited, planId, runId, status. */
 export interface PlanRejectedResponse {
@@ -283,6 +320,10 @@ export interface PromoteBody {
     expectedVersion: number;
     reason?: string | null;
     runId?: string | null;
+}
+/** ProposalRequest. Required keys: items. */
+export interface ProposalRequest {
+    items: Item[];
 }
 /** ProposeBody. Required keys: patch. */
 export interface ProposeBody {
@@ -327,6 +368,11 @@ export interface ReadinessResponse {
 export interface ReasonBody {
     reason?: string | null;
 }
+/** Reassign. Required keys: task. */
+export interface Reassign {
+    assignee?: string | null;
+    task: string;
+}
 /** ReassignBody. Required keys: agentId. */
 export interface ReassignBody {
     agentId: string;
@@ -361,6 +407,12 @@ export interface RetryBody {
     reason?: string | null;
     requestId: string;
 }
+/** Review. Required keys: decision. */
+export interface Review {
+    decision: "approve" | "reject" | "edit";
+    note?: string | null;
+    reassign?: Reassign[];
+}
 /** ReviewBody. Required keys: decision, diffSha. */
 export interface ReviewBody {
     decision: "approved" | "rejected";
@@ -390,6 +442,7 @@ export interface RunAggregateResponse {
     budget?: BudgetDegradedOut;
     costUsd?: number | null;
     engineMode?: string | null;
+    estimatedCostUsd?: number | null;
     executing?: boolean;
     isHumanEditing?: boolean;
     lifecycle?: {
@@ -417,9 +470,13 @@ export interface RunIdStatusResponse {
 }
 /** RunItem. Required keys: id, projectId, status. */
 export interface RunItem {
+    blockedBy?: string | null;
     createdAt?: string | null;
     finishedAt?: string | null;
+    goal?: string | null;
     id: string;
+    planApproved?: boolean;
+    planId?: string | null;
     projectId: string;
     startedAt?: string | null;
     status: string;
@@ -640,6 +697,18 @@ export declare class OrchestratorClient {
     /** Put Settings
      *  PUT /api/v1/orchestrator/presence-settings */
     put_settings(body: SettingsRequest): Promise<Record<string, unknown>>;
+    /** List Versions
+     *  GET /api/v1/orchestrator/projects/{projectId}/assignment-plans */
+    list_versions(project_id: string): Promise<Record<string, unknown>>;
+    /** Create Proposal
+     *  POST /api/v1/orchestrator/projects/{projectId}/assignment-plans */
+    create_proposal(project_id: string, body: Brief): Promise<Record<string, unknown>>;
+    /** My Tasks
+     *  GET /api/v1/orchestrator/projects/{projectId}/assignment-plans/mine */
+    my_tasks(project_id: string): Promise<Record<string, unknown>>;
+    /** Review
+     *  POST /api/v1/orchestrator/projects/{projectId}/assignment-plans/{version}/review */
+    review(project_id: string, version: string, body: Review): Promise<Record<string, unknown>>;
     /** Get Readiness
      *  GET /api/v1/orchestrator/readiness */
     get_readiness(project_id?: string): Promise<ReadinessResponse>;
@@ -655,6 +724,12 @@ export declare class OrchestratorClient {
     /** Abandon Route
      *  POST /api/v1/orchestrator/runs/{runId}/abandon */
     abandon_route(run_id: string, body: AbandonBody): Promise<Record<string, unknown>>;
+    /** List Adapters
+     *  GET /api/v1/orchestrator/runs/{runId}/adapters */
+    list_adapters(run_id: string): Promise<Record<string, unknown>>;
+    /** Register Adapter
+     *  POST /api/v1/orchestrator/runs/{runId}/adapters/register */
+    register_adapter(run_id: string, body: AdapterRegistration): Promise<Record<string, unknown>>;
     /** List Agents
      *  GET /api/v1/orchestrator/runs/{runId}/agents */
     list_agents(run_id: string): Promise<Record<string, unknown>>;
@@ -817,6 +892,9 @@ export declare class OrchestratorClient {
     /** Collab Claim Leader
      *  POST /api/v1/orchestrator/runs/{runId}/leader */
     collab_claim_leader(run_id: string): Promise<Record<string, unknown>>;
+    /** Get Learned Rule
+     *  GET /api/v1/orchestrator/runs/{runId}/learned-rule */
+    get_learned_rule(run_id: string): Promise<Record<string, unknown>>;
     /** Lineage
      *  GET /api/v1/orchestrator/runs/{runId}/lineage */
     lineage(run_id: string): Promise<unknown>;
@@ -919,6 +997,12 @@ export declare class OrchestratorClient {
     /** Run Rewind
      *  POST /api/v1/orchestrator/runs/{runId}/rewind */
     run_rewind(run_id: string, body: RewindBody): Promise<Record<string, unknown>>;
+    /** Latest Proposal
+     *  GET /api/v1/orchestrator/runs/{runId}/scheduler-proposals */
+    latest_proposal(run_id: string): Promise<Record<string, unknown>>;
+    /** Create Proposal
+     *  POST /api/v1/orchestrator/runs/{runId}/scheduler-proposals */
+    create_proposal_2(run_id: string, body: ProposalRequest): Promise<Record<string, unknown>>;
     /** Collab Staged Approvals
      *  POST /api/v1/orchestrator/runs/{runId}/staged/approvals */
     collab_staged_approvals(run_id: string): Promise<Record<string, unknown>>;

@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="3.111" timestamp="2026-11-21T23:51:21.792144+05:00" hostname="users-MacBook-Pro-4.local"><testcase classname="scripts.test_spec_drift" name="test_specs_match_routes" time="3.098" /></testsuite></testsuites>

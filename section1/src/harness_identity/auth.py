@@ -207,6 +207,7 @@ async def verify_otp(session: AsyncSession, settings, email: str, code: str):
 
     from fastapi import HTTPException as _HTTPException
 
+    from .audit_emit import emit_auth_otp_locked
     from .models import LoginOtp
 
     email = email.lower().strip()
@@ -252,17 +253,35 @@ async def verify_otp(session: AsyncSession, settings, email: str, code: str):
         )
     ).scalar_one_or_none()
     if claimed is None:
-        await session.execute(_where().values(consumed_at=now))
-        await session.commit()
+        # P4 follow-up (findings ledger): the cap refusal is now recorded. The
+        # consume already committed above, so the emission rides its own commit
+        # and a failed audit write cannot un-consume the row.
+        attempts_seen = row.attempts
+        await emit_auth_otp_locked(
+            session,
+            email=email,
+            attempts=attempts_seen,
+            max_attempts=settings.otp_max_attempts,
+            reason="already_at_cap",
+        )
         raise _HTTPException(
             status_code=401,
             detail={"error": {"code": "LOCKED", "message": "too many attempts"}},
         )
 
     if row.code_hash != _hash_code(code):
-        if claimed >= settings.otp_max_attempts:
+        locked = claimed >= settings.otp_max_attempts
+        if locked:
             await session.execute(_where().values(consumed_at=now))
         await session.commit()
+        if locked:
+            await emit_auth_otp_locked(
+                session,
+                email=email,
+                attempts=claimed,
+                max_attempts=settings.otp_max_attempts,
+                reason="cap_reached",
+            )
         raise _HTTPException(
             status_code=401,
             detail={"error": {"code": "INVALID_CODE", "message": "wrong code"}},

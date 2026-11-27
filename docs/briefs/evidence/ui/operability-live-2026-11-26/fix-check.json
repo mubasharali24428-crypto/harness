@@ -1,0 +1,32 @@
+[
+  {
+    "name": "F3 receipt names you",
+    "ok": true,
+    "note": "Denied by you on Nov 26, 2026, 10:17 AM."
+  },
+  {
+    "name": "F4 focus moves to receipt",
+    "ok": true,
+    "note": "receipt|approval-ce08dbe5-885b-4ade-9c8e-9bda3cdf6521-receipt"
+  },
+  {
+    "name": "F4 confirm takes focus",
+    "ok": true,
+    "note": "Confirm removal of uilive-viewer-1126a"
+  },
+  {
+    "name": "F4 cancel returns focus to Remove",
+    "ok": true,
+    "note": "Remove uilive-viewer-1126a"
+  },
+  {
+    "name": "F5 error named, in its row, focused",
+    "ok": true,
+    "note": "{\"text\":\"Could not remove uilive-viewer-1126a: Forced test failure (500).\",\"inRow\":true,\"focused\":true}"
+  },
+  {
+    "name": "F5 row kept after failure",
+    "ok": true,
+    "note": "Remove buttons for member: 1"
+  }
+]

@@ -24,8 +24,17 @@ class AbandonBody(typing.TypedDict, total=False):
     reason: str  # required
     requestId: str | None
 
+class AdapterRegistration(typing.TypedDict, total=False):
+    """AdapterRegistration. Required keys: agentId, protocolVersion, capabilities, pubkey."""
+    agentId: str  # required
+    capabilities: list[typing.Literal['read_events', 'read_plan', 'propose_patch', 'comment']]  # required
+    maxScope: list[str]
+    protocolVersion: str  # required
+    pubkey: str  # required
+
 class AggregateStepOut(typing.TypedDict, total=False):
     """AggregateStepOut. Required keys: seq, type, ts."""
+    detail: dict[str, typing.Any] | None
     reason: str | None
     seq: int  # required
     ts: str  # required
@@ -35,6 +44,7 @@ class ApprovalDecision(typing.TypedDict, total=False):
     """ApprovalDecision. Required keys: approve, digest."""
     approve: bool  # required
     digest: str  # required
+    viewed_detail: bool | None
 
 class ApprovalDigest(typing.TypedDict, total=False):
     """ApprovalDigest. Required keys: digest."""
@@ -55,6 +65,22 @@ class ApprovalRequest(typing.TypedDict, total=False):
 class BlockBody(typing.TypedDict, total=False):
     """BlockBody. Required keys: reason."""
     reason: str  # required
+
+class Brief(typing.TypedDict, total=False):
+    """Brief. Required keys: goals, tasks."""
+    acceptanceCriteria: list[str]
+    constraints: list[str]
+    goals: list[str]  # required
+    tasks: list[BriefTask]  # required
+
+class BriefTask(typing.TypedDict, total=False):
+    """BriefTask. Required keys: key, title."""
+    dependsOn: list[str]
+    key: str  # required
+    kind: typing.Literal['human', 'agent']
+    preferredAssignee: str | None
+    requiredRole: str | None
+    title: str  # required
 
 class BudgetDegradedOut(typing.TypedDict, total=False):
     """BudgetDegradedOut."""
@@ -182,6 +208,13 @@ class IntentBody(typing.TypedDict, total=False):
     requestId: str | None
     scopePaths: list[str] | None
 
+class Item(typing.TypedDict, total=False):
+    """Item. Required keys: id, bytes, hits_per_day."""
+    billing_approved: bool
+    bytes: int  # required
+    hits_per_day: int  # required
+    id: str  # required
+
 class LeaseBody(typing.TypedDict, total=False):
     """LeaseBody."""
     ttlSeconds: int | None
@@ -266,9 +299,11 @@ class PlanOut(typing.TypedDict, total=False):
     tests: list[str]
 
 class PlanProposedResponse(typing.TypedDict, total=False):
-    """PlanProposedResponse. Required keys: planId, plan."""
+    """PlanProposedResponse. Required keys: planId, runId, plan."""
     plan: PlanOut  # required
     planId: str  # required
+    projectId: str | None
+    runId: str  # required
 
 class PlanRejectedResponse(typing.TypedDict, total=False):
     """PlanRejectedResponse. Required keys: status, audited, planId, runId."""
@@ -294,6 +329,10 @@ class PromoteBody(typing.TypedDict, total=False):
     expectedVersion: int  # required
     reason: str | None
     runId: str | None
+
+class ProposalRequest(typing.TypedDict, total=False):
+    """ProposalRequest. Required keys: items."""
+    items: list[Item]  # required
 
 class ProposeBody(typing.TypedDict, total=False):
     """ProposeBody. Required keys: patch."""
@@ -338,6 +377,11 @@ class ReasonBody(typing.TypedDict, total=False):
     """ReasonBody."""
     reason: str | None
 
+class Reassign(typing.TypedDict, total=False):
+    """Reassign. Required keys: task."""
+    assignee: str | None
+    task: str  # required
+
 class ReassignBody(typing.TypedDict, total=False):
     """ReassignBody. Required keys: agentId."""
     agentId: str  # required
@@ -372,6 +416,12 @@ class RetryBody(typing.TypedDict, total=False):
     reason: str | None
     requestId: str  # required
 
+class Review(typing.TypedDict, total=False):
+    """Review. Required keys: decision."""
+    decision: typing.Literal['approve', 'reject', 'edit']  # required
+    note: str | None
+    reassign: list[Reassign]
+
 class ReviewBody(typing.TypedDict, total=False):
     """ReviewBody. Required keys: decision, diffSha."""
     decision: typing.Literal['approved', 'rejected']  # required
@@ -401,6 +451,7 @@ class RunAggregateResponse(typing.TypedDict, total=False):
     budget: BudgetDegradedOut
     costUsd: float | None
     engineMode: str | None
+    estimatedCostUsd: float | None
     executing: bool
     isHumanEditing: bool
     lifecycle: dict[str, typing.Any] | None
@@ -422,9 +473,13 @@ class RunIdStatusResponse(typing.TypedDict, total=False):
 
 class RunItem(typing.TypedDict, total=False):
     """RunItem. Required keys: id, projectId, status."""
+    blockedBy: str | None
     createdAt: str | None
     finishedAt: str | None
+    goal: str | None
     id: str  # required
+    planApproved: bool
+    planId: str | None
     projectId: str  # required
     startedAt: str | None
     status: str  # required
@@ -727,6 +782,38 @@ class OrchestratorClient:
         _path = "/api/v1/orchestrator/presence-settings"
         return self._http.request(self.base_url, "PUT", _path, json_body=body)
 
+    def list_versions(self, project_id: str) -> dict[str, typing.Any]:
+        """List Versions
+
+        GET /api/v1/orchestrator/projects/{projectId}/assignment-plans
+        """
+        _path = f"/api/v1/orchestrator/projects/{project_id}/assignment-plans"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def create_proposal(self, project_id: str, body: Brief) -> dict[str, typing.Any]:
+        """Create Proposal
+
+        POST /api/v1/orchestrator/projects/{projectId}/assignment-plans
+        """
+        _path = f"/api/v1/orchestrator/projects/{project_id}/assignment-plans"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def my_tasks(self, project_id: str) -> dict[str, typing.Any]:
+        """My Tasks
+
+        GET /api/v1/orchestrator/projects/{projectId}/assignment-plans/mine
+        """
+        _path = f"/api/v1/orchestrator/projects/{project_id}/assignment-plans/mine"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def review(self, project_id: str, version: str, body: Review) -> dict[str, typing.Any]:
+        """Review
+
+        POST /api/v1/orchestrator/projects/{projectId}/assignment-plans/{version}/review
+        """
+        _path = f"/api/v1/orchestrator/projects/{project_id}/assignment-plans/{version}/review"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
     def get_readiness(self, project_id: str | None = None) -> ReadinessResponse:
         """Get Readiness
 
@@ -767,6 +854,22 @@ class OrchestratorClient:
         POST /api/v1/orchestrator/runs/{runId}/abandon
         """
         _path = f"/api/v1/orchestrator/runs/{run_id}/abandon"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def list_adapters(self, run_id: str) -> dict[str, typing.Any]:
+        """List Adapters
+
+        GET /api/v1/orchestrator/runs/{runId}/adapters
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/adapters"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def register_adapter(self, run_id: str, body: AdapterRegistration) -> dict[str, typing.Any]:
+        """Register Adapter
+
+        POST /api/v1/orchestrator/runs/{runId}/adapters/register
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/adapters/register"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
     def list_agents(self, run_id: str) -> dict[str, typing.Any]:
@@ -1206,6 +1309,14 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/runs/{run_id}/leader"
         return self._http.request(self.base_url, "POST", _path)
 
+    def get_learned_rule(self, run_id: str) -> dict[str, typing.Any]:
+        """Get Learned Rule
+
+        GET /api/v1/orchestrator/runs/{runId}/learned-rule
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/learned-rule"
+        return self._http.request(self.base_url, "GET", _path)
+
     def lineage(self, run_id: str) -> typing.Any:
         """Lineage
 
@@ -1480,6 +1591,22 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/runs/{run_id}/rewind"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
+    def latest_proposal(self, run_id: str) -> dict[str, typing.Any]:
+        """Latest Proposal
+
+        GET /api/v1/orchestrator/runs/{runId}/scheduler-proposals
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/scheduler-proposals"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def create_proposal_2(self, run_id: str, body: ProposalRequest) -> dict[str, typing.Any]:
+        """Create Proposal
+
+        POST /api/v1/orchestrator/runs/{runId}/scheduler-proposals
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/scheduler-proposals"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
     def collab_staged_approvals(self, run_id: str) -> dict[str, typing.Any]:
         """Collab Staged Approvals
 
@@ -1749,4 +1876,4 @@ class OrchestratorClient:
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
 
-__all__ = ["OrchestratorClient", "AbandonBody", "AggregateStepOut", "ApprovalDecision", "ApprovalDigest", "ApprovalOutcome", "ApprovalRequest", "BlockBody", "BudgetDegradedOut", "CommentBody", "CompleteBody", "CreateBody", "DecisionBody", "DeletionBody", "DemoSeedResponse", "DoneSignalRequest", "DoneSignalResponse", "EditBody", "ErrorDetail", "ErrorEnvelope", "EvidenceBody", "ExportBody", "GitStateBody", "HTTPValidationError", "HandoffDecision", "HandoffRequest", "HeartbeatRequest", "HumanEditRequest", "IntentBody", "LeaseBody", "LeaveRequest", "LimitsBody", "MergeBody", "MergedIntent", "ModerateBody", "OutputRef", "PatchOp", "PlanActionRequest", "PlanActionResponse", "PlanContent", "PlanDecisionResponse", "PlanOut", "PlanProposedResponse", "PlanRejectedResponse", "PrefsRequest", "ProgressBody", "PromoteBody", "ProposeBody", "ProposePlanGateRequest", "ProposePlanRequest", "ProposePlanResponse", "ReactBody", "ReadinessCheckOut", "ReadinessResponse", "ReasonBody", "ReassignBody", "RedirectRequest", "RejectBody", "ReportBody", "ResolveBody", "RetryBody", "ReviewBody", "ReviewFindingsOut", "RevokeBody", "RewindBody", "RunAggregateResponse", "RunIdStatusResponse", "RunItem", "RunStateResponse", "RunStatusResponse", "RunsPage", "ScopeBody", "SettingsBody", "SettingsRequest", "SpawnBody", "StartRunResponse", "SubtaskCreate", "SubtaskPatch", "TaskBody", "ToolCallBody", "TransferBody", "UnblockBody", "UpgradeCtaOut", "ValidationError", "VersionBody", "_ErrorDetail", "_ErrorEnvelope", "harness_orchestrator__control__DecideBody", "harness_orchestrator__execution__DecideBody", "harness_orchestrator__plans__DecideBody"]
+__all__ = ["OrchestratorClient", "AbandonBody", "AdapterRegistration", "AggregateStepOut", "ApprovalDecision", "ApprovalDigest", "ApprovalOutcome", "ApprovalRequest", "BlockBody", "Brief", "BriefTask", "BudgetDegradedOut", "CommentBody", "CompleteBody", "CreateBody", "DecisionBody", "DeletionBody", "DemoSeedResponse", "DoneSignalRequest", "DoneSignalResponse", "EditBody", "ErrorDetail", "ErrorEnvelope", "EvidenceBody", "ExportBody", "GitStateBody", "HTTPValidationError", "HandoffDecision", "HandoffRequest", "HeartbeatRequest", "HumanEditRequest", "IntentBody", "Item", "LeaseBody", "LeaveRequest", "LimitsBody", "MergeBody", "MergedIntent", "ModerateBody", "OutputRef", "PatchOp", "PlanActionRequest", "PlanActionResponse", "PlanContent", "PlanDecisionResponse", "PlanOut", "PlanProposedResponse", "PlanRejectedResponse", "PrefsRequest", "ProgressBody", "PromoteBody", "ProposalRequest", "ProposeBody", "ProposePlanGateRequest", "ProposePlanRequest", "ProposePlanResponse", "ReactBody", "ReadinessCheckOut", "ReadinessResponse", "ReasonBody", "Reassign", "ReassignBody", "RedirectRequest", "RejectBody", "ReportBody", "ResolveBody", "RetryBody", "Review", "ReviewBody", "ReviewFindingsOut", "RevokeBody", "RewindBody", "RunAggregateResponse", "RunIdStatusResponse", "RunItem", "RunStateResponse", "RunStatusResponse", "RunsPage", "ScopeBody", "SettingsBody", "SettingsRequest", "SpawnBody", "StartRunResponse", "SubtaskCreate", "SubtaskPatch", "TaskBody", "ToolCallBody", "TransferBody", "UnblockBody", "UpgradeCtaOut", "ValidationError", "VersionBody", "_ErrorDetail", "_ErrorEnvelope", "harness_orchestrator__control__DecideBody", "harness_orchestrator__execution__DecideBody", "harness_orchestrator__plans__DecideBody"]

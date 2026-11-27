@@ -156,6 +156,17 @@ def _make_service(factory, calls: list[str], delay: float = 0.0):
     )
 
 
+async def _until_engine_started(calls: list[str], timeout: float = 5.0) -> None:
+    """Mid-flight = the runner has recorded its call (it then sleeps ``delay``). A fixed
+    50 ms sleep raced the spawned engine task under full-suite load (2026-11-21: 2 of
+    12 full runs, 0 of 20 alone): the stop/pause landed before the engine ever ran."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while not calls:
+        assert loop.time() < deadline, "the dispatched engine never started"
+        await asyncio.sleep(0.01)
+
+
 async def _drain_publish_chain(svc, run_id: str) -> None:
     """Await the service's in-flight publish chain (M19-N1 ordering law):
     lifecycle announcements are persisted asynchronously after the RAM
@@ -197,7 +208,7 @@ async def test_resume_after_restart_redrives_paused_run_in_queue_mode(tmp_path):
         assert claim is not None and claim["run_id"] == RUN
         assert await svc_a._dispatch_claim(RUN, claim) is True
 
-        await asyncio.sleep(0.05)  # engine (0.3s) is mid-flight
+        await _until_engine_started(calls)  # engine (0.3s) is mid-flight
         await svc_a.pause_agent(RUN)  # PAUSED envelope persisted
         await _drain_publish_chain(svc_a, RUN)
         assert "paused" in await _event_types(factory, RUN)
@@ -235,7 +246,7 @@ async def test_resume_after_restart_on_done_run_stays_noop(tmp_path):
         await svc_a.bus.ensure_run(PROJECT, RUN)
         claim = await claim_next_run(factory, svc_a.worker_id, max_per_team=4)
         await svc_a._dispatch_claim(RUN, claim)
-        await asyncio.sleep(0.05)
+        await _until_engine_started(calls)
         await svc_a.stop_agent(RUN)  # DONE + stop tombstone
 
         svc_b = _make_service(factory, calls)

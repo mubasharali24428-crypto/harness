@@ -1,8 +1,8 @@
 # Roadmap 3.0 Stage 1 — trust and recovery: remaining work (R3-S1)
 
 Started 2026-10-31 at HEAD `3a2c7ad`, after Stages 0 and 3 were recorded. Scope and exit are
-the Stage 1 row of [Roadmap 3.0](roadmap-3.0.md); the work itself is W21 and W22
-([W21](m2-w21-plan.md), [W22](m2-w22-plan.md)). This file is named for the stage, not
+the Stage 1 row of [Roadmap 3.0](archive/roadmap-3.0.md); the work itself is W21 and W22
+([W21](archive/m2-w21-plan.md), [W22](archive/m2-w22-plan.md)). This file is named for the stage, not
 `m2-w25-plan.md`, because W25 is Stage 4 (the benchmark). It is a plan and record, **not** a
 readiness claim: `STATUS.md` stays NOT READY and **Stage 1's exit gate is not claimed here**.
 
@@ -20,7 +20,7 @@ where reliability is claimed.
 
 | Scope item | Record | State |
 |---|---|---|
-| Confinement per backend (W21 / M01) | [`m2-w21-plan.md`](m2-w21-plan.md), `7341d50` | `container`, `off`, `seatbelt` each PASS after the two owner decisions (secret files masked at mount; native file tools off outside the container). Known limits are in that file. |
+| Confinement per backend (W21 / M01) | [`m2-w21-plan.md`](archive/m2-w21-plan.md), `7341d50` | `container`, `off`, `seatbelt` each PASS after the two owner decisions (secret files masked at mount; native file tools off outside the container). Known limits are in that file. |
 | Worker/child cancellation, orphan cleanup, lifecycle truth | W22 drills: stop-neighbour, crash-cleanup, daemon-kill (both modes), restart | Each drill passed 3/3 in the 2026-10-31 repeat batch on image `vw23f24`, one host (Docker Desktop, macOS). |
 | Partial-write reconciliation | `w22_partial_write_drill` | 3/3 on `vw23f24`. |
 | Replay, restart | `w22_replay_overflow_drill`, `w22_restart_replay_drill` | 6/6 on `vw23f24`. |

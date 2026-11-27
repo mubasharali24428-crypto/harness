@@ -282,9 +282,29 @@ class DockerSandboxRunner(LocalSandboxRunner):
             return chunk.decode("utf-8", errors="replace")
         return str(chunk)
 
+    def _check_post_launch_forbidden(self, task: dict) -> None:
+        """G6: masks were computed at container launch; files that APPEARED
+        under a forbidden path afterwards are otherwise unmasked for the rest
+        of the task. A hash-of-paths snapshot would race; failing closed when
+        a forbidden target now exists where none did at launch is cheap and
+        conservative (the run stops; the operator sees why)."""
+        workspace = Path(task["workspace"]).resolve()
+        for raw in task.get("forbidden_paths") or []:
+            target = (workspace / raw).resolve()
+            try:
+                target.relative_to(workspace)
+            except ValueError:
+                continue
+            if target.exists():
+                raise SecurityPolicyViolationError(
+                    f"forbidden path '{raw}' exists on disk at exec time; launch-time "
+                    "masking cannot protect it — refusing to execute"
+                )
+
     async def exec(self, handle: TaskHandle, command: str):
         task, container = self._task_container(handle)
         validate_command(command, task["forbidden_paths"], cwd=str(task["workspace"]))
+        self._check_post_launch_forbidden(task)
         budget = config.default_timeout_seconds
         started = time.monotonic()
         result = await asyncio.to_thread(
@@ -316,6 +336,7 @@ class DockerSandboxRunner(LocalSandboxRunner):
     ) -> StructuredExecResult:
         task, container = self._task_container(handle)
         validate_command(command, task["forbidden_paths"], cwd=str(task["workspace"]))
+        self._check_post_launch_forbidden(task)
         budget = config.default_timeout_seconds
         started = time.perf_counter()
         try:

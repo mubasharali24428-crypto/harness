@@ -1,0 +1,11 @@
+PASS default scope is since-last
+PASS review-decide visible
+PASS no ChangeReview, never flashed
+PASS axe clean in pane (since-last, 1440)
+PASS toggle to full PR shows DiffPane + ChangeReview, no 'not available'
+PASS toggle back hides ChangeReview
+PASS revert body is { hunks: [{ path, index }] }
+PASS run switch (full navigation) re-defaults to since-last
+PASS phone 375: since-last renders, axe clean
+PASS no checkpoints -> full PR default, ChangeReview quiet, since-last disabled
+pageerrors: none

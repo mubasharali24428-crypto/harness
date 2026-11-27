@@ -7,7 +7,7 @@
 
 import * as React from "react";
 import type { RunView } from "./useRun";
-import { fileStatLabel, parseUnifiedDiff, type DiffLine } from "./previewData";
+import { fileStatLabel, parseUnifiedDiff, type DiffLine } from "./diffParse";
 import { EmptyState, ErrorState, LoadingState } from "@/components/States";
 import { Button } from "@/components/ui";
 import type { DiffComment } from "./reviewFlow";

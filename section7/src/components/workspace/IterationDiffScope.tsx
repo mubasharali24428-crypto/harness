@@ -38,6 +38,7 @@ export function IterationDiffScope({
   token,
   compact,
   onDiffScopeChange,
+  onIterationFiles,
   children,
 }: {
   projectId: string | null;
@@ -45,6 +46,12 @@ export function IterationDiffScope({
   token: string;
   compact?: boolean;
   onDiffScopeChange?: (scope: DiffScope | null) => void;
+  /**
+   * Reports the files the since-last view shows (null until the last
+   * iteration has loaded, or when there is none), so the blind-approval KPI
+   * can tell whether since-last covered the whole pull request.
+   */
+  onIterationFiles?: (files: CheckpointFile[] | null) => void;
   /** The full pull request view (DiffPane). */
   children: React.ReactNode;
 }) {
@@ -62,6 +69,14 @@ export function IterationDiffScope({
     report.current?.(scope);
   }, [scope]);
   React.useEffect(() => () => report.current?.(null), []);
+
+  const reportFiles = React.useRef(onIterationFiles);
+  reportFiles.current = onIterationFiles;
+  const shownFiles = phase.kind === "ready" && hunkError === null ? files : null;
+  React.useEffect(() => {
+    reportFiles.current?.(shownFiles);
+  }, [shownFiles]);
+  React.useEffect(() => () => reportFiles.current?.(null), []);
 
   const loadHunks = React.useCallback(
     async (sha: string) => {

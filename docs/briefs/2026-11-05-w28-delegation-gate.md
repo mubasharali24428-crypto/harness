@@ -9,7 +9,7 @@ anywhere; parent's delegated scope stays a subset of the delegating user's
 effective permissions; child ceiling ≤ parent; no user-visible surface change
 without review; no dispatch of unapproved programs.
 **Related:** [`m2-continuation-plan.md`](../m2-continuation-plan.md) (W28),
-[`roadmap-3.0.md`](../roadmap-3.0.md) stage 6,
+[`roadmap-3.0.md`](../archive/roadmap-3.0.md) stage 6,
 [`hx-execution-architecture.md`](../hx-execution-architecture.md),
 [`agents.md`](../agents.md),
 [`execution.md`](../execution.md),

@@ -12,7 +12,7 @@ export interface Command {
 
 export const NAV_COMMANDS: Command[] = [
   { id: "home", label: "New run", href: "/", key: "h", keywords: "home start goal" },
-  { id: "runs", label: "Runs", href: "/runs", key: "r", keywords: "agents tasks" },
+  { id: "runs", label: "All runs", href: "/runs", key: "r", keywords: "runs agents tasks" },
   { id: "review", label: "Review", href: "/review", key: "v", keywords: "diff approve" },
   { id: "meeting", label: "Meeting", href: "/meeting", key: "m", keywords: "plan discuss" },
   { id: "cost", label: "Cost", href: "/dashboard/cost", key: "c", keywords: "spend budget ledger" },
@@ -20,6 +20,20 @@ export const NAV_COMMANDS: Command[] = [
   { id: "settings", label: "Settings", href: "/settings", key: "s", keywords: "team keys models" },
   { id: "onboarding", label: "Get started", href: "/onboarding", key: "o", keywords: "setup checklist" },
 ];
+
+/** The sidebar's footer menu, in order. Built from NAV_COMMANDS so the menu and the palette can
+ *  never name the same page two ways (operability slice 5). */
+export const MENU_IDS = ["runs", "meeting", "cost", "settings", "onboarding"] as const;
+export const MENU: Array<Pick<Command, "href" | "label">> = MENU_IDS.map((id) => {
+  const c = NAV_COMMANDS.find((x) => x.id === id);
+  if (!c) throw new Error(`menu id ${id} has no command`);
+  return { href: c.href, label: c.label };
+});
+
+/** "g then r": the shortcut as words, for the visible hint and the accessible name. */
+export function shortcutText(c: Pick<Command, "key">): string {
+  return `g then ${c.key}`;
+}
 
 /** Pages the palette reaches without a shortcut: every settings section and the remaining routes. */
 export const SETTINGS_PAGES: Array<Pick<Command, "id" | "label" | "href" | "keywords">> = [

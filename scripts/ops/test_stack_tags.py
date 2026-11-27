@@ -199,3 +199,67 @@ def test_expected_backend_services_match_the_compose_file():
         f"  in compose but not script: {compose_services - set(EXPECTED_BACKEND_SERVICES)}\n"
         f"Update EXPECTED_BACKEND_SERVICES in stack_tags.py to match."
     )
+
+
+# ---------------------------------------------------------------- F-SEC-02
+# The owner's Mac runs harness-rc AND harness-demo together. A single
+# service-name keyed dict keeps only one stack's container per service name,
+# so a bare "Agreement: AGREE (…)" could describe the demo while the reader
+# is redeploying the RC. With multiple compose projects up, the report must
+# go per project and print no single-stack verdict. (Found 2026-11-21, P0.)
+
+def _two_stack_ps() -> str:
+    """4-field docker ps: harness-rc (vv90r6) AND harness-demo (vw24b1) up.
+
+    Both stacks expose the same service labels, so the service-name dict keeps
+    whichever row came last — the live failure mode from 2026-11-21.
+    """
+    rows = []
+    for s in EXPECTED_BACKEND_SERVICES:
+        rows.append(f"harness-rc|{s}|harness-rc-{s}-1|harness-backend:vv90r6")
+        rows.append(f"harness-demo|{s}|harness-demo-{s}-1|harness-backend:vw24b1")
+    rows.append("harness-rc|worker-daemon|harness-rc-worker-daemon-1|harness-worker-daemon:vv90r6")
+    rows.append("harness-demo|worker-daemon|harness-demo-worker-daemon-1|harness-worker-daemon:vw24b1")
+    return "\n".join(rows) + "\n"
+
+
+def test_parse_rows_keeps_both_stacks_rows():
+    rows = stack_tags.parse_rows(_two_stack_ps())
+    rc_identity = [r for r in rows if r[0] == "harness-rc" and r[1] == "identity"]
+    demo_identity = [r for r in rows if r[0] == "harness-demo" and r[1] == "identity"]
+    assert len(rc_identity) == len(demo_identity) == 1
+    assert rc_identity[0][3] == "harness-backend:vv90r6"
+    assert demo_identity[0][3] == "harness-backend:vw24b1"
+
+
+def test_parse_ps_single_stack_dict_is_last_row_wins():
+    # The compat dict keeps the demo row for every label — the exact
+    # collision that made a bare AGREE lie on 2026-11-21. stack_report never
+    # reasons on this dict; parse_rows is the source of truth.
+    parsed = parse_ps(_two_stack_ps())
+    assert parsed["identity"] == ("harness-demo-identity-1", "harness-backend:vw24b1")
+
+
+def test_two_stacks_up_report_per_project_and_no_bare_agree():
+    report = "\n".join(stack_tags.stack_report(_two_stack_ps()))
+    assert "Agreement: AGREE" not in report, (
+        "a bare AGREE is ambiguous while two compose projects run")
+    assert "Multiple compose projects running" in report
+    assert "harness-rc: 11/11 services, AGREE (vv90r6)" in report
+    assert "harness-demo: 11/11 services, AGREE (vw24b1)" in report
+
+
+def test_one_project_up_still_pronounces_the_bare_agree():
+    rows = [
+        f"harness-rc|{s}|harness-rc-{s}-1|harness-backend:vv90r6"
+        for s in EXPECTED_BACKEND_SERVICES
+    ]
+    rows.append("harness-rc|worker-daemon|harness-rc-worker-daemon-1|harness-worker-daemon:vv90r6")
+    report = "\n".join(stack_tags.stack_report("\n".join(rows) + "\n"))
+    assert "Agreement: AGREE (vv90r6)" in report
+    assert "Multiple compose projects" not in report
+
+
+def test_legacy_3_field_input_maps_to_no_project_and_still_agrees():
+    report = _report()  # the legacy canned fixture at the top of this file
+    assert "Agreement: AGREE (vw28s6)" in report

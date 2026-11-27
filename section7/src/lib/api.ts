@@ -672,10 +672,13 @@ export function getReviewData(prId: string, token: string): Promise<ReviewDto> {
   return reviewFetch(`/api/v1/reviews/${prId}`, token);
 }
 
-export function approvePr(prId: string, reviewerUserId: string, token: string): Promise<unknown> {
+/** `viewedDetail`: was the diff on screen before Approve (X-07 KPI). Omit when not measured. */
+export function approvePr(
+  prId: string, reviewerUserId: string, token: string, viewedDetail?: boolean,
+): Promise<unknown> {
   return reviewFetch(`/api/v1/reviews/${prId}/approve`, token, {
     method: "POST",
-    body: JSON.stringify({ reviewer_user_id: reviewerUserId }),
+    body: JSON.stringify({ reviewer_user_id: reviewerUserId, viewed_detail: viewedDetail }),
   });
 }
 

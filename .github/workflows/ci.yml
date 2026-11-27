@@ -543,6 +543,25 @@ jobs:
           HARNESS_TEST_PG_EXTERNAL: "1"
           HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@localhost:5499/harness
 
+  readiness-drift:
+    # G-A (security master prompt P1): the committed deploy manifest must
+    # describe HEAD's lineage and HEAD's migration set. A merged migration
+    # flips this red until the stack is redeployed and a fresh manifest is
+    # committed — exactly the deployed-equals-reviewed drift signal.
+    name: readiness drift (manifest vs HEAD)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Full history: the check asks git whether the manifest's git_head is an
+      # ancestor of HEAD. The default shallow clone (depth 1) has no such
+      # commit, so it failed with "Not a valid commit name" even when the
+      # manifest was current.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: manifest coherence [make readiness-drift]
+        run: make --no-print-directory readiness-drift
+
   security-scan:
     # Wave9-E: supply-chain + secret scanning. pip-audit is WARN-posture this
     # wave (continue-on-error); gitleaks blocks. Do not restructure existing jobs.

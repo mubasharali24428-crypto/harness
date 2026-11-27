@@ -60,6 +60,10 @@ USER root
 ENTRYPOINT ["python", "-m", "harness_orchestrator.worker_daemon"]
 
 FROM base AS worker
+# Perf-audit 2026-11-21 item 6: pytest is allow-listed but was not installed,
+# so agent test runs on Python repos could not work. Installed in the WORKER
+# stage only (the daemon never executes agent tests; it must not carry it).
+RUN pip install --no-cache-dir "pytest>=8,<9"
 # W10: headless Chromium, in the worker stage only — the daemon never renders, so
 # it must not carry the ~300 MB. Debian's chromium is used rather than Node +
 # Playwright: the worker has no Node runtime and the tool is render-and-look.

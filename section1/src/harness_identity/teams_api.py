@@ -46,6 +46,7 @@ from sqlalchemy import select, text
 
 from .audit_emit import emit_member_removed, emit_member_role_changed
 from .auth import get_principal
+from .memberships import soft_remove_seats
 from .models import Role as DbRole
 from .models import TeamMember
 from .policy import require_team_stepup
@@ -71,20 +72,27 @@ async def _find_member(
     return (
         await db.execute(
             select(TeamMember).where(
-                TeamMember.team_id == team_id, TeamMember.user_id == user_id
+                TeamMember.team_id == team_id,
+                TeamMember.user_id == user_id,
+                TeamMember.removed_at.is_(None),
             )
         )
     ).scalar_one_or_none()
 
 
 async def _count_other_admins(db, team_id: str, exclude_member_id: str) -> int:
-    """Admin seats in the team OTHER than the targeted membership row."""
+    """ACTIVE admin seats in the team OTHER than the targeted membership row.
+
+    A soft-removed admin seat (Task 42) keeps role=admin on its row for history; it must not
+    count, or the last real admin could be removed/demoted.
+    """
     rows = (
         await db.execute(
             select(TeamMember.id).where(
                 TeamMember.team_id == team_id,
                 TeamMember.role == DbRole.ADMIN,
                 TeamMember.id != exclude_member_id,
+                TeamMember.removed_at.is_(None),
             )
         )
     ).all()
@@ -127,7 +135,12 @@ async def remove_member(
     request: Request,
     principal: Annotated[Principal, Depends(get_principal)],
 ) -> None:
-    """Admin-only removal. 204 on success; foreign/unknown members 404."""
+    """Admin-only removal. 204 on success; foreign/unknown members 404.
+
+    Task 42 (D2): a SOFT removal (see memberships.py). The row stays as the FK target of the
+    member's append-only audit rows; the hard DELETE it replaces answered 500 on Postgres for
+    anyone who had ever acted. Removing an already-removed seat is the same 404 as an unknown id.
+    """
     _require_admin_of_team(principal, team_id)
     async with request.app.state.session_factory() as db:
         target = await _find_member(db, team_id, user_id)
@@ -150,14 +163,15 @@ async def remove_member(
             )
         removed_role = _role_value(target.role)  # capture BEFORE expiry-prone ops
         membership_id = str(target.id)
-        # Revoke this team's sessions BEFORE the membership row disappears:
-        # get_principal already 401s a removed member, and deleting the
-        # sessions here removes the credential itself (defense in depth).
+        # Revoke this team's sessions with the seat: get_principal and the shared
+        # bearer dependency already 401 a removed member (the seat no longer
+        # resolves by user id), and deleting the sessions here removes the
+        # credential itself (defense in depth).
         await db.execute(
             text("DELETE FROM auth_sessions WHERE user_id = :u AND team_id = :t"),
             {"u": user_id, "t": team_id},
         )
-        await db.delete(target)
+        await soft_remove_seats(db, user_id, " AND team_id = :t", {"t": team_id})
         await db.commit()
         # H-010 audit trail: the transition is the event; failure to emit must
         # never break the 204 (helpers degrade to a warning internally).

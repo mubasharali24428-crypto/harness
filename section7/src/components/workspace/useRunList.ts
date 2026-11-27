@@ -9,7 +9,7 @@ import { listProjects, type ProjectDto } from "@/lib/api";
 import { getProjectId, getToken, setProjectId } from "@/lib/auth";
 import { loadErrorMessage } from "@/lib/humanize";
 import { listRuns, type RunDto } from "../../../app/runs/runsApi";
-import { groupRuns, type GroupedRuns } from "./previewData";
+import { groupRuns, type GroupedRuns } from "./runRows";
 
 export interface RunList {
   projects: ProjectDto[];

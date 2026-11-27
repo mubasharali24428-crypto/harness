@@ -24,6 +24,8 @@ async def test_approve_records_audit_and_status(review_service, fake_audit):
     assert any(w["action"] == "review.approved" for w in fake_audit.writes), (
         "every approve must be written to the audit log"
     )
+    # X-07: the rendering the reviewer worked from is recorded (no team -> honest unknown).
+    assert fake_audit.writes[-1]["detail"]["rendering"] == "unknown"
 
 
 @pytest.mark.asyncio

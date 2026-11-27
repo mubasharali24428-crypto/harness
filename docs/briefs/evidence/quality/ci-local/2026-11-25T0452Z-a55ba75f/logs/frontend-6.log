@@ -1,0 +1,2 @@
+./scripts/sdk-gen/check_ts_dist.sh
+clients/ts dist matches a fresh build (26 tracked files).
