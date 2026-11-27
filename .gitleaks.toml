@@ -81,4 +81,8 @@ regexes = [
     # section8/tests/unit/test_pre_review.py:87,129 — truncated, non-functional
     # PEM stub asserting private-key scrubbing.
     '''MIIBOgIBAAJ''',
+    # Not covered above (full-history scan, verified 2026-11-27):
+    # redact.test.ts:18 PEM stub; test_pre_review.py:86 fake API_KEY value.
+    '''\\nMIIE\\n''',
+    '''super-secret-value-123''',
 ]

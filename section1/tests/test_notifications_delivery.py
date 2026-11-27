@@ -243,13 +243,13 @@ async def test_mail_holds_no_content_and_an_unsubscribe_link_whose_token_is_stor
         await db.commit()
     await put_prefs(client, eng, {"email": "immediate"})
     nid = await seed_item(factory, eng, kind="mention", source_kind="comment",
-                          source_id="c-1", session_id=sess["id"], count=2,
+                          source_id="cmt-src-1", session_id=sess["id"], count=2,
                           email_state="pending", email_due_at=T0)
     sender = FakeSender()
     await deliver_due(factory, T0, delivery=sender)
     mail = sender.sent[0]
     blob = mail["subject"] + mail["plain"] + mail["html"]
-    assert secret not in blob and "c-1" not in blob
+    assert secret not in blob and "cmt-src-1" not in blob
     assert mail["subject"] == "Harness: You were mentioned 2 times"
     assert f"/notifications?open={nid}" in mail["plain"]
     token = mail["plain"].split("/notifications/unsubscribe?token=")[1].split()[0]
