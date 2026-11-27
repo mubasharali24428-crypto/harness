@@ -10,11 +10,23 @@ export interface BriefTask {
   requiredRole?: string | null;
   preferredAssignee?: string | null;
   dependsOn?: string[];
+  /** 7.1 (C-01). Absent on briefs stored before 7.1. */
+  priority?: Priority | null;
+  outputs?: string[];
+  requiredCapabilities?: string[];
+}
+export type Priority = "high" | "medium" | "low";
+/** A role the project needs. Capability labels are the admin's words; they grant nothing. */
+export interface RoleSpec {
+  name: string;
+  capabilities?: string[];
 }
 export interface Brief {
   goals: string[];
   constraints: string[];
   acceptanceCriteria: string[];
+  roles?: RoleSpec[];
+  outputs?: string[];
   tasks: BriefTask[];
 }
 export interface Assignment {
@@ -26,6 +38,13 @@ export interface Assignment {
   uncertainty: "low" | "unknown";
   missingExpertise: string[];
   costEstimate: string;
+  /** 7.1 fields; absent on versions stored before 7.1. */
+  assigneeStatus?: "member" | "not_a_member" | "read_only" | "unnamed";
+  priority?: Priority | "unspecified";
+  requiredCapabilities?: string[];
+  /** Always "unverified" today: no admin-maintained capability store exists (D-07). */
+  capabilityFit?: "unverified";
+  availability?: "unknown";
 }
 export interface PlanVersion {
   version: number;
@@ -40,6 +59,8 @@ export interface MyTasks {
   version: number | null;
   acceptanceCriteria?: string[];
   tasks: { task: string; title: string; kind: string; dependsOn: string[];
+    /** 7.1: the caller's own task only. */
+    priority?: Priority | "unspecified"; outputs?: string[];
     /** C-05: per dependency key, from the approved plan graph only; no other member's text. */
     dependsOnStatus?: Record<string, "ready" | "waiting"> }[];
 }
