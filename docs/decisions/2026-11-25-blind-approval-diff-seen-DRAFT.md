@@ -1,55 +1,63 @@
-# Decision draft: what counts as "diff seen" for the blind-approval KPI
+# X-D3 — what counts as "diff seen" for the blind-approval KPI — DRAFT (unsigned)
 
-**Date:** 2026-11-25 · **Status:** APPLIED, owner-confirmable. The owner did not object to the
-recommendation; a written "confirmed" from the owner turns this from DRAFT into a decision.
-**Context:** merging `master` (R4 "since last iteration", PR 29) into PR 27 (`w28-s2-sprints1-4`,
-Task 18 / Task 32 blind-approval KPI). This was the only code conflict in that merge.
+- **Status:** DRAFT, finalized wording (2026-11-25). The rule below is **already applied in code**
+  (Task 18 / Task 32, merge of `master` into PR 27) as an engineering default. It is **not an owner
+  decision** until signed below. Nothing here enables anything.
+- **Date:** 2026-11-25 · **Related:** X-07 (approval rendering), X-08, X-D1; KPI "blind-approval rate".
+- **Origin:** the only code conflict when `master` (R4 "since last iteration", PR 29) merged into
+  `w28-s2-sprints1-4`.
 
-## The question
+## Context
 
-Task 18 (X-07) sends `diffSeen` with every Approve from the run page's review pane: true when the
-diff came on screen (IntersectionObserver, 25% visible) before the click. Section 8 counts an
-approval as blind when `viewedDetail` is `false`.
+The run page's review pane sends `diffSeen` with every Approve: true when the diff was on screen
+(IntersectionObserver, 25% visible) before the click. Section 8 counts an approval as **blind**
+when `viewedDetail` is `false`.
 
-R4 changed the Diff pane: it now opens on **"Since last iteration"** (only the newest checkpoint's
-hunks) and the reviewer switches to **"Full pull request"** on request. So: does seeing only the
-since-last hunks count as "diff seen"?
+R4 made the Diff pane open on **Since last iteration** (the newest checkpoint's hunks only), with
+**Full pull request** one switch away. A reviewer can therefore approve having seen only the newest
+hunks. The question: does that count as having seen the diff?
 
-## Rule applied
+## Options
 
-**Count "diff seen" only for a view of the whole change:**
+1. **Count only a view of the whole change (applied, recommended).** "Diff seen" is true only if
+   (a) the **Full pull request** scope was on screen, or (b) the **Since last iteration** scope
+   was on screen **and it covered every hunk of the full PR** (every PR file appears in the
+   since-last view and every PR hunk's added/removed lines appear as a hunk of the same file).
+   An empty or unloaded PR diff never counts.
+   - Consequence: an approve after seeing only the newest hunks of a multi-iteration change is
+     reported as blind. The KPI is stricter and shows a higher blind rate. A first-iteration PR,
+     where since-last equals the whole change, still counts.
+2. **Count either view.** Any diff on screen counts.
+   - Consequence: better-looking numbers; weaker claim. A reviewer can approve a large PR after
+     seeing only the last small hunk and be counted as informed.
+3. **Count the full-PR view only, even for a first iteration.**
+   - Consequence: strictest and simplest to explain, but marks honest first-iteration approvals as
+     blind and forces an extra click.
+4. **Require an explicit "I reviewed the full diff" acknowledgement instead of measuring.**
+   - Consequence: shifts from measured to self-declared; easy to click through; not comparable to
+     the existing measured KPI.
 
-1. the **Full pull request** scope was on screen, or
-2. the **Since last iteration** scope was on screen **and it covered every hunk of the full PR**
-   (every PR file is in the since-last view, and every PR hunk's added/removed lines appear as a
-   hunk of the same file; an empty or unloaded PR diff never counts).
+## Recommended default
 
-A reviewer who saw only the newest hunks of a multi-iteration change has not seen the whole
-change, so an Approve in that state reports `diffSeen: false` and counts as blind.
+Option 1, as applied. It protects the trust claim and is reversible in one place.
 
-**Why:** the KPI exists to catch approvals made without looking at the whole change. Counting the
-partial view would flatter the metric and weaken the trust claim. This is the stricter choice and
-is easy to loosen later (one function).
+## Consequences
 
-**Alternative not taken:** count either view. Better-looking numbers, weaker guarantee.
+- Code: `section7/src/lib/diffScope.ts` (`sinceLastCoversFullPr`, `diffViewCountsAsSeen`),
+  `IterationDiffScope.tsx` (`onIterationFiles`), `ReviewPane.tsx` (observer arms only while the view
+  counts). Switching to Option 2 changes `diffViewCountsAsSeen` to also return true for
+  `"since-last"`; nothing else moves.
+- Honesty limits: the signal is "on screen", not "read". A reviewer can scroll past quickly.
+  Blind rate is **UNPROVEN**: there is no pilot data. Not driven in a browser with R4 yet (unit
+  tests only: `section7/tests/unit/diffScope.test.ts`).
+- Does not change who may approve, any risk tier or any gate (P-D6 stays not enabled).
 
-## Where it lives
+## Still missing
 
-- `section7/src/lib/diffScope.ts`: `sinceLastCoversFullPr(prDiff, files)` and
-  `diffViewCountsAsSeen(scope, coversAll)`, pure; unit tests in
-  `section7/tests/unit/diffScope.test.ts`.
-- `section7/src/components/workspace/IterationDiffScope.tsx`: new optional `onIterationFiles`
-  prop reports the since-last files once loaded.
-- `section7/src/components/workspace/ReviewPane.tsx`: the observed element (`diffRef`) wraps the
-  whole `IterationDiffScope`; the observer only arms while `diffViewCountsAsSeen` is true and is
-  re-created when that flips, so switching to Full PR while the pane is already on screen is
-  measured. The wrapper carries `data-diff-counts` for browser checks.
+Owner signature. A browser run of the KPI path with R4 (owner Mac or approved cloud run), which
+this record does not claim.
 
-## Not proven yet
-
-- Unit-tested only (vitest, cloud). No browser run of the KPI path with R4 yet.
-- Blind-approval rate itself stays UNPROVEN: no pilot data.
-
-## To loosen later
-
-Change `diffViewCountsAsSeen` to return true for `"since-last"` as well. Nothing else moves.
+## Sign-off (owner only — leave blank)
+- Decision: ______________________________________
+- Signature: ____________________________________  Date: ______________
+- ACCEPTED record to be created at: `docs/decisions/______________________`
