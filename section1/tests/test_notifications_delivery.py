@@ -17,7 +17,6 @@ from tests.test_notifications_support import (
     N,
     audit_actions,
     bearer,
-    create_session,
     make_env,
     put_prefs,
     row,
@@ -231,21 +230,33 @@ async def test_mail_holds_no_content_and_an_unsubscribe_link_whose_token_is_stor
     client, factory, _, team = env
     eng = team["eng@a.io"]
     secret = "Quarterly layoffs rehearsal"
-    sess = await create_session(client, eng, title=secret)
+    # G-QUAL-1: seed the sensitive title in THIS test's database instead of going
+    # through the sessions router, so no session-module state can bleed into the
+    # mail-content assertion when the full suite runs in a different order.
+    sess = {"id": "s-mail-secret"}
+    async with factory() as db:
+        await db.execute(text(
+            "INSERT INTO collab_sessions (id, team_id, title, owner_user_id,"
+            " created_at, updated_at) VALUES (:i, :t, :title, :u, :ts, :ts)"),
+            {"i": sess["id"], "t": eng["teamId"], "title": secret,
+             "u": eng["userId"], "ts": T0})
+        await db.commit()
     await put_prefs(client, eng, {"email": "immediate"})
     nid = await seed_item(factory, eng, kind="mention", source_kind="comment",
-                          source_id="c-1", session_id=sess["id"], count=2,
+                          source_id="cmt-src-1", session_id=sess["id"], count=2,
                           email_state="pending", email_due_at=T0)
     sender = FakeSender()
     await deliver_due(factory, T0, delivery=sender)
     mail = sender.sent[0]
     blob = mail["subject"] + mail["plain"] + mail["html"]
-    assert secret not in blob and "c-1" not in blob
+    assert secret not in blob and "cmt-src-1" not in blob
     assert mail["subject"] == "Harness: You were mentioned 2 times"
     assert f"/notifications?open={nid}" in mail["plain"]
     token = mail["plain"].split("/notifications/unsubscribe?token=")[1].split()[0]
     async with factory() as db:
-        rows = (await db.execute(text("SELECT token_hash FROM notification_unsub_tokens"))).all()
+        rows = (await db.execute(text(
+            "SELECT token_hash FROM notification_unsub_tokens WHERE team_id = :t AND user_id = :u"),
+            {"t": eng["teamId"], "u": eng["userId"]})).all()
     assert [r[0] for r in rows] == [hash_token(token)] and token not in [r[0] for r in rows]
     # the link in the mail really works, once
     r = await client.post(f"{N}/unsubscribe", json={"token": token})

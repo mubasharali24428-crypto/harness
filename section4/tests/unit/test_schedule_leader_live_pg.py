@@ -22,7 +22,7 @@ pytestmark = pytest.mark.skipif(
 
 def _url() -> str:
     raw = os.environ.get("HARNESS_TEST_PG", "")
-    dsn = raw if "://" in raw else "postgresql://harness:harness@127.0.0.1:5499/harness"
+    dsn = raw if "://" in raw else (os.environ.get("HARNESS_TEST_PG_DSN") or "postgresql://harness:harness@127.0.0.1:5499/harness")
     return dsn.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 

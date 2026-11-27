@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
+import { BlindApprovalTile } from "../BlindApprovalTile";
 import { loadSession } from "@/lib/auth";
 // M13-G5b (raw-14): team name for the export filename comes from the shared
 // projects client (ProjectDto carries teamName).
@@ -136,6 +137,7 @@ export default function CostDashboardPage() {
   return (
     <AppShell active="/dashboard/cost">
       <h1>Cost</h1>
+      <BlindApprovalTile />
 
       {/* M12-G6: 7/30/90 preset chips — each drives fetchSpend's sinceDays.
           Rendered as interactive Pills (real toggle buttons, aria-pressed). */}

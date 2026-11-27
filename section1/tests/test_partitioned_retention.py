@@ -365,6 +365,25 @@ async def test_fresh_install_drift_gate_accepts_empty_db():
         await engine.dispose()
 
 
+def _pg_base_url() -> str:
+    """The server URL the scratch databases are created from (asyncpg driver).
+
+    ``make pg-probe-s1`` exports HARNESS_DATABASE_URL, but a direct
+    ``HARNESS_TEST_PG=1 pytest`` run does not; fall back the same way the other
+    live-PG suites do (HARNESS_TEST_PG as a URL, then HARNESS_TEST_PG_DSN, then
+    the local compose default on :5499) instead of dying with a KeyError.
+    """
+    url = os.environ.get("HARNESS_DATABASE_URL", "")
+    if not url.startswith("postgresql"):
+        raw = os.environ.get("HARNESS_TEST_PG", "")
+        url = raw if "://" in raw else (
+            os.environ.get("HARNESS_TEST_PG_DSN") or "postgresql://harness:harness@127.0.0.1:5499/harness")
+    scheme, sep, rest = url.partition("://")
+    if "+" not in scheme:
+        scheme = "postgresql+asyncpg"
+    return f"{scheme}{sep}{rest}"
+
+
 def _scratch_url(base_url: str, dbname: str) -> str:
     head, _, _ = base_url.rpartition("/")
     return f"{head}/{dbname}"
@@ -386,7 +405,7 @@ async def test_pg_fresh_install_partitions_end_to_end():
     sys.path.insert(0, str(RUNNERS_DIR))
     import migrate as migrate_runner
 
-    base_url = os.environ["HARNESS_DATABASE_URL"]
+    base_url = _pg_base_url()
     dbname = f"harness_n3_probe_{uuid.uuid4().hex[:8]}"
     scratch = _scratch_url(base_url, dbname)
 
@@ -480,7 +499,7 @@ async def test_pg_partition_pruning_explain_and_detach_drop():
     sys.path.insert(0, str(RUNNERS_DIR))
     import migrate as migrate_runner
 
-    base_url = os.environ["HARNESS_DATABASE_URL"]
+    base_url = _pg_base_url()
     dbname = f"harness_n3_prune_{uuid.uuid4().hex[:8]}"
     scratch = _scratch_url(base_url, dbname)
 

@@ -7,7 +7,7 @@ to change the confinement boundary or the security-review scope.
 **Decision owner:**
 
 **Recorded by:** hy4 (pure-engineering task B1; code read at HEAD `f5b298a`).
-**Related:** [`roadmap-3.0.md`](../roadmap-3.0.md),
+**Related:** [`roadmap-3.0.md`](../archive/roadmap-3.0.md),
 [`2026-11-05-intent-permissions.md`](2026-11-05-intent-permissions.md),
 [`2026-11-05-w28-child-run-approval.md`](2026-11-05-w28-child-run-approval.md)
 

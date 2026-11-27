@@ -37,9 +37,85 @@
     "title": "AbandonBody",
     "type": "object"
    },
+   "AdapterRegistration": {
+    "additionalProperties": false,
+    "properties": {
+     "agentId": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      "title": "Agentid",
+      "type": "string"
+     },
+     "capabilities": {
+      "items": {
+       "enum": [
+        "read_events",
+        "read_plan",
+        "propose_patch",
+        "comment"
+       ],
+       "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 1,
+      "title": "Capabilities",
+      "type": "array"
+     },
+     "maxScope": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 100,
+      "title": "Maxscope",
+      "type": "array"
+     },
+     "protocolVersion": {
+      "const": "1",
+      "title": "Protocolversion",
+      "type": "string"
+     },
+     "pubkey": {
+      "maxLength": 4096,
+      "minLength": 32,
+      "title": "Pubkey",
+      "type": "string"
+     }
+    },
+    "required": [
+     "agentId",
+     "protocolVersion",
+     "capabilities",
+     "pubkey"
+    ],
+    "title": "AdapterRegistration",
+    "type": "object"
+   },
    "AggregateStepOut": {
     "description": "One ordered step of the W4-C2 aggregate (agent_events summary row).",
     "properties": {
+     "detail": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "anyOf": [
+          {
+           "type": "string"
+          },
+          {
+           "type": "integer"
+          },
+          {
+           "type": "boolean"
+          }
+         ]
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Detail"
+     },
      "reason": {
       "anyOf": [
        {
@@ -83,6 +159,17 @@
       "maxLength": 64,
       "title": "Digest",
       "type": "string"
+     },
+     "viewed_detail": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Viewed Detail"
      }
     },
     "required": [
@@ -176,6 +263,123 @@
      "reason"
     ],
     "title": "BlockBody",
+    "type": "object"
+   },
+   "Brief": {
+    "additionalProperties": false,
+    "description": "C-01: goals, constraints, roles, acceptance criteria, tasks.",
+    "properties": {
+     "acceptanceCriteria": {
+      "items": {
+       "maxLength": 500,
+       "minLength": 1,
+       "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Acceptancecriteria",
+      "type": "array"
+     },
+     "constraints": {
+      "items": {
+       "maxLength": 500,
+       "minLength": 1,
+       "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Constraints",
+      "type": "array"
+     },
+     "goals": {
+      "items": {
+       "maxLength": 500,
+       "minLength": 1,
+       "type": "string"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "Goals",
+      "type": "array"
+     },
+     "tasks": {
+      "items": {
+       "$ref": "#/components/schemas/BriefTask"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Tasks",
+      "type": "array"
+     }
+    },
+    "required": [
+     "goals",
+     "tasks"
+    ],
+    "title": "Brief",
+    "type": "object"
+   },
+   "BriefTask": {
+    "additionalProperties": false,
+    "properties": {
+     "dependsOn": {
+      "items": {
+       "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+       "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Dependson",
+      "type": "array"
+     },
+     "key": {
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+      "title": "Key",
+      "type": "string"
+     },
+     "kind": {
+      "default": "human",
+      "enum": [
+       "human",
+       "agent"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "preferredAssignee": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Preferredassignee"
+     },
+     "requiredRole": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requiredrole"
+     },
+     "title": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "required": [
+     "key",
+     "title"
+    ],
+    "title": "BriefTask",
     "type": "object"
    },
    "BudgetDegradedOut": {
@@ -913,6 +1117,41 @@
     "title": "IntentBody",
     "type": "object"
    },
+   "Item": {
+    "additionalProperties": false,
+    "properties": {
+     "billing_approved": {
+      "default": false,
+      "title": "Billing Approved",
+      "type": "boolean"
+     },
+     "bytes": {
+      "exclusiveMinimum": 0.0,
+      "maximum": 1048576.0,
+      "title": "Bytes",
+      "type": "integer"
+     },
+     "hits_per_day": {
+      "maximum": 1000000.0,
+      "minimum": 0.0,
+      "title": "Hits Per Day",
+      "type": "integer"
+     },
+     "id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "bytes",
+     "hits_per_day"
+    ],
+    "title": "Item",
+    "type": "object"
+   },
    "LeaseBody": {
     "properties": {
      "ttlSeconds": {
@@ -1415,10 +1654,26 @@
      "planId": {
       "title": "Planid",
       "type": "string"
+     },
+     "projectId": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Projectid"
+     },
+     "runId": {
+      "title": "Runid",
+      "type": "string"
      }
     },
     "required": [
      "planId",
+     "runId",
      "plan"
     ],
     "title": "PlanProposedResponse",
@@ -1562,6 +1817,25 @@
      "expectedVersion"
     ],
     "title": "PromoteBody",
+    "type": "object"
+   },
+   "ProposalRequest": {
+    "additionalProperties": false,
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/Item"
+      },
+      "maxItems": 500,
+      "minItems": 1,
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items"
+    ],
+    "title": "ProposalRequest",
     "type": "object"
    },
    "ProposeBody": {
@@ -1797,6 +2071,33 @@
     "title": "ReasonBody",
     "type": "object"
    },
+   "Reassign": {
+    "additionalProperties": false,
+    "properties": {
+     "assignee": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Assignee"
+     },
+     "task": {
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+      "title": "Task",
+      "type": "string"
+     }
+    },
+    "required": [
+     "task"
+    ],
+    "title": "Reassign",
+    "type": "object"
+   },
    "ReassignBody": {
     "additionalProperties": false,
     "properties": {
@@ -1990,6 +2291,45 @@
     "title": "RetryBody",
     "type": "object"
    },
+   "Review": {
+    "additionalProperties": false,
+    "properties": {
+     "decision": {
+      "enum": [
+       "approve",
+       "reject",
+       "edit"
+      ],
+      "title": "Decision",
+      "type": "string"
+     },
+     "note": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note"
+     },
+     "reassign": {
+      "items": {
+       "$ref": "#/components/schemas/Reassign"
+      },
+      "maxItems": 50,
+      "title": "Reassign",
+      "type": "array"
+     }
+    },
+    "required": [
+     "decision"
+    ],
+    "title": "Review",
+    "type": "object"
+   },
    "ReviewBody": {
     "properties": {
      "decision": {
@@ -2136,6 +2476,17 @@
       ],
       "title": "Enginemode"
      },
+     "estimatedCostUsd": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Estimatedcostusd"
+     },
      "executing": {
       "default": false,
       "title": "Executing",
@@ -2275,6 +2626,17 @@
    "RunItem": {
     "description": "One row of the M10-C2 index payload (camelCase per api-conventions).",
     "properties": {
+     "blockedBy": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Blockedby"
+     },
      "createdAt": {
       "anyOf": [
        {
@@ -2299,9 +2661,36 @@
       ],
       "title": "Finishedat"
      },
+     "goal": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Goal"
+     },
      "id": {
       "title": "Id",
       "type": "string"
+     },
+     "planApproved": {
+      "default": false,
+      "title": "Planapproved",
+      "type": "boolean"
+     },
+     "planId": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Planid"
      },
      "projectId": {
       "title": "Projectid",
@@ -3881,7 +4270,7 @@
   },
   "/api/v1/orchestrator/plans": {
    "post": {
-    "description": "{goal} \u2192 201 {planId, plan}. Mints a fresh run + plan, leaves the run at\nAWAITING_PLAN_APPROVAL via sm.plan_proposed() (state_machine vocabulary).",
+    "description": "{goal} \u2192 201 {planId, runId, projectId, plan}. Mints a fresh run + plan, leaves the run at\nAWAITING_PLAN_APPROVAL via sm.plan_proposed() (state_machine vocabulary).",
     "operationId": "propose_plan_api_v1_orchestrator_plans_post",
     "requestBody": {
      "content": {
@@ -4149,6 +4538,210 @@
     "summary": "Put Settings",
     "tags": [
      "presence"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/projects/{projectId}/assignment-plans": {
+   "get": {
+    "operationId": "list_versions_api_v1_orchestrator_projects__projectId__assignment_plans_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "projectId",
+      "required": true,
+      "schema": {
+       "title": "Projectid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Versions Api V1 Orchestrator Projects  Projectid  Assignment Plans Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Versions",
+    "tags": [
+     "assignment-plans"
+    ]
+   },
+   "post": {
+    "operationId": "create_proposal_api_v1_orchestrator_projects__projectId__assignment_plans_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "projectId",
+      "required": true,
+      "schema": {
+       "title": "Projectid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Brief"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Proposal Api V1 Orchestrator Projects  Projectid  Assignment Plans Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Proposal",
+    "tags": [
+     "assignment-plans"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/projects/{projectId}/assignment-plans/mine": {
+   "get": {
+    "description": "C-04: the caller's tasks from the latest APPROVED version; nothing about anyone else's.",
+    "operationId": "my_tasks_api_v1_orchestrator_projects__projectId__assignment_plans_mine_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "projectId",
+      "required": true,
+      "schema": {
+       "title": "Projectid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response My Tasks Api V1 Orchestrator Projects  Projectid  Assignment Plans Mine Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "My Tasks",
+    "tags": [
+     "assignment-plans"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/projects/{projectId}/assignment-plans/{version}/review": {
+   "post": {
+    "operationId": "review_api_v1_orchestrator_projects__projectId__assignment_plans__version__review_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "projectId",
+      "required": true,
+      "schema": {
+       "title": "Projectid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "version",
+      "required": true,
+      "schema": {
+       "title": "Version",
+       "type": "integer"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Review"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Api V1 Orchestrator Projects  Projectid  Assignment Plans  Version  Review Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review",
+    "tags": [
+     "assignment-plans"
     ]
    }
   },
@@ -4459,6 +5052,104 @@
     "summary": "Abandon Route",
     "tags": [
      "execution"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/adapters": {
+   "get": {
+    "operationId": "list_adapters_api_v1_orchestrator_runs__runId__adapters_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Adapters Api V1 Orchestrator Runs  Runid  Adapters Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Adapters",
+    "tags": [
+     "adapters"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/adapters/register": {
+   "post": {
+    "operationId": "register_adapter_api_v1_orchestrator_runs__runId__adapters_register_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AdapterRegistration"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Register Adapter Api V1 Orchestrator Runs  Runid  Adapters Register Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Register Adapter",
+    "tags": [
+     "adapters"
     ]
    }
   },
@@ -7546,6 +8237,51 @@
     ]
    }
   },
+  "/api/v1/orchestrator/runs/{runId}/learned-rule": {
+   "get": {
+    "description": "I-08 (Sprint 5 Task 37): the project rule a denial stop suggested, read-only.\n\n``{offer: {failureClass, paths, suggestedRule, recordedAt, status: \"proposed\"} | null,\nsimilarCases: [...]}``. A proposal only (CD-02): saving it is the human PUT on the\nproject rules API. Any team member who can read the run can read its lesson; foreign\nand unknown runs answer the same 404 as every other run read.",
+    "operationId": "get_learned_rule_api_v1_orchestrator_runs__runId__learned_rule_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Learned Rule Api V1 Orchestrator Runs  Runid  Learned Rule Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Learned Rule",
+    "tags": [
+     "orchestrator"
+    ]
+   }
+  },
   "/api/v1/orchestrator/runs/{runId}/lineage": {
    "get": {
     "description": "Task request -> plan versions -> changes -> review -> accepted completion -> merge\napproval, plus the artifacts. Built from the tables of those stages; a stage whose table is\nnot deployed or has no row is listed under ``missing``, never invented.",
@@ -9362,6 +10098,102 @@
     "summary": "Run Rewind",
     "tags": [
      "execution"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/scheduler-proposals": {
+   "get": {
+    "operationId": "latest_proposal_api_v1_orchestrator_runs__runId__scheduler_proposals_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Latest Proposal Api V1 Orchestrator Runs  Runid  Scheduler Proposals Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Latest Proposal",
+    "tags": [
+     "scheduler-proposals"
+    ]
+   },
+   "post": {
+    "operationId": "create_proposal_api_v1_orchestrator_runs__runId__scheduler_proposals_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ProposalRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Proposal Api V1 Orchestrator Runs  Runid  Scheduler Proposals Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Proposal",
+    "tags": [
+     "scheduler-proposals"
     ]
    }
   },

@@ -112,6 +112,30 @@ export class OrchestratorClient {
         const _path = `/api/v1/orchestrator/presence-settings`;
         return this.http.request(this.baseUrl, _path, "PUT", body);
     }
+    /** List Versions
+     *  GET /api/v1/orchestrator/projects/{projectId}/assignment-plans */
+    list_versions(project_id) {
+        const _path = `/api/v1/orchestrator/projects/${encodeURIComponent(project_id)}/assignment-plans`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
+    /** Create Proposal
+     *  POST /api/v1/orchestrator/projects/{projectId}/assignment-plans */
+    create_proposal(project_id, body) {
+        const _path = `/api/v1/orchestrator/projects/${encodeURIComponent(project_id)}/assignment-plans`;
+        return this.http.request(this.baseUrl, _path, "POST", body);
+    }
+    /** My Tasks
+     *  GET /api/v1/orchestrator/projects/{projectId}/assignment-plans/mine */
+    my_tasks(project_id) {
+        const _path = `/api/v1/orchestrator/projects/${encodeURIComponent(project_id)}/assignment-plans/mine`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
+    /** Review
+     *  POST /api/v1/orchestrator/projects/{projectId}/assignment-plans/{version}/review */
+    review(project_id, version, body) {
+        const _path = `/api/v1/orchestrator/projects/${encodeURIComponent(project_id)}/assignment-plans/${encodeURIComponent(version)}/review`;
+        return this.http.request(this.baseUrl, _path, "POST", body);
+    }
     /** Get Readiness
      *  GET /api/v1/orchestrator/readiness */
     get_readiness(project_id) {
@@ -142,6 +166,18 @@ export class OrchestratorClient {
      *  POST /api/v1/orchestrator/runs/{runId}/abandon */
     abandon_route(run_id, body) {
         const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/abandon`;
+        return this.http.request(this.baseUrl, _path, "POST", body);
+    }
+    /** List Adapters
+     *  GET /api/v1/orchestrator/runs/{runId}/adapters */
+    list_adapters(run_id) {
+        const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/adapters`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
+    /** Register Adapter
+     *  POST /api/v1/orchestrator/runs/{runId}/adapters/register */
+    register_adapter(run_id, body) {
+        const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/adapters/register`;
         return this.http.request(this.baseUrl, _path, "POST", body);
     }
     /** List Agents
@@ -473,6 +509,12 @@ export class OrchestratorClient {
         const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/leader`;
         return this.http.request(this.baseUrl, _path, "POST", undefined);
     }
+    /** Get Learned Rule
+     *  GET /api/v1/orchestrator/runs/{runId}/learned-rule */
+    get_learned_rule(run_id) {
+        const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/learned-rule`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
     /** Lineage
      *  GET /api/v1/orchestrator/runs/{runId}/lineage */
     lineage(run_id) {
@@ -677,6 +719,18 @@ export class OrchestratorClient {
      *  POST /api/v1/orchestrator/runs/{runId}/rewind */
     run_rewind(run_id, body) {
         const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/rewind`;
+        return this.http.request(this.baseUrl, _path, "POST", body);
+    }
+    /** Latest Proposal
+     *  GET /api/v1/orchestrator/runs/{runId}/scheduler-proposals */
+    latest_proposal(run_id) {
+        const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/scheduler-proposals`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
+    /** Create Proposal
+     *  POST /api/v1/orchestrator/runs/{runId}/scheduler-proposals */
+    create_proposal_2(run_id, body) {
+        const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/scheduler-proposals`;
         return this.http.request(this.baseUrl, _path, "POST", body);
     }
     /** Collab Staged Approvals
@@ -885,12 +939,15 @@ export class OrchestratorClient {
 /* Module surface (mirrors __all__ in clients/python):
  * export class OrchestratorClient
  * export interface/type AbandonBody
+ * export interface/type AdapterRegistration
  * export interface/type AggregateStepOut
  * export interface/type ApprovalDecision
  * export interface/type ApprovalDigest
  * export interface/type ApprovalOutcome
  * export interface/type ApprovalRequest
  * export interface/type BlockBody
+ * export interface/type Brief
+ * export interface/type BriefTask
  * export interface/type BudgetDegradedOut
  * export interface/type CommentBody
  * export interface/type CompleteBody
@@ -912,6 +969,7 @@ export class OrchestratorClient {
  * export interface/type HeartbeatRequest
  * export interface/type HumanEditRequest
  * export interface/type IntentBody
+ * export interface/type Item
  * export interface/type LeaseBody
  * export interface/type LeaveRequest
  * export interface/type LimitsBody
@@ -930,6 +988,7 @@ export class OrchestratorClient {
  * export interface/type PrefsRequest
  * export interface/type ProgressBody
  * export interface/type PromoteBody
+ * export interface/type ProposalRequest
  * export interface/type ProposeBody
  * export interface/type ProposePlanGateRequest
  * export interface/type ProposePlanRequest
@@ -938,12 +997,14 @@ export class OrchestratorClient {
  * export interface/type ReadinessCheckOut
  * export interface/type ReadinessResponse
  * export interface/type ReasonBody
+ * export interface/type Reassign
  * export interface/type ReassignBody
  * export interface/type RedirectRequest
  * export interface/type RejectBody
  * export interface/type ReportBody
  * export interface/type ResolveBody
  * export interface/type RetryBody
+ * export interface/type Review
  * export interface/type ReviewBody
  * export interface/type ReviewFindingsOut
  * export interface/type RevokeBody

@@ -1,0 +1,11 @@
+
+Running 5 tests using 1 worker
+
+[1/5] [chromium] › e2e/invite-revoke-live.e2e.ts:30:5 › live B-09: invite engineer + viewer, revoke a third invite, remove the engineer
+[2/5] [chromium] › e2e/r4-since-last-iteration.e2e.ts:103:7 › R4 since last iteration › the Diff pane opens on the last iteration, with the decision and no snapshot history
+[3/5] [chromium] › e2e/r4-since-last-iteration.e2e.ts:117:7 › R4 since last iteration › the toggle switches to the full pull request and back
+[4/5] [chromium] › e2e/r4-since-last-iteration.e2e.ts:135:7 › R4 since last iteration › a hunk revert sends only { path, index }
+[5/5] [chromium] › e2e/r4-since-last-iteration.e2e.ts:148:7 › R4 since last iteration › switching runs starts again on since-last
+  1 skipped
+  4 passed (7.3s)
+playwright exit=0

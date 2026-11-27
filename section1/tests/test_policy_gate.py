@@ -94,6 +94,15 @@ def test_classification_examples():
     assert c("GET", "/api/v1/no-such-route") is None
 
 
+def test_rendering_preference_is_self_service_and_admin_for_others():
+    c = lambda m, p: classify(IDENTITY_RULES, m, p)  # noqa: E731
+    # X-07/X-D1: every role (guest included) may read and set its OWN rendering;
+    # setting another member's rendering stays on the admin-only teams door.
+    assert c("GET", "/api/v1/me/rendering") == "read"
+    assert c("PUT", "/api/v1/me/rendering") == "read"
+    assert c("PUT", "/api/v1/teams/t1/members/u1/rendering") == "administer"
+
+
 async def test_unlinked_team_is_untouched(env):
     h, _ = await login(env, "solo")
     assert (await env.get("/api/v1/audit", headers=h)).status_code == 200

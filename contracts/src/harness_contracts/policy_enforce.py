@@ -59,6 +59,13 @@ IDENTITY_RULES: tuple[tuple[str, str, str], ...] = (
     ("*", r"/api/v1/stepup/verify", EXEMPT),
     ("POST", r"/api/v1/ws-ticket", "read"),
     ("GET", r"/api/v1/me", "read"),
+    # X-07 (10X Wave B): a member's own approval-rendering preference is
+    # self-service presentation state (every role, guest included) — it never
+    # changes what the policy engine discloses or gates. The write carries the
+    # same "read" door as DELETE /orgs/me/identity: it only touches the caller's
+    # own row. The admin door for another member is the teams/members rule below.
+    ("GET", r"/api/v1/me/rendering", "read"),
+    ("PUT", r"/api/v1/me/rendering", "read"),
     ("GET", r"/api/v1/audit", "administer"),
     ("GET", r"/api/v1/audit/export", "export"),
     # Marathon 2.0 W16 slice 4: asking whether the hash chain still verifies is

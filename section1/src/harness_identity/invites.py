@@ -126,6 +126,10 @@ class MemberItem(BaseModel):
     """M13-G5a typing island: one roster row (camelCase per api-conventions)."""
 
     id: str
+    # D3: the user id (NOT the membership id) — the roster mutation routes
+    # DELETE/PATCH /teams/{id}/members/{userId} key on it. Null for non-human
+    # (agent) memberships that have no user row.
+    userId: str | None = None
     displayName: str | None = None
     email: str | None = None
     memberType: str | None = None
@@ -252,7 +256,9 @@ async def list_members(
                 await db.execute(
                     select(TeamMember, User)
                     .outerjoin(User, TeamMember.user_id == User.id)
-                    .where(TeamMember.team_id == team_id)
+                    # Task 42 (D2): soft-removed seats stay as audit FK targets
+                    # but are not members; the roster lists active seats only.
+                    .where(TeamMember.team_id == team_id, TeamMember.removed_at.is_(None))
                     .order_by(TeamMember.created_at)
                 )
             )
@@ -262,6 +268,7 @@ async def list_members(
             "items": [
                 {
                     "id": m.id,
+                    "userId": m.user_id,
                     "displayName": m.display_name,
                     "email": u.email if u is not None else None,
                     "memberType": m.member_type,

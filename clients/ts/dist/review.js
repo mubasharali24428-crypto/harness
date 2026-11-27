@@ -7,6 +7,12 @@ export class ReviewClient {
         this.http = http;
         this.baseUrl = baseUrl;
     }
+    /** Blind Approval
+     *  GET /api/v1/review-kpi/blind-approval */
+    blind_approval() {
+        const _path = `/api/v1/review-kpi/blind-approval`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
     /** Get Reviewer Threshold Settings
      *  GET /api/v1/reviews/settings/thresholds */
     get_reviewer_threshold_settings() {

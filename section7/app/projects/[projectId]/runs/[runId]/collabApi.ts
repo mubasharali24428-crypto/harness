@@ -16,6 +16,17 @@ export interface Roster {
   leader: string | null;
   pendingHandoff: { id: string; from: string; to: string } | null;
 }
+import type { DecisionGrid } from "./decisionGrid";
+
+/** Task 14: similar earlier denial cases for this run's team (max 3, read-only). */
+export interface SimilarCase {
+  caseId: string;
+  runId: string;
+  outcome: string;
+  score: number;
+  suggestedRule: string | null;
+}
+
 export interface Approval {
   id: string;
   runId: string;
@@ -31,7 +42,35 @@ export interface Approval {
   amendedAfterApproval?: boolean; // the approvals list only: pending because an amend voided an approval
   outcome: string | null;
   expiresAt: string;
+  /** X-07/X-21 presentation of the same facts (server templates); technical fields stay authoritative. */
+  plain?: string;
+  decisionGrid?: DecisionGrid;
+  /** X-08: policy-table tier (always computed server-side). */
+  riskTier?: string;
+  /** X-08: present only when HARNESS_RISK_ENVELOPES=1; advisory, never approves (P-D6 off). */
+  envelope?: { tier: string; advisory: true; autoApprove: false };
+  /** Task 14: read-only, team-scoped lesson from earlier denial stops. */
+  similarCases?: SimilarCase[];
 }
+/** Task 18: stored W31 memory-tier proposal (read-only; flag-gated server-side). */
+export interface SchedulerProposal {
+  runId: string;
+  schema: string;
+  proposal: {
+    schema?: string;
+    status?: string;
+    proposalOnly?: boolean;
+    requiresHumanApproval?: boolean;
+    placements: { id: string; tier: string; ttl_hours: number | null }[];
+  };
+  violations: string[];
+  valid: boolean;
+  proposalOnly: boolean;
+  requiresHumanApproval: boolean;
+  createdBy: string;
+}
+export interface SchedulerProposalResponse { runId: string; latest: SchedulerProposal | null }
+
 export interface CollabEvent {
   seq: number;
   actor: string;
@@ -90,11 +129,18 @@ export const decideHandoff = (runId: string, t: string, handoffId: string, accep
   post<unknown>(`${root(runId)}/handoff/${encodeURIComponent(handoffId)}`, t, { accept });
 export const listApprovals = (runId: string, t: string) =>
   call<{ approvals: Approval[] }>(`${root(runId)}/approvals`, t);
+/** Task 18: read-only. 404 FEATURE_OFF / 403 non-admin / 503 no solver are caught by the panel. */
+export const getSchedulerProposal = (runId: string, t: string) =>
+  call<SchedulerProposalResponse>(`${root(runId)}/scheduler-proposals`, t);
 /** The approver echoes the digest they reviewed; a changed proposal is refused (409). */
-export const decideApproval = (runId: string, t: string, a: Approval, approve: boolean) =>
+/** `viewedDetail` is the X-07 KPI signal (25% IntersectionObserver on the diff). Omit when
+ * the proposal has no diff or the client did not measure; the server may ignore it today. */
+export const decideApproval = (runId: string, t: string, a: Approval, approve: boolean,
+                               viewedDetail?: boolean) =>
   post<Approval>(`${root(runId)}/approvals/${encodeURIComponent(a.id)}/decision`, t, {
     approve,
     digest: a.digest,
+    ...(viewedDetail === undefined ? {} : { viewed_detail: viewedDetail }),
   });
 
 /** Apply exactly the approved staged digest; approval alone does not land files. */

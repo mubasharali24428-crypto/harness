@@ -72,12 +72,28 @@ def urllib_http(base_url: str):
     return call
 
 
+def _load_sanitize_environment():
+    """Load policy.sanitize_environment by path (the gate trio is path-loaded)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "harness_gate_policy", HERE / "policy.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.sanitize_environment
+
+
 def subprocess_gate(req: dict, tick) -> dict:
     """Run one command through ``shell_gate.py`` in its own process; ``tick`` is polled
     about once a second and returns True to cancel (the gate then kills the command group)."""
+    # G2 (p04-sandbox-review §5): the gate process inherited the runner's full
+    # environment, so on Linux /proc/<gate-pid>/environ exposed the runner
+    # token to confined code (the gate's CHILD was already sanitized; the gate
+    # process itself was the leak). The gate needs PATH/HOME basics only.
     proc = subprocess.Popen(
         [sys.executable, "-I", str(HERE / "shell_gate.py")],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        env=_load_sanitize_environment()(os.environ),
         start_new_session=True,
     )
     payload: str | None = json.dumps(req)

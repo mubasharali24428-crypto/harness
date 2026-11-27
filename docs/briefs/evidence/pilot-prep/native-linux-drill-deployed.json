@@ -1,0 +1,51 @@
+{
+  "drill": "native-linux-deployed-gate (S-01 re-drill + G2 canary on the deployed tag)",
+  "executedAt": "20261122T033721Z",
+  "image": "harness-backend:vv90r6",
+  "imageId": "sha256:b7f41c773f4a05bb9a857987e582c8625beaa2b7869278174bd780ca0b43b855",
+  "manifestMatch": true,
+  "landlockAbiUsableInContainer": true,
+  "host": "macOS Docker Desktop \u2014 kernel is the Docker Desktop Linux VM (linuxkit), NOT bare metal; the CI native (ubuntu) row stays owed until F-SEC-01 billing is fixed",
+  "filesystemNote": "workspace/sibling//etc/ssh canaries on docker volumes (VM-native ext4), never macOS virtiofs bind mounts \u2014 Landlock cannot mediate virtiofs, which is why this variant exists",
+  "checks": {
+    "unconfinedControlsReadCanaries": {
+      "ok": true,
+      "detail": "sibling + /etc/ssh canaries read by an unconfined process; denials below are attributable to the boundary"
+    },
+    "toolWriteThroughShellGate": {
+      "ok": true,
+      "raw": "{\"exitCode\": 0, \"output\": \"\"}",
+      "detail": "engine_ok.txt written by the confined child, content verified on the volume"
+    },
+    "workspaceReadStillWorks": {
+      "ok": true,
+      "raw": "engine ok"
+    },
+    "siblingReadDenied": {
+      "ok": true,
+      "raw": "{\"exitCode\": 1, \"output\": \"Traceback (most recent call last):\\n  File \\\"<string>\\\", line 1, in <module>\\n    print(open('/sibling/data.txt').read())\\n          ~~~~^^^^^^^^^^^^^^^^^^^^^\\nPermissionError: [Errno 13] Permission denied: '/sibling/data.txt'\\n\"}",
+      "detail": "sibling mounted read-WRITE; only Landlock could stop the read"
+    },
+    "outsideWriteDenied": {
+      "ok": true,
+      "raw": "{\"exitCode\": 1, \"output\": \"Traceback (most recent call last):\\n  File \\\"<string>\\\", line 1, in <module>\\n    open('/tmp/native-drill-escape.txt','w').write('x')\\n    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\nPermissionError: [Errno 13] Permission denied: '/tmp/native-drill-escape.txt'\\n\"}",
+      "detail": "/tmp write refused by Landlock (boundary installed, not just a read deny)"
+    },
+    "credentialDirCanaryDenied": {
+      "ok": false,
+      "raw": "{\"exitCode\": 0, \"output\": \"CANARY\\n\\n\"}",
+      "detail": "CANARY LEAKED \u2014 this image predates the P2 G2 fix (188fef36): deployed confinement.py has no CREDENTIAL_DENIES and the gate lacks _sanitize_own_environment; the fix is at HEAD and reaches the deployed set only on the next redeploy"
+    },
+    "etcControlStillReads": {
+      "ok": true,
+      "raw": "{\"exitCode\": 0, \"output\": \"203cee6d6db4\\n\"}",
+      "detail": "deny is cred-dir only, /etc stays readable"
+    }
+  },
+  "result": "pass-with-drift-finding",
+  "notes": [
+    "Same four checks as scripts/native_linux_drill.sh plus the G2 canary pair.",
+    "Image digest verified against 90day/image-manifest-vv90r6-deployed.json before running.",
+    "This certifies the deployed gate's Linux boundary, not the whole product."
+  ]
+}

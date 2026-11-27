@@ -4,7 +4,7 @@
 **Status:** Direction ACCEPTED by the decision owner (Mubashar Ali, in session). The tier boundaries and
 time estimates below are the reviewer's estimates, not measurements; the tier A test is not yet run.
 **Related:** [`engine-concurrency.md`](../engine-concurrency.md), [`pool-math.md`](../pool-math.md),
-[`roadmap-3.0.md`](../roadmap-3.0.md), [`2026-11-05-w28-child-run-approval.md`](2026-11-05-w28-child-run-approval.md)
+[`roadmap-3.0.md`](../archive/roadmap-3.0.md), [`2026-11-05-w28-child-run-approval.md`](2026-11-05-w28-child-run-approval.md)
 
 ## Question
 How many simultaneous runs per team must Harness support, and how much engineering do we spend on it now?

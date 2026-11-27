@@ -13,7 +13,7 @@ import { ErrorState, LoadingState } from "@/components/States";
 import { useRun } from "@/components/workspace/useRun";
 import { DiffPane } from "@/components/workspace/DiffPane";
 import { RunEvidence } from "@/components/workspace/RunEvidence";
-import { runRowTitle } from "@/components/workspace/previewData";
+import { runRowTitle } from "@/components/workspace/runRows";
 import { reviewVerdictFacts } from "../../../../../review/verdictCard";
 import { stateLabel } from "../../../../../runs/runsApi";
 

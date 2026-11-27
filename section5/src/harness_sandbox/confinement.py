@@ -159,9 +159,13 @@ def seatbelt_profile(
     # Sibling isolation is expressed as per-task denies, NOT deny-parent +
     # re-allow-own: SBPL's path precedence lets a later deny of a child be
     # defeated by that re-allow pair, which silently re-opened forbidden dirs.
+    # G2: credential trees are denied outright, on every profile, whether or
+    # not per-task denies exist (same SBPL caveat as below: deny of a subtree
+    # under an allow pair — file-read-data deny wins for reads under it).
+    cred_denies = [d for d in _credential_deny_paths()]
     isolation = "".join(
         f'(deny file-read-data (subpath "{Path(d).resolve()}"))\n'
-        for d in (denied_task_dirs or ())
+        for d in (*cred_denies, *(denied_task_dirs or ()))
     )
     network = "(allow network*)\n(allow system-socket)" if allow_network else "(deny network*)"
     return (
@@ -269,6 +273,35 @@ _LINUX_READ_ROOTS: tuple[str, ...] = (
 )
 
 
+# G2 (p04-sandbox-review §5): credential material the read allow-list must
+# never expose, even when a granted root contains it (HOME, /etc, /run).
+# Seatbelt expresses these as per-path file-read-data denies; Landlock as
+# path-beneath subtracts from every granted root (a rule on a subtree narrows
+# the parent's rule). "~" expands from the environment's HOME at build time.
+CREDENTIAL_DENIES: tuple[str, ...] = (
+    "~/.ssh",
+    "~/.aws",
+    "~/.config/gh",
+    "~/.gnupg",
+    "~/Library/Keychains",
+    "/etc/ssh",
+    "/etc/kubernetes",
+    "/run/secrets",
+    "/var/run/secrets",
+)
+
+
+def _credential_deny_paths() -> list[Path]:
+    """Existing credential trees on this host, resolved (missing ones skipped)."""
+    home = os.environ.get("HOME")
+    out: list[Path] = []
+    for raw in CREDENTIAL_DENIES:
+        expanded = Path(raw.replace("~", home)) if (raw.startswith("~") and home) else Path(raw)
+        if expanded.exists():
+            out.append(_resolved(expanded))
+    return out
+
+
 def _resolved(path: Path) -> Path:
     """Absolute + symlink-resolved path; tolerant of a missing target."""
     try:
@@ -328,6 +361,8 @@ def landlock_read_allowlist(
         denies.append(
             _resolved(candidate if candidate.is_absolute() else ws / candidate)
         )
+    # G2: credential trees are unreadable even inside a granted root.
+    denies.extend(_credential_deny_paths())
 
     roots: list[Path] = [ws]
     if tmpdir is not None:
@@ -469,6 +504,11 @@ _LANDLOCK_EXEC = (
     "spec.loader.exec_module(module)\n"
     "_writes = json.loads(sys.argv[5])\n"
     "_roots = module.exec_read_roots(sys.argv[6])\n"
+    "# G2: the parent's /proc/<ppid>/environ is NOT denied here — denying\n"
+    "# beneath /proc forces per-child enumeration (proc/<pid>/cwd stats EPERM\n"
+    "# for other owners) and breaks the ruleset build. The leak is closed at\n"
+    "# the source instead: byo_runner spawns the gate with a sanitized env, so\n"
+    "# the gate process carries no token for a confined child to read.\n"
     "module.apply_landlock_in_child(\n"
     "    Path(sys.argv[2]), sys.argv[3] == '1', Path(sys.argv[4]), None, _roots,\n"
     "    None if _writes is None else [Path(p) for p in _writes],\n"

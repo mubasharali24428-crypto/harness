@@ -1,0 +1,17 @@
+{
+  "drill": "shell-gate bulk fuzz (G-B, P2)",
+  "executedAt": "2026-11-21T19:13:01Z",
+  "gate": "/Users/user/untitled folder 2/harness/section5/src/harness_sandbox/shell_gate.py",
+  "cases": 100000,
+  "seed": 20261121,
+  "host": "darwin",
+  "allowed": 22412,
+  "verdictCodes": {
+    "COMMAND_REFUSED": 60935,
+    "OUT_OF_SCOPE": 16653,
+    "EXECUTED": 22412
+  },
+  "violations": [],
+  "violationCount": 0,
+  "invariant": "an executed command's output never contains the out-of-scope canary or the forbidden .env content"
+}

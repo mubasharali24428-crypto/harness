@@ -43,7 +43,22 @@ function durationOf(detail: Record<string, string | number | boolean> | null | u
   return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
 }
 
-function StepBlock({
+/** Operability slice 2: every step is a receipt (what, when, outcome). The outcome is words in
+ *  the markup, never only a colour, so a failed step reads as failed to everyone. */
+export function outcomeLabel(status: string): string {
+  switch (status) {
+    case "failed":
+      return "Failed";
+    case "ok":
+      return "Succeeded";
+    case "running":
+      return "In progress";
+    default:
+      return "Recorded";
+  }
+}
+
+export function StepBlock({
   label,
   receipt,
   ts,
@@ -63,12 +78,21 @@ function StepBlock({
   children?: React.ReactNode;
 }) {
   return (
-    <details className={`ws-step ${status}`} open={open}>
+    <details className={`ws-step ${status}`} open={open} data-outcome={status}>
       <summary className="ws-step-line">
         {blockLine(label, receipt, durationMs)}
+        {status === "failed" || status === "running" ? (
+          <span className="ws-step-outcome" data-outcome={status}>{outcomeLabel(status)}</span>
+        ) : (
+          <span className="sr-only">, {outcomeLabel(status)}</span>
+        )}
         <span className="ws-step-ts">{ts ? formatTimestamp(ts).split(",").pop()?.trim() : ""}</span>
       </summary>
       <div className="ws-step-receipt">
+        <p>
+          <span className="ws-receipt-key">What</span> {label}
+          {receipt ? `: ${receipt}` : ""}
+        </p>
         {ts ? (
           <p>
             <span className="ws-receipt-key">When</span> {formatTimestamp(ts)}
@@ -78,6 +102,9 @@ function StepBlock({
             <span className="ws-receipt-key">When</span> <span className="ws-unknown">not recorded</span>
           </p>
         )}
+        <p>
+          <span className="ws-receipt-key">Outcome</span> {outcomeLabel(status)}
+        </p>
         {durationMs !== null ? (
           <p>
             <span className="ws-receipt-key">Duration</span> {durationMs} ms
@@ -108,11 +135,11 @@ export function RunColumn({ view, hideVerdict = false }: { view: RunView; hideVe
         <p className="ws-empty-note">No steps recorded for this run yet.</p>
       ) : (
         <ol className="ws-steps">
-          {blocks.map((b, i) => {
+          {blocks.map((b) => {
             const first = b.seq;
             const detail = agg.steps.find((s) => s.seq === first)?.detail ?? null;
             return (
-              <li key={b.id}>
+              <li key={b.id} data-outcome={b.status}>
                 <StepBlock
                   label={b.label}
                   receipt={meaningfulReceipt(b.label, b.receipt)}

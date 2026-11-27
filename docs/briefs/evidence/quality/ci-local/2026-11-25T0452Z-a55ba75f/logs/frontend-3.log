@@ -1,0 +1,1 @@
+cd section7 && npx tsc --noEmit

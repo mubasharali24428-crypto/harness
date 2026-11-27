@@ -1335,6 +1335,10 @@ a[href] {
 .ws-step.ok .ws-step-verb::after,
 .ws-step.failed .ws-step-verb::after { content: ""; display: none; }
 
+/* Operability slice 2: the outcome is a word, not only a colour. */
+.ws-step-outcome { flex: none; font-size: var(--text-xs); font-weight: 600; padding: 0 6px; border-radius: var(--radius-pill); border: 1px solid var(--border-soft); color: var(--text-2); }
+.ws-step-outcome[data-outcome="failed"] { color: var(--red); border-color: currentColor; }
+
 .ws-step-receipt {
   padding: 0 var(--space-1) var(--space-3) 18px;
   font-size: var(--text-xs);
@@ -1882,9 +1886,16 @@ a[href] {
 .ws-approval-summary, .ws-next-recap { margin: 0; font-size: var(--text-sm); color: var(--text-2); }
 .ws-approval-paths { margin: 0; padding-left: var(--space-4); font-size: var(--text-sm); }
 .ws-approval-diff { overflow-x: auto; font-size: var(--text-xs); background: var(--panel-2); padding: var(--space-2); border-radius: var(--radius-sm); }
+/* Operability slice 3: plain first, technical one control away, receipt on the card. */
+.ws-approval-note { margin: 0; font-size: var(--text-xs); color: var(--muted); }
+.ws-approval-tech > summary { cursor: pointer; font-size: var(--text-sm); color: var(--text-2); }
+.ws-approval-tech[open] { display: flex; flex-direction: column; gap: var(--space-2); }
+.ws-approval-receipt { margin: 0; font-size: var(--text-sm); color: var(--text); border-left: 2px solid var(--green); padding-left: var(--space-2); }
 .ws-next-question { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--text); }
 .ws-next .btn, .ws-next-link { align-self: flex-start; }
 .ws-next-link { color: var(--accent); font-size: var(--text-sm); }
+/* I-08 rule offer: long rule text wraps instead of scrolling the column sideways (375 px). */
+.ws-learned-rule { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 
 @media (max-width: 900px) {
   .ws-composer-input { min-height: 44px; }
@@ -1925,3 +1936,21 @@ a[href] {
 .ws-report ol { margin: 0; padding-left: var(--space-5); font-size: var(--text-sm); }
 .ws-report-kicker, .ws-report-meta { margin: 0; font-size: var(--text-xs); color: var(--muted); }
 .ws-report-meta a { color: var(--accent); }
+
+/* ==========================================================================
+   Operability slice 1: Home "Needs you" list (reuses shell tokens).
+   ========================================================================== */
+.ny { display: flex; flex-direction: column; gap: var(--space-2); }
+.ny-heading { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 6px; }
+.ny-note { margin: 0; font-size: var(--text-sm); color: var(--muted); }
+.ny-error { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--text-2); }
+.ny-error p { margin: 0; }
+.ny-rows { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); }
+.ny-rows:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ny-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); }
+.ny-row + .ny-row { border-top: 1px solid var(--border-soft); }
+.ny-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ny-title { font-size: var(--text-sm); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ny-meta { font-size: var(--text-xs); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ny-kind { color: var(--text-2); font-weight: 600; }
+.ny-open { flex: none; text-decoration: none; }

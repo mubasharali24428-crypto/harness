@@ -20,6 +20,7 @@ from harness_contracts.workflow import WorkflowRequest, WorkflowResult, Workflow
 from sqlalchemy import text
 
 from harness_orchestrator import (
+    case_memory,
     collab,
     domain_metrics,
     memory_loader,
@@ -359,6 +360,10 @@ class OrchestratorService(Orchestrator):
             )
             run_data["_suggested_rule"] = suggestion
             detail = append_learning(detail, suggestion)
+            similar = await self._recall_denial_cases(run_id, run_data)
+            run_data["_similar_cases"] = similar
+            if similar:
+                detail = f"{detail} Seen before in {len(similar)} earlier run(s) of this team."
         if set_shell_policy is not None and shell_policy is not None:
             set_shell_policy(run_id, {**shell_policy, "maxToolCalls": 0})
         killed = await self._kill_engine(run_id)
@@ -366,6 +371,27 @@ class OrchestratorService(Orchestrator):
         sm.execution_failed(
             detail if killed else f"{detail} (worker kill could not be confirmed)"
         )
+
+    async def _recall_denial_cases(self, run_id: str, run_data: dict[str, Any]) -> list[dict]:
+        """Task 14: similar earlier denial cases for this team, and store this one.
+
+        Best-effort like checkpoints: a missing table (pre-0080 schema), no database or a
+        failed write must not keep a stuck run from stopping. Proposals only (CD-02).
+        """
+        paths = [r["path"] for r in run_data.get("_denial_scope_requests") or [] if r.get("path")]
+        factory = self.session_factory
+        if factory is None or not paths:
+            return []
+        try:
+            team_id = run_data.get("teamId") or await self._team_for_run(run_data)
+            if not team_id:
+                return []
+            return await case_memory.recall_and_record(
+                factory, team_id, run_data.get("projectId"), run_id, DENIALS_REPEATED, "bash",
+                paths, datetime.now(UTC))
+        except Exception:  # noqa: BLE001 - the stop must land even if memory cannot
+            logger.warning("case memory unavailable for %s", run_id, exc_info=True)
+            return []
 
     # ------------------------------------------------------- W3 run checkpoints
 

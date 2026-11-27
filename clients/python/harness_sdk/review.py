@@ -21,6 +21,7 @@ from .runtime import HarnessHTTP
 class ApproveRequest(typing.TypedDict, total=False):
     """ApproveRequest. Required keys: reviewer_user_id."""
     reviewer_user_id: str  # required
+    viewed_detail: bool | None
 
 ChangeStatus: typing.TypeAlias = typing.Literal['added', 'modified', 'removed', 'renamed']  # ChangeStatus
 
@@ -91,6 +92,14 @@ class ReviewClient:
         #: Service base URL; resolved by harness_sdk.client at construction.
         self.base_url = (base_url or "").rstrip("/")
 
+
+    def blind_approval(self) -> dict[str, typing.Any]:
+        """Blind Approval
+
+        GET /api/v1/review-kpi/blind-approval
+        """
+        _path = "/api/v1/review-kpi/blind-approval"
+        return self._http.request(self.base_url, "GET", _path)
 
     def get_reviewer_threshold_settings(self) -> dict[str, typing.Any]:
         """Get Reviewer Threshold Settings

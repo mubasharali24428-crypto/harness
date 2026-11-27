@@ -26,7 +26,7 @@ class _StubService:
         self.calls: list[tuple] = []
         self.raises = raises
 
-    async def approve(self, pr_id, reviewer_user_id, *, team_id=None):
+    async def approve(self, pr_id, reviewer_user_id, *, team_id=None, viewed_detail=None):
         self.calls.append(("approve", pr_id, team_id))
         if self.raises:
             raise LookupError("not found")

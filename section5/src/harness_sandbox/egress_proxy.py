@@ -17,6 +17,19 @@ from harness_sandbox.egress import is_allowed_destination
 _ALLOWED_PORT = 443
 _CONNECT_TIMEOUT = 10
 
+# G9 (p04-sandbox-review §5): a wedged or hostile client could previously hold
+# a tunnel forever (no idle deadline, no byte ceilings) and denials were
+# invisible. Every tunnel now has hard caps, and denials are logged
+# one-line-sampled with a per-host counter so a flood shows as a count, not a
+# wall of lines (the compose healthcheck's 10 s denied probe stays quiet).
+_TUNNEL_IDLE_TIMEOUT = int(os.environ.get("EGRESS_TUNNEL_IDLE_TIMEOUT", "300"))
+_TUNNEL_MAX_BYTES = int(os.environ.get("EGRESS_TUNNEL_MAX_BYTES", "268435456"))  # 256 MiB
+_TUNNEL_MAX_CONCURRENT = int(os.environ.get("EGRESS_TUNNEL_MAX_CONCURRENT", "16"))
+_DENIAL_LOG_EVERY = 10
+
+_active_tunnels = 0
+_denial_counts: dict[str, int] = {}
+
 #: Purpose ports. The sandbox shell gets 3128; only the engine worker is wired to
 #: 3129, so "which port did you reach" is the purpose boundary (a caller cannot
 #: be trusted to declare its own purpose in a header).
@@ -25,17 +38,29 @@ WEB_PORT = int(os.environ.get("EGRESS_WEB_PORT", "3129"))
 
 
 async def _pipe(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    """One direction of an open tunnel, under byte + idle caps (G9)."""
+    moved = 0
     try:
-        while data := await reader.read(65536):
+        while True:
+            data = await asyncio.wait_for(reader.read(65536), _TUNNEL_IDLE_TIMEOUT)
+            if not data:
+                break
+            moved += len(data)
+            if moved > _TUNNEL_MAX_BYTES:
+                print(f"tunnel byte cap exceeded ({moved} bytes), closing", flush=True)
+                break
             writer.write(data)
             await writer.drain()
-    except (ConnectionError, OSError):
+    except (TimeoutError, ConnectionError, OSError):
         pass
     finally:
         writer.close()
 
 
 async def _deny(writer: asyncio.StreamWriter, status: str) -> None:
+    _denial_counts[status] = _denial_counts.get(status, 0) + 1
+    if _denial_counts[status] == 1 or _denial_counts[status] % _DENIAL_LOG_EVERY == 0:
+        print(f"denied {status} (count={_denial_counts[status]})", flush=True)
     writer.write(f"HTTP/1.1 {status}\r\nContent-Length: 0\r\n\r\n".encode())
     await writer.drain()
     writer.close()
@@ -73,10 +98,17 @@ async def handle(
             )
         except (OSError, TimeoutError):
             return await _deny(writer, "502 Bad Gateway")
-        writer.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
-        await writer.drain()
-        _log_tunnel(host, purpose)
-        await asyncio.gather(_pipe(reader, up_writer), _pipe(up_reader, writer))
+        global _active_tunnels
+        if _active_tunnels >= _TUNNEL_MAX_CONCURRENT:
+            return await _deny(writer, "503 Busy")
+        _active_tunnels += 1
+        try:
+            writer.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            await writer.drain()
+            _log_tunnel(host, purpose)
+            await asyncio.gather(_pipe(reader, up_writer), _pipe(up_reader, writer))
+        finally:
+            _active_tunnels -= 1
     except (TimeoutError, ConnectionError, OSError):
         writer.close()
 

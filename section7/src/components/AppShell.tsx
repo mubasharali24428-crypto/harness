@@ -11,7 +11,7 @@ import { formatRelativeTime, formatTimestamp } from "@/lib/format";
 import { needsYouAction, needsYouHref } from "@/lib/triage";
 import { stateLabel } from "../../app/runs/runsApi";
 import { useRunList } from "@/components/workspace/useRunList";
-import { runRowTitle } from "@/components/workspace/previewData";
+import { runRowTitle } from "@/components/workspace/runRows";
 // M14-F1b (raw-03 P2): skip-link behavior + the shared main-content landmark id.
 import { MAIN_CONTENT_ID, useSkipTarget } from "@/lib/focus";
 // Part 47: unread badge as a plain link (no sound, no popup); renders nothing without a session.
@@ -19,17 +19,11 @@ import NotificationBell from "../../app/notifications/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import CommandPalette from "@/components/CommandPalette";
 import { KeyTour } from "@/components/KeyTour";
-import { SETTINGS_PAGES } from "@/lib/commands";
+import { MENU, SETTINGS_PAGES } from "@/lib/commands";
 
 // R2: the sidebar is the run list. Everything that used to be a nav
 // destination lives in this footer menu and in the command palette.
-const MENU = [
-  { href: "/runs", label: "All runs" },
-  { href: "/meeting", label: "Meeting" },
-  { href: "/dashboard/cost", label: "Cost" },
-  { href: "/settings", label: "Settings" },
-  { href: "/onboarding", label: "Get started" },
-];
+// Operability slice 5: the menu's labels come from the same list as the palette (lib/commands).
 
 const GROUPS = [
   { key: "needsYou", label: "Needs you", empty: "Nothing is waiting on a person." },
@@ -218,6 +212,7 @@ export default function AppShell({
         <div className="footer">
           <NotificationBell />
           <CommandPalette
+            role={role}
             workingHref={workingHref}
             projects={projects}
             selectedProject={selected}

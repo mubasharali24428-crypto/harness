@@ -20,6 +20,7 @@ from typing import Any
 from harness_contracts.signatures import ReviewGate
 from sqlalchemy import text
 
+from .decision_context import reviewer_rendering
 from .diff_engine import extract_unchanged_context, parse_diff
 from .heuristic import (
     ReviewerThresholds,
@@ -292,7 +293,8 @@ class ReviewService(ReviewGate):
             )
 
     async def approve(
-        self, pr_id: str, reviewer_user_id: str, *, team_id: str | None = None
+        self, pr_id: str, reviewer_user_id: str, *, team_id: str | None = None,
+        viewed_detail: bool | None = None,
     ) -> None:
         """Approve a PR for merge (human action — merge itself is manual on GitHub)."""
         async with await self._session() as db:
@@ -312,6 +314,10 @@ class ReviewService(ReviewGate):
                     detail={
                         "reviewer_user_id": reviewer_user_id,
                         "github_pr_number": record["github_pr_number"],
+                        # X-07 blind-approval KPI denominator (fail-open "unknown").
+                        "rendering": await reviewer_rendering(db, team_id, reviewer_user_id),
+                        "teamId": team_id,
+                        "viewedDetail": viewed_detail,
                     },
                 )
 
@@ -352,6 +358,8 @@ class ReviewService(ReviewGate):
                         "reviewer_user_id": reviewer_user_id,
                         "comment_count": len(comments),
                         "github_pr_number": record["github_pr_number"],
+                        "rendering": await reviewer_rendering(db, team_id, reviewer_user_id),
+                        "teamId": team_id,
                     },
                 )
 

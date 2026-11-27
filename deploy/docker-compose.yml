@@ -532,6 +532,16 @@ services:
     volumes:
       - harness_runs:/var/lib/harness-runs
       - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      # G12 (p04-sandbox-review §5): a wedged (not dead) daemon was invisible
+      # to restart: unless-stopped. /version with the daemon's own bearer
+      # token exercises the full HTTP loop + auth path (a 401-raising urllib
+      # means the loop answers; a missing token fails the check honestly).
+      test: ["CMD-SHELL", "python -c \"import os,urllib.request; tok=os.environ.get('HARNESS_WORKER_DAEMON_TOKEN',''); req=urllib.request.Request('http://127.0.0.1:8010/version', headers={'Authorization': 'Bearer '+tok} if tok else {}); urllib.request.urlopen(req, timeout=5)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     depends_on:
       orchestrator:
         condition: service_started  # it initialises the runs volume as its own user

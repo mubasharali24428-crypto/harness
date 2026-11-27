@@ -67,7 +67,7 @@ def _server_dsn() -> str:
     """HARNESS_TEST_PG carries a DSN (f1 convention) or acts as a flag
     (fk_deletion convention -> compose mapping on 127.0.0.1:5499)."""
     raw = os.environ.get("HARNESS_TEST_PG", "")
-    return raw if "://" in raw else "postgresql://harness:harness@127.0.0.1:5499/harness"
+    return raw if "://" in raw else (os.environ.get("HARNESS_TEST_PG_DSN") or "postgresql://harness:harness@127.0.0.1:5499/harness")
 
 
 def _db_dsn(dbname: str) -> str:

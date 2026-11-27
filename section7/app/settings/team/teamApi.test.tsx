@@ -38,9 +38,11 @@ const noopActions: RosterActions = {
   onRoleChange: () => {},
 };
 
-function member(partial: { id?: string; role?: string; displayName?: string; email?: string | null }) {
+function member(partial: { id?: string; userId?: string; role?: string; displayName?: string; email?: string | null }) {
   return {
-    id: partial.id ?? "u2",
+    // D3: membership id is deliberately != userId; actions must use userId.
+    id: partial.id ?? `tm-${partial.userId ?? "u2"}`,
+    userId: partial.userId ?? "u2",
     displayName: partial.displayName ?? "Bob",
     email: partial.email ?? null,
     memberType: "human",
@@ -50,6 +52,34 @@ function member(partial: { id?: string; role?: string; displayName?: string; ema
 }
 
 describe("W2-C1 client: removeMember", () => {
+  it("D3: roster actions and testids key on userId, never the membership id", () => {
+    const html = renderToStaticMarkup(
+      <MembersTable
+        members={[member({ userId: "u2" })]}
+        isAdmin
+        busyUserId={null}
+        pendingRemovalId={null}
+        actions={noopActions}
+      />,
+    );
+    expect(html).toContain('data-testid="ask-remove-u2"');
+    expect(html).not.toContain("tm-u2");
+  });
+
+  it("D3: agent members without a userId get no mutation controls", () => {
+    const html = renderToStaticMarkup(
+      <MembersTable
+        members={[{ ...member({ userId: "u9" }), userId: null }]}
+        isAdmin
+        busyUserId={null}
+        pendingRemovalId={null}
+        actions={noopActions}
+      />,
+    );
+    expect(html).not.toContain("ask-remove-");
+    expect(html).not.toContain("role-select-");
+  });
+
   it("DELETEs /api/v1/teams/{id}/members/{userId} with bearer and resolves on 204", async () => {
     const f = stubFetch([{ status: 204 }]);
     vi.stubGlobal("fetch", f);
@@ -114,7 +144,7 @@ describe("MembersTable admin gating", () => {
   it("renders Remove buttons + role dropdowns for admins only", () => {
     const html = renderToStaticMarkup(
       <MembersTable
-        members={[member({ id: "u2" })]}
+        members={[member({ userId: "u2" })]}
         isAdmin
         busyUserId={null}
         pendingRemovalId={null}
@@ -130,7 +160,7 @@ describe("MembersTable admin gating", () => {
   it("hides ALL management controls from non-admin viewers (read-only pills)", () => {
     const html = renderToStaticMarkup(
       <MembersTable
-        members={[member({ id: "u2", role: "viewer" })]}
+        members={[member({ userId: "u2", role: "viewer" })]}
         isAdmin={false}
         busyUserId={null}
         pendingRemovalId={null}
@@ -149,7 +179,7 @@ describe("MembersTable admin gating", () => {
   it("shows the inline confirm state for the pending member with confirm + cancel", () => {
     const html = renderToStaticMarkup(
       <MembersTable
-        members={[member({ id: "u2" }), member({ id: "u3", displayName: "Ada" })]}
+        members={[member({ userId: "u2" }), member({ userId: "u3", displayName: "Ada" })]}
         isAdmin
         busyUserId={null}
         pendingRemovalId="u2"
@@ -170,30 +200,30 @@ describe("MembersTable admin gating", () => {
 // clobber newer changes to other rows.
 describe("restoreRow — optimistic rollback", () => {
   it("removal rollback re-inserts exactly the removed member", () => {
-    const bob = member({ id: "u2" });
-    const afterRemoval = [member({ id: "u1", role: "admin" })]; // u2 gone
+    const bob = member({ userId: "u2" });
+    const afterRemoval = [member({ userId: "u1", role: "admin" })]; // u2 gone
     expect(restoreRow(afterRemoval, bob)).toEqual([
-      member({ id: "u1", role: "admin" }),
+      member({ userId: "u1", role: "admin" }),
       bob,
     ]);
   });
 
   it("role-change rollback snaps only that row back to its prior state", () => {
-    const bobBefore = member({ id: "u2", role: "engineer" });
+    const bobBefore = member({ userId: "u2", role: "engineer" });
     const current = [
-      member({ id: "u1", role: "admin" }),
-      member({ id: "u2", role: "viewer" }), // failed optimistic change
-      member({ id: "u3", displayName: "Ada", role: "guest" }), // untouched
+      member({ userId: "u1", role: "admin" }),
+      member({ userId: "u2", role: "viewer" }), // failed optimistic change
+      member({ userId: "u3", displayName: "Ada", role: "guest" }), // untouched
     ];
     expect(restoreRow(current, bobBefore)).toEqual([
-      member({ id: "u1", role: "admin" }),
+      member({ userId: "u1", role: "admin" }),
       bobBefore,
-      member({ id: "u3", displayName: "Ada", role: "guest" }),
+      member({ userId: "u3", displayName: "Ada", role: "guest" }),
     ]);
   });
 
   it("does not resurrect rows other confirmed actions deleted (no zombie rows)", () => {
-    const bob = member({ id: "u2" });
+    const bob = member({ userId: "u2" });
     const current = [] as ReturnType<typeof member>[]; // u3 was separately
     // removed by another CONFIRMED action after u2's failed one rolled back.
     expect(restoreRow(current, bob)).toEqual([bob]); // only u2 comes back
