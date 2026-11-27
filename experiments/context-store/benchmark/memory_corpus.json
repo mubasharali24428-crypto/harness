@@ -1,0 +1,46 @@
+{
+  "version": "x14-memory-dry/1",
+  "note": "Frozen before the first run (2026-11-25). Synthetic rows shaped like layer A (project_memory notes, migration 0067) and layer B (case_memory denial cases, migration 0080). Each query is a new denial stop (tool + denied paths); 'cases' and 'notes' are the items a human would want to see next to it. Empty lists mean nothing relevant exists. Do not tune variants against this file; add v2 instead.",
+  "notes": [
+    {"id": "n1", "text": "The settings dialog lives in frontend/src/settings/Dialog.tsx."},
+    {"id": "n2", "text": "nginx config is generated from infra/nginx/nginx.conf.tmpl; never edit /etc/nginx/nginx.conf directly."},
+    {"id": "n3", "text": "Migrations under section1/migrations/ are forward-only; add a new numbered file."},
+    {"id": "n4", "text": "Auth tokens are minted in section1/src/harness_identity/tokens.py."},
+    {"id": "n5", "text": "Terraform state is in infra/terraform/; plan only, never apply from an agent run."},
+    {"id": "n6", "text": "payroll/ holds customer data and is a forbidden path."},
+    {"id": "n7", "text": "The CI workflow lives in .github/workflows/ci.yml; keep job names stable."},
+    {"id": "n8", "text": "Frontend tests use vitest; snapshot files sit next to components in frontend/src/."},
+    {"id": "n9", "text": "The shell gate script is section4/src/harness_orchestrator/shell_gate.py."},
+    {"id": "n10", "text": "The compose file is deploy/compose.yml; the db service uses the pgvector image."},
+    {"id": "n11", "text": "Release notes go in RELEASE_NOTES_v1.md."},
+    {"id": "n12", "text": "Case memory similarity lives in section4/src/harness_orchestrator/case_memory.py."}
+  ],
+  "cases": [
+    {"id": "c1", "tool": "bash", "paths": ["/etc/nginx/nginx.conf"], "outcome": "recovered", "ageHours": 30},
+    {"id": "c2", "tool": "bash", "paths": ["/etc/nginx/nginx.conf", "/etc/nginx/sites-enabled/default"], "outcome": "denied", "ageHours": 200},
+    {"id": "c3", "tool": "Write", "paths": ["section1/migrations/0080_case_memory.sql"], "outcome": "recovered", "ageHours": 10},
+    {"id": "c4", "tool": "Write", "paths": ["payroll/data.txt"], "outcome": "denied", "ageHours": 5},
+    {"id": "c5", "tool": "bash", "paths": ["infra/terraform/main.tf"], "outcome": "recovered", "ageHours": 48},
+    {"id": "c6", "tool": "bash", "paths": ["infra/terraform/prod.tfvars", "infra/terraform/main.tf"], "outcome": "repeat", "ageHours": 400},
+    {"id": "c7", "tool": "Write", "paths": [".github/workflows/ci.yml"], "outcome": "recovered", "ageHours": 72},
+    {"id": "c8", "tool": "Write", "paths": ["frontend/src/settings/Dialog.tsx"], "outcome": "denied", "ageHours": 2},
+    {"id": "c9", "tool": "bash", "paths": ["deploy/compose.yml"], "outcome": "recovered", "ageHours": 100},
+    {"id": "c10", "tool": "Write", "paths": ["section1/src/harness_identity/tokens.py"], "outcome": "recovered", "ageHours": 20},
+    {"id": "c11", "tool": "bash", "paths": ["payroll/export.csv"], "outcome": "denied", "ageHours": 600},
+    {"id": "c12", "tool": "Write", "paths": ["section4/src/harness_orchestrator/shell_gate.py"], "outcome": "denied", "ageHours": 15}
+  ],
+  "queries": [
+    {"id": "q1", "tool": "bash", "paths": ["/etc/nginx/nginx.conf"], "cases": ["c1", "c2"], "notes": ["n2"]},
+    {"id": "q2", "tool": "Write", "paths": ["section1/migrations/0083_new.sql"], "cases": ["c3"], "notes": ["n3"]},
+    {"id": "q3", "tool": "bash", "paths": ["payroll/salaries.xlsx"], "cases": ["c4", "c11"], "notes": ["n6"]},
+    {"id": "q4", "tool": "bash", "paths": ["infra/terraform/network.tf"], "cases": ["c5", "c6"], "notes": ["n5"]},
+    {"id": "q5", "tool": "Write", "paths": [".github/workflows/release.yml"], "cases": ["c7"], "notes": ["n7"]},
+    {"id": "q6", "tool": "Write", "paths": ["frontend/src/settings/Footer.tsx"], "cases": ["c8"], "notes": ["n1", "n8"]},
+    {"id": "q7", "tool": "bash", "paths": ["deploy/compose.yml"], "cases": ["c9"], "notes": ["n10"]},
+    {"id": "q8", "tool": "Write", "paths": ["section1/src/harness_identity/tokens.py", "section1/src/harness_identity/sessions.py"], "cases": ["c10"], "notes": ["n4"]},
+    {"id": "q9", "tool": "Write", "paths": ["section4/src/harness_orchestrator/shell_gate.py"], "cases": ["c12"], "notes": ["n9"]},
+    {"id": "q10", "tool": "bash", "paths": ["/etc/nginx/conf.d/site.conf"], "cases": ["c1", "c2"], "notes": ["n2"]},
+    {"id": "q11", "tool": "Write", "paths": ["section4/src/harness_orchestrator/case_memory.py"], "cases": [], "notes": ["n12"]},
+    {"id": "q12", "tool": "Write", "paths": ["README.md"], "cases": [], "notes": []}
+  ]
+}

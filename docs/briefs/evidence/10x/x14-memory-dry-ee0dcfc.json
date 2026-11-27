@@ -1,0 +1,451 @@
+{
+ "protocol": "x14-memory-dry/1",
+ "revision": "ee0dcfc",
+ "queries": 12,
+ "notes": 12,
+ "cases": 12,
+ "variants": {
+  "production": {
+   "caseHit@3": 0.8,
+   "caseRecall@3": 0.7,
+   "caseNoise@3": 0.75,
+   "noteRecall": 1.0,
+   "noteTokensMean": 550.0,
+   "distinctNoteBlocks": 1,
+   "perQuery": [
+    {
+     "q": "q1",
+     "cases": [
+      "c1",
+      "c5",
+      "c2"
+     ],
+     "notes": [
+      "n1",
+      "n2",
+      "n3",
+      "n4",
+      "n5",
+      "n6",
+      "n7",
+      "n8",
+      "n9",
+      "n10",
+      "n11",
+      "n12"
+     ],
+     "noteBlockTokens": 550
+    },
+    {
+     "q": "q2",
+     "cases": [
+      "c3",
+      "c10",
+      "c7"
+     ],
+     "notes": [
+      "n1",
+      "n2",
+      "n3",
+      "n4",
+      "n5",
+      "n6",
+      "n7",
+      "n8",
+      "n9",
+      "n10",
+      "n11",
+      "n12"
+     ],
+     "noteBlockTokens": 550
+    },
+    {
+     "q": "q3",
+     "cases": [
+      "c1",
+      "c5",
+      "c9"
+     ],
+     "notes": [
+      "n1",
+      "n2",
+      "n3",
+      "n4",
+      "n5",
+      "n6",
+      "n7",
+      "n8",
+      "n9",
+      "n10",
+      "n11",
+      "n12"
+     ],
+     "noteBlockTokens": 550
+    },
+    {
+     "q": "q4",
+     "cases": [
+      "c1",
+      "c5",
+      "c9"
+     ],
+     "notes": [
+      "n1",
+      "n2",
+      "n3",
+      "n4",
+      "n5",
+      "n6",
+      "n7",
+      "n8",
+      "n9",
+      "n10",
+      "n11",
+      "n12"
+     ],
+     "noteBlockTokens": 550
+    },
+    {
+     "q": "q5",
+     "cases": [
+      "c3",
+      "c10",
+      "c7"
+     ],
+     "notes": [
+      "n1",
+      "n2",
+      "n3",
+      "n4",
+      "n5",
+      "n6",
+      "n7",
+      "n8",
+      "n9",
+      "n10",
+      "n11",
+      "n12"
+     ],
+     "noteBlockTokens": 550
+    },
+    {
+     "q": "q6",
+     "cases": [
+      "c3",
+      "c10",
+      "c7"
+     ],
+     "notes": [
+      "n1",
+      "n2",
+      "n3",
+      "n4",
+      "n5",
+      "n6",
+      "n7",
+      "n8",
+      "n9",
+      "n10",
+      "n11",
+      "n12"
+     ],
+     "noteBlockTokens": 550
+    },
+    {
+     "q": "q7",
+     "cases": [
+      "c9",
+      "c1",
+      "c5"
+     ],
+     "notes": [
+      "n1",
+      "n2",
+      "n3",
+      "n4",
+      "n5",
+      "n6",
+      "n7",
+      "n8",
+      "n9",
+      "n10",
+      "n11",
+      "n12"
+     ],
+     "noteBlockTokens": 550
+    },
+    {
+     "q": "q8",
+     "cases": [
+      "c10",
+      "c3",
+      "c7"
+     ],
+     "notes": [
+      "n1",
+      "n2",
+      "n3",
+      "n4",
+      "n5",
+      "n6",
+      "n7",
+      "n8",
+      "n9",
+      "n10",
+      "n11",
+      "n12"
+     ],
+     "noteBlockTokens": 550
+    },
+    {
+     "q": "q9",
+     "cases": [
+      "c12",
+      "c3",
+      "c10"
+     ],
+     "notes": [
+      "n1",
+      "n2",
+      "n3",
+      "n4",
+      "n5",
+      "n6",
+      "n7",
+      "n8",
+      "n9",
+      "n10",
+      "n11",
+      "n12"
+     ],
+     "noteBlockTokens": 550
+    },
+    {
+     "q": "q10",
+     "cases": [
+      "c1",
+      "c5",
+      "c9"
+     ],
+     "notes": [
+      "n1",
+      "n2",
+      "n3",
+      "n4",
+      "n5",
+      "n6",
+      "n7",
+      "n8",
+      "n9",
+      "n10",
+      "n11",
+      "n12"
+     ],
+     "noteBlockTokens": 550
+    },
+    {
+     "q": "q11",
+     "cases": [
+      "c3",
+      "c10",
+      "c7"
+     ],
+     "notes": [
+      "n1",
+      "n2",
+      "n3",
+      "n4",
+      "n5",
+      "n6",
+      "n7",
+      "n8",
+      "n9",
+      "n10",
+      "n11",
+      "n12"
+     ],
+     "noteBlockTokens": 550
+    },
+    {
+     "q": "q12",
+     "cases": [
+      "c3",
+      "c10",
+      "c7"
+     ],
+     "notes": [
+      "n1",
+      "n2",
+      "n3",
+      "n4",
+      "n5",
+      "n6",
+      "n7",
+      "n8",
+      "n9",
+      "n10",
+      "n11",
+      "n12"
+     ],
+     "noteBlockTokens": 550
+    }
+   ]
+  },
+  "plain_graph": {
+   "caseHit@3": 1.0,
+   "caseRecall@3": 1.0,
+   "caseNoise@3": 0.6111,
+   "noteRecall": 1.0,
+   "noteTokensMean": 24.5,
+   "distinctNoteBlocks": 11,
+   "perQuery": [
+    {
+     "q": "q1",
+     "cases": [
+      "c1",
+      "c2",
+      "c11"
+     ],
+     "notes": [
+      "n2"
+     ],
+     "noteBlockTokens": 25
+    },
+    {
+     "q": "q2",
+     "cases": [
+      "c3",
+      "c10",
+      "c12"
+     ],
+     "notes": [
+      "n3"
+     ],
+     "noteBlockTokens": 20
+    },
+    {
+     "q": "q3",
+     "cases": [
+      "c11",
+      "c4",
+      "c1"
+     ],
+     "notes": [
+      "n6"
+     ],
+     "noteBlockTokens": 13
+    },
+    {
+     "q": "q4",
+     "cases": [
+      "c5",
+      "c6",
+      "c1"
+     ],
+     "notes": [
+      "n5",
+      "n2"
+     ],
+     "noteBlockTokens": 46
+    },
+    {
+     "q": "q5",
+     "cases": [
+      "c7",
+      "c10",
+      "c12"
+     ],
+     "notes": [
+      "n7"
+     ],
+     "noteBlockTokens": 18
+    },
+    {
+     "q": "q6",
+     "cases": [
+      "c8",
+      "c10",
+      "c12"
+     ],
+     "notes": [
+      "n1",
+      "n8"
+     ],
+     "noteBlockTokens": 36
+    },
+    {
+     "q": "q7",
+     "cases": [
+      "c9",
+      "c1",
+      "c11"
+     ],
+     "notes": [
+      "n10"
+     ],
+     "noteBlockTokens": 19
+    },
+    {
+     "q": "q8",
+     "cases": [
+      "c10",
+      "c12",
+      "c3"
+     ],
+     "notes": [
+      "n4"
+     ],
+     "noteBlockTokens": 16
+    },
+    {
+     "q": "q9",
+     "cases": [
+      "c12",
+      "c10",
+      "c3"
+     ],
+     "notes": [
+      "n9",
+      "n12"
+     ],
+     "noteBlockTokens": 38
+    },
+    {
+     "q": "q10",
+     "cases": [
+      "c1",
+      "c2",
+      "c11"
+     ],
+     "notes": [
+      "n2"
+     ],
+     "noteBlockTokens": 25
+    },
+    {
+     "q": "q11",
+     "cases": [
+      "c12",
+      "c10",
+      "c3"
+     ],
+     "notes": [
+      "n12",
+      "n9"
+     ],
+     "noteBlockTokens": 38
+    },
+    {
+     "q": "q12",
+     "cases": [
+      "c10",
+      "c12",
+      "c3"
+     ],
+     "notes": [],
+     "noteBlockTokens": 0
+    }
+   ]
+  }
+ }
+}
