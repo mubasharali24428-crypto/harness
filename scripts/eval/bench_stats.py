@@ -78,6 +78,10 @@ def cell_stats(task: str, model: str, mode: str, attempts: list[dict]) -> dict:
     # F5: additive only. Cells without per-run event logs keep the old shape.
     if any(isinstance(a.get("events"), list) for a in attempts):
         out["split"] = split_stats(attempts)
+    # S-01/S-02: additive only. Cells whose attempts carry no engine usage or
+    # prefix digest keep the old shape byte for byte.
+    if any(cache_run(a) is not None for a in attempts):
+        out["cache"] = cache_stats(attempts)
     return out
 
 
@@ -100,6 +104,10 @@ def split_run(events: list[dict] | None) -> dict:
     Open intervals are dropped (a truncated log must not invent time).
     Missing timestamps, equal seq, or a stop without a start are skipped.
     cacheReadTokens sum payload["usage"]["cacheReadTokens"] / payload["cacheReadTokens"].
+    inputTokens (uncached input, run_metering shape) sum the same two shapes;
+    cacheReadRatio = cacheRead / (input + cacheRead), None when no tokens.
+    prefixDigests counts distinct payload["promptPrefix"]["sha256"] values (S-02):
+    1 = every attempt of the run sent the same stable prefix; >1 = it moved.
     """
     ev = sorted(
         (e for e in (events or []) if isinstance(e, dict) and isinstance(e.get("ts"), (int, float))),
@@ -108,6 +116,8 @@ def split_run(events: list[dict] | None) -> dict:
     n = len(ev)
     model = tool = human = 0.0
     cache_tokens = 0
+    input_tokens = 0
+    digests: set[str] = set()
     turns = 0
     open_model: float | None = None
     open_tool: float | None = None
@@ -124,6 +134,12 @@ def split_run(events: list[dict] | None) -> dict:
             tok = u.get("cacheReadTokens") if isinstance(u, dict) else pay.get("cacheReadTokens")
             if isinstance(tok, (int, float)):
                 cache_tokens += int(tok)
+            itok = u.get("inputTokens") if isinstance(u, dict) else pay.get("inputTokens")
+            if isinstance(itok, (int, float)):
+                input_tokens += int(itok)
+            digest = _prefix_digest(pay.get("promptPrefix"))
+            if digest:
+                digests.add(digest)
         if typ == TOOL_STOP and open_tool is not None:
             tool += max(0.0, ts - open_tool)
             open_tool = None
@@ -159,7 +175,74 @@ def split_run(events: list[dict] | None) -> dict:
         "wallSeconds": round(wall, 3),
         "turns": turns,
         "cacheReadTokens": cache_tokens,
+        "inputTokens": input_tokens,
+        "cacheReadRatio": _ratio(cache_tokens, input_tokens),
+        "prefixDigests": len(digests),
         "nEvents": n,
+    }
+
+
+def _ratio(cache_read: float | None, uncached: float | None) -> float | None:
+    """S-01 cache-read ratio: share of input tokens served from the prompt cache."""
+    total = (cache_read or 0) + (uncached or 0)
+    return round((cache_read or 0) / total, 4) if total > 0 else None
+
+
+def _prefix_digest(record) -> str | None:
+    if isinstance(record, dict) and isinstance(record.get("sha256"), str) and record["sha256"]:
+        return record["sha256"]
+    return None
+
+
+def cache_run(attempt: dict) -> dict | None:
+    """S-01/S-02 cache split of ONE attempt from its engine-result fields.
+
+    ``usage`` is the engine result's {inputTokens, outputTokens, cacheReadTokens}
+    (run_metering shape: inputTokens EXCLUDES cache reads); ``promptPrefix`` is the
+    S-02 digest record section4 puts on the result. None when the attempt carries
+    neither: unknown is never reported as zero.
+    """
+    usage = attempt.get("usage") if isinstance(attempt, dict) else None
+    digest = _prefix_digest(attempt.get("promptPrefix")) if isinstance(attempt, dict) else None
+    if not isinstance(usage, dict) and digest is None:
+        return None
+    usage = usage if isinstance(usage, dict) else {}
+
+    def _num(key):
+        v = usage.get(key)
+        return int(v) if isinstance(v, (int, float)) else None
+
+    inp, cr = _num("inputTokens"), _num("cacheReadTokens")
+    return {
+        "inputTokens": inp,
+        "cacheReadTokens": cr,
+        "cacheReadRatio": _ratio(cr, inp) if (inp is not None or cr is not None) else None,
+        "prefixSha256": digest,
+    }
+
+
+def cache_stats(attempts: list[dict]) -> dict:
+    """Per-cell S-01 cache-read split + S-02 prefix stability. Descriptive only.
+
+    pooledCacheReadRatio = sum(cacheRead) / sum(input + cacheRead) over attempts that
+    report usage. distinctPrefixDigests counts different stable prefixes the cell's
+    attempts sent: same project + same reviewed rules/skills/memory should give 1.
+    """
+    runs = [r for r in (cache_run(a) for a in attempts or []) if r is not None]
+    with_usage = [r for r in runs if r["cacheReadRatio"] is not None]
+    cr_sum = sum(r["cacheReadTokens"] or 0 for r in with_usage)
+    in_sum = sum(r["inputTokens"] or 0 for r in with_usage)
+    digests = {r["prefixSha256"] for r in runs if r["prefixSha256"]}
+    return {
+        "n": len(runs),
+        "nWithUsage": len(with_usage),
+        "inputTokens": stats([r["inputTokens"] for r in runs]),
+        "cacheReadTokens": stats([r["cacheReadTokens"] for r in runs]),
+        "cacheReadRatio": stats([r["cacheReadRatio"] for r in runs]),
+        "pooledCacheReadRatio": _ratio(cr_sum, in_sum) if with_usage else None,
+        "attemptsWithPrefixDigest": sum(1 for r in runs if r["prefixSha256"]),
+        "distinctPrefixDigests": len(digests),
+        "claim": INSUFFICIENT if len(with_usage) < MIN_N else "descriptive only; no superiority claim",
     }
 
 
@@ -174,7 +257,9 @@ def split_stats(attempts: list[dict]) -> dict:
     if not runs:
         return {"n": 0, "modelSeconds": stats([]), "toolSeconds": stats([]),
                 "overheadSeconds": stats([]), "humanWaitSeconds": stats([]),
-                "turns": stats([]), "cacheReadTokens": stats([])}
+                "turns": stats([]), "cacheReadTokens": stats([]),
+                "inputTokens": stats([]), "cacheReadRatio": stats([]),
+                "runsWithMovingPrefix": 0}
     return {
         "n": len(runs),
         "modelSeconds": stats([r["modelSeconds"] for r in runs]),
@@ -183,6 +268,10 @@ def split_stats(attempts: list[dict]) -> dict:
         "humanWaitSeconds": stats([r["humanWaitSeconds"] for r in runs]),
         "turns": stats([r["turns"] for r in runs]),
         "cacheReadTokens": stats([r["cacheReadTokens"] for r in runs]),
+        "inputTokens": stats([r.get("inputTokens") for r in runs]),
+        "cacheReadRatio": stats([r.get("cacheReadRatio") for r in runs]),
+        # S-02: a run whose attempts sent more than one prefix lost its cache
+        "runsWithMovingPrefix": sum(1 for r in runs if (r.get("prefixDigests") or 0) > 1),
     }
 
 
@@ -218,7 +307,9 @@ def main() -> int:
         print(f"{c['task']:24} {c['model']:20} mode={c['mode']:4} n={c['n']} "
               f"success={rate_s} wall p50={c['wallSeconds']['p50']} p95={c['wallSeconds']['p95']} "
               f"ttfo p50={c['firstOutputS']['p50']} cost/task={cost_s} "
-              f"claimable={c['claimable']}")
+              f"claimable={c['claimable']}"
+              + (f" cacheRead pooled={c['cache']['pooledCacheReadRatio']} "
+                 f"prefixes={c['cache']['distinctPrefixDigests']}" if "cache" in c else ""))
     print("->", path)
     return 0
 

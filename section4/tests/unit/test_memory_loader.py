@@ -105,6 +105,29 @@ async def test_load_never_crosses_projects(memory_factory):
     assert await load_project_memory(memory_factory, "proj-missing") == []
 
 
+async def test_same_instant_notes_render_in_id_order(memory_factory):
+    """S-02: the memory block is part of the stable executor prefix, so notes
+    stored in the same instant need a total order (created_at, then id) —
+    otherwise the block's bytes, and the provider cache hit, depend on how the
+    database happens to break the tie."""
+    async with memory_factory() as db:
+        for note_id, body in (("z9", "Zulu note."), ("a1", "Alpha note.")):
+            await db.execute(
+                sql_text(
+                    "INSERT INTO project_memory (id, project_id, memory_text, source, "
+                    "status, reviewed_by, created_by, created_at, updated_at) VALUES "
+                    "(:id,'proj-c',:body,'user','reviewed','r','u1',"
+                    "'2026-11-01T09:00:00','2026-11-01T09:00:00')"
+                ),
+                {"id": note_id, "body": body},
+            )
+        await db.commit()
+    first = await load_project_memory(memory_factory, "proj-c")
+    assert [e["text"] for e in first] == ["Alpha note.", "Zulu note."]
+    again = await load_project_memory(memory_factory, "proj-c")
+    assert build_memory_block(again) == build_memory_block(first)
+
+
 async def test_load_degrades_without_factory_or_project(memory_factory):
     assert await load_project_memory(None, "proj-a") == []
     assert await load_project_memory(memory_factory, None) == []

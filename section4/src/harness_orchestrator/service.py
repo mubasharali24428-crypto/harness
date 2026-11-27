@@ -24,6 +24,7 @@ from harness_orchestrator import (
     collab,
     domain_metrics,
     memory_loader,
+    prompt_prefix,
     run_checkpoints,
     skills_loader,
     staging,
@@ -476,22 +477,12 @@ class OrchestratorService(Orchestrator):
         ``plan.goal + guidance`` and nothing else. They stay advisory — an absent
         or blank block contributes nothing rather than an empty heading, so a run
         with neither produces exactly the prompt it always did.
+
+        S-02 / X-09: the bytes are frozen at the run's first execution attempt
+        (``prompt_prefix.frozen_prefix``) so resumes and guidance turns hit the
+        provider prefix cache; per-attempt data goes after ``plan.goal``.
         """
-        parts: list[str] = []
-        rules = str(run_data.get("rules_prompt_block") or "").strip()
-        if rules:
-            parts.append(rules)
-        skills = str(run_data.get("skills_prompt_block") or "").strip()
-        if skills:
-            parts.append(skills)
-        memory = str(run_data.get("memory_prompt_block") or "").strip()
-        if memory:
-            parts.append(memory)
-        bundle = run_data.get("context_bundle")
-        rendered = str(bundle.get("rendered") or "").strip() if isinstance(bundle, dict) else ""
-        if rendered:
-            parts.append(rendered)
-        return "\n\n".join(parts) + "\n\n" if parts else ""
+        return prompt_prefix.frozen_prefix(run_data).text
 
     def _clean_event_text(self, value: Any, limit: int = 4000) -> str:
         """One scrubbing rule for every engine-derived string that reaches the bus.
@@ -1091,6 +1082,9 @@ class OrchestratorService(Orchestrator):
             self.session_factory, run_data.get("projectId")
         )
         run_data["memory_prompt_block"] = memory_loader.build_memory_block(memory)
+        # S-02: a new plan is a new run start. The executor prefix is frozen at
+        # the first attempt after this point, from the blocks loaded above.
+        prompt_prefix.reset_prefix(run_data)
         # M21-X2: @refs in the brief text resolve (advisory, best-effort) into
         # a bounded context bundle that AUGMENTS the pasted goal. Resolution
         # is OFF unless CONTEXT_SEARCH_BASE_URL is set; any failure degrades
@@ -1782,10 +1776,13 @@ class OrchestratorService(Orchestrator):
                 # "rewind to the last checkpoint" and "undo this attempt"
                 # different, useful choices instead of the same one.
                 await self._checkpoint_run(run_id, "before")
+                # S-02 / X-09: stable bytes first (frozen at the first attempt),
+                # then the run's task, then this attempt's volatile guidance.
+                prefix = prompt_prefix.frozen_prefix(run_data)
                 try:
                     result = await self.engine_runtime.run(
                         self.engine,
-                        goal=self._executor_context_prefix(run_data) + plan.goal + extra,
+                        goal=prefix.text + plan.goal + extra,
                         session_id=run_id,
                         model=run_model,
                         **progress_kwargs,
@@ -1819,6 +1816,12 @@ class OrchestratorService(Orchestrator):
                     # run page shows this instead of letting a skipped
                     # screenshot read as if it had been understood.
                     result = {**result, "goalImages": images.summary()}
+                if isinstance(result, dict) and prefix.bytes:
+                    # S-02: the prefix fingerprint (never its text) rides on the
+                    # durable result, so bench_stats can check that every attempt
+                    # of a run sent the same bytes. Absent when there is no prefix,
+                    # so runs without advisory context keep their exact shape.
+                    result = {**result, "promptPrefix": prefix.summary()}
                 context = result.get("context") if isinstance(result, dict) else None
                 if isinstance(context, dict) and context.get("compactions"):
                     self._emit(

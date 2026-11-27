@@ -42,11 +42,15 @@ MEMORY_ADVISORY_NOTE = (
     "note says."
 )
 
+# S-02: a total order (created_at, then id) so two notes stored in the same
+# instant always render in the same order — the block is part of the stable,
+# prefix-cached executor prompt (prompt_prefix.py), and a tie broken by the
+# planner's whim would change its bytes between runs.
 _READ_SQL = """
 SELECT id, memory_text, source, reviewed_by, created_by, created_at, expires_at
 FROM project_memory
 WHERE project_id = :project_id AND status = 'reviewed'
-ORDER BY created_at
+ORDER BY created_at, id
 LIMIT :limit
 """
 

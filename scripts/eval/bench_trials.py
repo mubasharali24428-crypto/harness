@@ -135,6 +135,37 @@ def _interventions(run_id: str) -> int | None:
     return int(raw) if raw.strip().isdigit() else None
 
 
+def engine_cache_fields(stdout_tail: str) -> dict:
+    """S-01/S-02: the engine result's ``usage`` and ``promptPrefix`` digest, when the
+    driver's evidence carries them (its ``"evidence": <path>`` file first, else a
+    JSON object printed on stdout). Only those two fields are kept — never prompt
+    text. Absent stays absent: bench_stats reports unknown, never zero."""
+    doc = None
+    m = re.search(r'"evidence":\s*"([^"]+)"', stdout_tail or "")
+    if m:
+        try:
+            doc = json.loads(Path(m.group(1)).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            doc = None
+    if not isinstance(doc, dict):
+        try:
+            start = (stdout_tail or "").index("{")
+            doc = json.loads((stdout_tail or "")[start:])
+        except ValueError:
+            doc = None
+    if not isinstance(doc, dict):
+        return {}
+    out: dict = {}
+    usage = doc.get("usage")
+    if isinstance(usage, dict):
+        out["usage"] = {k: usage[k] for k in ("inputTokens", "outputTokens", "cacheReadTokens")
+                        if isinstance(usage.get(k), (int, float))}
+    prefix = doc.get("promptPrefix")
+    if isinstance(prefix, dict) and isinstance(prefix.get("sha256"), str):
+        out["promptPrefix"] = {"sha256": prefix["sha256"], "bytes": prefix.get("bytes")}
+    return out
+
+
 def live_attempt(task: dict, trial: int, model: str) -> dict:
     """One independent live trial via run_eval.execute, joined to the durable ledger."""
     runs = run_eval.execute(task, repeats=1, keep_output=True, model=model)
@@ -167,6 +198,7 @@ def live_attempt(task: dict, trial: int, model: str) -> dict:
         "costSource": cost_source,
         "budget": task.get("budget"),
         "stdoutTail": a.get("stdoutTail"), "stderrTail": a.get("stderrTail"),
+        **engine_cache_fields(a.get("stdoutTail") or ""),
     }
 
 
