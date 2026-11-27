@@ -32,7 +32,7 @@ import sys
 import threading
 import time
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -538,7 +538,7 @@ class DeepSeekHarnessWrapper:
 
     def __init__(
         self,
-        backend_runner: Callable[[str], str] | None = None,
+        backend_runner: Callable[[str], str | Mapping[str, Any]] | None = None,
         workspace_dir: str | None = None,
         session_root: str | None = None,
         api_key: str | None = None,
@@ -1200,7 +1200,18 @@ class DeepSeekHarnessWrapper:
         tool_calls: list[dict[str, Any]] = []
         events: list[Any] = []
         if self.backend_runner:
-            result_text = self.backend_runner(goal)
+            out = self.backend_runner(goal)
+            if isinstance(out, Mapping):
+                # Checkpoint-1 faithful flow: an injected runtime may report what it
+                # actually did as the runtime's own session events (``tool/call`` +
+                # ``tool/result``). They fold through the SAME path as a live SDK run,
+                # so its test runs reach agent_tool_calls via the live writer. A plain
+                # string keeps the historical "no tool calls" shape.
+                result_text = str(out.get("finalResponse") or "")
+                events = list(out.get("events") or [])
+                tool_calls = self._fold_tool_calls(events)
+            else:
+                result_text = out
             status = "completed"
         elif self.live_config is LiveMode.LIVE:
             # The configured model is THE model: passed explicitly so no
