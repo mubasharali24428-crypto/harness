@@ -129,7 +129,8 @@ describe("tables get overflow-x wrappers with sticky first column", () => {
       <MembersTable
         members={[
           {
-            id: "u1",
+            id: "tm1",
+            userId: "u1",
             displayName: "Ada",
             email: "ada@example.com",
             memberType: "human",

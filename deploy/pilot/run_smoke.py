@@ -26,6 +26,8 @@ ROOT = Path(__file__).resolve().parents[2]
 PYTHON = str(ROOT / "section4/.venv/bin/python")
 REAL = "--real" in sys.argv
 OTP = "--otp" in sys.argv  # stand-in worker, but real OTP sign-in (ownership enforced)
+# --spec <file>: run one other spec on the same fresh stack, skipping the multiplayer post-checks.
+SPEC = sys.argv[sys.argv.index("--spec") + 1] if "--spec" in sys.argv else None
 IMAGE = "harness-engine-worker:real" if REAL else "harness-engine-worker:p1-tests"
 
 
@@ -208,7 +210,7 @@ def main():
                     "run",
                     "e2e",
                     "--",
-                    "real.e2e.ts" if REAL else "multiplayer.e2e.ts",
+                    SPEC or ("real.e2e.ts" if REAL else "multiplayer.e2e.ts"),
                     "--retries=0",
                     "--reporter=list,junit",
                 ],
@@ -222,6 +224,8 @@ def main():
                 check=False,
             )
             raise
+        if SPEC:
+            return
         if REAL:
             made = [p.read_text().strip() for p in (work / "runs").glob("*/engine_ok.txt")]
             assert made == ["engine ok"], f"real worker did not create the file: {made}"

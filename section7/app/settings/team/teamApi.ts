@@ -28,7 +28,10 @@ export const INVITE_STATUSES = [
 export type InviteStatus = (typeof INVITE_STATUSES)[number];
 
 export interface TeamMemberDto {
+  /** Membership row id — React key only; NEVER send it to the mutation routes. */
   id: string;
+  /** D3: user id the DELETE/PATCH member routes key on (null for agent members). */
+  userId: string | null;
   displayName: string;
   email: string | null;
   memberType: string;
@@ -165,12 +168,14 @@ export function revokeInvite(
   return request(`/api/v1/teams/${teamId}/invites/${inviteId}`, token, { method: "DELETE" });
 }
 
+// M18-C5: the server binds redemption to the invited email; a token alone answers 422.
 export function redeemInvite(
   inviteToken: string,
+  email: string,
   sessionToken: string,
 ): Promise<{ membership: { teamId: string; role: string }; alreadyMember: boolean }> {
   return request(`/api/v1/invites/redeem`, sessionToken, {
     method: "POST",
-    body: JSON.stringify({ token: inviteToken }),
+    body: JSON.stringify({ token: inviteToken, email }),
   });
 }

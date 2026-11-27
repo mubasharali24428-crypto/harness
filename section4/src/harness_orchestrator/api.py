@@ -995,6 +995,20 @@ async def get_run(runId: str, reader: RunReader) -> dict[str, Any]:
         ) from e
 
 
+@router.get("/runs/{runId}/learned-rule", status_code=status.HTTP_200_OK)
+async def get_learned_rule(runId: str, reader: RunReader) -> dict[str, Any]:
+    """I-08 (Sprint 5 Task 37): the project rule a denial stop suggested, read-only.
+
+    ``{offer: {failureClass, paths, suggestedRule, recordedAt, status: "proposed"} | null,
+    similarCases: [...]}``. A proposal only (CD-02): saving it is the human PUT on the
+    project rules API. Any team member who can read the run can read its lesson; foreign
+    and unknown runs answer the same 404 as every other run read."""
+    factory = getattr(_service, "session_factory", None)
+    if factory is None:
+        return dict(collab.NO_LEARNED_RULE)
+    return await collab.learned_rule_for_run(factory, runId, reader.teamId)
+
+
 @router.get("/runs/{runId}/plan", status_code=status.HTTP_200_OK)
 async def get_plan(runId: str, reader: RunReader) -> dict[str, Any]:
     try:
@@ -1204,6 +1218,9 @@ class ApprovalRequest(BaseModel):
 class ApprovalDecision(BaseModel):
     approve: bool
     digest: str = Field(max_length=64)  # the digest the approver reviewed
+    # X-07 KPI signal from the client (same wire name and meaning as section8's ApproveRequest):
+    # was the proposed diff on screen before Approve? None = not measured (unknown, never blind).
+    viewed_detail: bool | None = None
 
 
 class ApprovalDigest(BaseModel):
@@ -1307,7 +1324,9 @@ async def collab_approval_decide(
 ) -> dict:
     _pilot_gate(actor)
     return await _collab(
-        lambda f: collab.decide_approval(f, actor, runId, approvalId, req.approve, req.digest)
+        lambda f: collab.decide_approval(
+            f, actor, runId, approvalId, req.approve, req.digest, viewed_detail=req.viewed_detail
+        )
     )
 
 

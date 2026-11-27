@@ -67,7 +67,7 @@ describe("approve / reject / apply are native buttons with names and keep focus"
     button(tree(), "Approve this change").props.onClick(c.ev);
     expect(c.closest).toHaveBeenCalledWith("[data-approval-card]");
     expect(order).toEqual(["focus", "decide"]);
-    expect(h.onDecide).toHaveBeenCalledWith(expect.objectContaining({ id: "a1" }), true);
+    expect(h.onDecide).toHaveBeenCalledWith(expect.objectContaining({ id: "a1" }), true, false);
   });
   it("Reject decides with false and also parks focus", () => {
     const { tree, h } = view("lead");

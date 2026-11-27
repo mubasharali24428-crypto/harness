@@ -9,7 +9,7 @@ make this decision and has no authority to change it.
 **Related:** [`hx-language-spec.md`](../hx-language-spec.md) §1,
 [`hx-execution-architecture.md`](../hx-execution-architecture.md),
 [`hermes-agentic-language-plan.md`](../hermes-agentic-language-plan.md),
-[`roadmap-3.0.md`](../roadmap-3.0.md) (candidate boundaries),
+[`roadmap-3.0.md`](../archive/roadmap-3.0.md) (candidate boundaries),
 [`reviews/blocked-item-workorders-2026-10-31.md`](../reviews/blocked-item-workorders-2026-10-31.md)
 
 ---

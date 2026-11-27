@@ -166,7 +166,7 @@ passes. The `agent_events` table has partitions through 2026-12-31, so the
 
 An engineering session wrote this after W21 and W22 so the release decision is
 easy and honest. **It is evidence, not a decision.** The decision record in
-[`docs/m2-w20-plan.md`](../../../m2-w20-plan.md#decision-record) was not edited and
+[`docs/archive/m2-w20-plan.md`](../../../archive/m2-w20-plan.md#decision-record) was not edited and
 is still blank; nothing below ticks, signs or approves anything for an owner.
 The checklist boxes in that plan were also left as they were, so some are now
 stale (M01 is closed by W21 but still unticked there). One-page companion:

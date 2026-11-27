@@ -413,8 +413,8 @@ async def emit_member_removed(
     """member.removed — Mission 12 E3a: admin deletes a team membership.
 
     Call from the DELETE /teams/{id}/members/{uid} handler AFTER the membership
-    row commits; target_id is the (now-gone) TeamMember.id, detail carries the
-    removed userId + former role only.
+    row commits; target_id is the soft-removed TeamMember.id (Task 42: the row is
+    kept as the audit FK target), detail carries the removed userId + former role.
     """
     return await _emit(
         session,
@@ -1284,5 +1284,66 @@ async def emit_routing_deleted(
         target_id=target_id,
         detail=detail,
         actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_auth_otp_locked(
+    session: AsyncSession,
+    *,
+    email: str,
+    attempts: int,
+    max_attempts: int,
+    reason: str,
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """auth.otp_locked — the login-OTP row is consumed because the attempt cap
+    was reached (findings-ledger P4 follow-up). Pre-auth: no user or team is
+    known, so the record carries the address and the counters only. The code
+    itself must never appear here (``_scrub`` is the belt; the call site is
+    the braces — no code value is passed at all)."""
+    return await _emit(
+        session,
+        "auth.otp_locked",
+        target_type="login_otp",
+        target_id=email,
+        detail={
+            "email": email,
+            "attempts": attempts,
+            "maxAttempts": max_attempts,
+            "reason": reason,
+        },
+        session_owner=session_owner,
+    )
+
+
+async def emit_member_rendering_changed(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    member_user_id: str,
+    before: str,
+    after: str,
+    kind: str,
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """member.rendering_changed — X-07 (10X Wave B): a member's approval-rendering
+    preference changed (``kind`` = ``self`` when the member set their own,
+    ``admin`` when an admin set it for them, X-D1). Presentation state only; the
+    audit row records who changed what for whom, never any approval content."""
+    return await _emit(
+        session,
+        "member.rendering_changed",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_member",
+        target_id=member_user_id,
+        detail={
+            "memberUserId": member_user_id,
+            "before": before,
+            "after": after,
+            "setBy": kind,
+        },
         session_owner=session_owner,
     )

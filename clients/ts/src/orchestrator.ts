@@ -14,8 +14,18 @@ export interface AbandonBody {
   requestId?: string | null;  // optional
 }
 
+/** AdapterRegistration. Required keys: agentId, capabilities, protocolVersion, pubkey. */
+export interface AdapterRegistration {
+  agentId: string;
+  capabilities: ("read_events" | "read_plan" | "propose_patch" | "comment")[];
+  maxScope?: string[];  // optional
+  protocolVersion: string;
+  pubkey: string;
+}
+
 /** AggregateStepOut. Required keys: seq, ts, type. */
 export interface AggregateStepOut {
+  detail?: { [key: string]: unknown } | null;  // optional
   reason?: string | null;  // optional
   seq: number;
   ts: string;
@@ -26,6 +36,7 @@ export interface AggregateStepOut {
 export interface ApprovalDecision {
   approve: boolean;
   digest: string;
+  viewed_detail?: boolean | null;  // optional
 }
 
 /** ApprovalDigest. Required keys: digest. */
@@ -50,6 +61,24 @@ export interface ApprovalRequest {
 /** BlockBody. Required keys: reason. */
 export interface BlockBody {
   reason: string;
+}
+
+/** Brief. Required keys: goals, tasks. */
+export interface Brief {
+  acceptanceCriteria?: string[];  // optional
+  constraints?: string[];  // optional
+  goals: string[];
+  tasks: BriefTask[];
+}
+
+/** BriefTask. Required keys: key, title. */
+export interface BriefTask {
+  dependsOn?: string[];  // optional
+  key: string;
+  kind?: "human" | "agent";  // optional
+  preferredAssignee?: string | null;  // optional
+  requiredRole?: string | null;  // optional
+  title: string;
 }
 
 /** BudgetDegradedOut. */
@@ -199,6 +228,14 @@ export interface IntentBody {
   scopePaths?: string[] | null;  // optional
 }
 
+/** Item. Required keys: bytes, hits_per_day, id. */
+export interface Item {
+  billing_approved?: boolean;  // optional
+  bytes: number;
+  hits_per_day: number;
+  id: string;
+}
+
 /** LeaseBody. */
 export interface LeaseBody {
   ttlSeconds?: number | null;  // optional
@@ -295,10 +332,12 @@ export interface PlanOut {
   tests?: string[];  // optional
 }
 
-/** PlanProposedResponse. Required keys: plan, planId. */
+/** PlanProposedResponse. Required keys: plan, planId, runId. */
 export interface PlanProposedResponse {
   plan: PlanOut;
   planId: string;
+  projectId?: string | null;  // optional
+  runId: string;
 }
 
 /** PlanRejectedResponse. Required keys: audited, planId, runId, status. */
@@ -328,6 +367,11 @@ export interface PromoteBody {
   expectedVersion: number;
   reason?: string | null;  // optional
   runId?: string | null;  // optional
+}
+
+/** ProposalRequest. Required keys: items. */
+export interface ProposalRequest {
+  items: Item[];
 }
 
 /** ProposeBody. Required keys: patch. */
@@ -381,6 +425,12 @@ export interface ReasonBody {
   reason?: string | null;  // optional
 }
 
+/** Reassign. Required keys: task. */
+export interface Reassign {
+  assignee?: string | null;  // optional
+  task: string;
+}
+
 /** ReassignBody. Required keys: agentId. */
 export interface ReassignBody {
   agentId: string;
@@ -421,6 +471,13 @@ export interface RetryBody {
   requestId: string;
 }
 
+/** Review. Required keys: decision. */
+export interface Review {
+  decision: "approve" | "reject" | "edit";
+  note?: string | null;  // optional
+  reassign?: Reassign[];  // optional
+}
+
 /** ReviewBody. Required keys: decision, diffSha. */
 export interface ReviewBody {
   decision: "approved" | "rejected";
@@ -454,6 +511,7 @@ export interface RunAggregateResponse {
   budget?: BudgetDegradedOut;  // optional
   costUsd?: number | null;  // optional
   engineMode?: string | null;  // optional
+  estimatedCostUsd?: number | null;  // optional
   executing?: boolean;  // optional
   isHumanEditing?: boolean;  // optional
   lifecycle?: { [key: string]: unknown } | null;  // optional
@@ -477,9 +535,13 @@ export interface RunIdStatusResponse {
 
 /** RunItem. Required keys: id, projectId, status. */
 export interface RunItem {
+  blockedBy?: string | null;  // optional
   createdAt?: string | null;  // optional
   finishedAt?: string | null;  // optional
+  goal?: string | null;  // optional
   id: string;
+  planApproved?: boolean;  // optional
+  planId?: string | null;  // optional
   projectId: string;
   startedAt?: string | null;  // optional
   status: string;
@@ -788,6 +850,34 @@ export class OrchestratorClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
   }
 
+  /** List Versions
+   *  GET /api/v1/orchestrator/projects/{projectId}/assignment-plans */
+  list_versions(project_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/projects/${encodeURIComponent(project_id)}/assignment-plans`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Create Proposal
+   *  POST /api/v1/orchestrator/projects/{projectId}/assignment-plans */
+  create_proposal(project_id: string, body: Brief): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/projects/${encodeURIComponent(project_id)}/assignment-plans`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** My Tasks
+   *  GET /api/v1/orchestrator/projects/{projectId}/assignment-plans/mine */
+  my_tasks(project_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/projects/${encodeURIComponent(project_id)}/assignment-plans/mine`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Review
+   *  POST /api/v1/orchestrator/projects/{projectId}/assignment-plans/{version}/review */
+  review(project_id: string, version: string, body: Review): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/projects/${encodeURIComponent(project_id)}/assignment-plans/${encodeURIComponent(version)}/review`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
   /** Get Readiness
    *  GET /api/v1/orchestrator/readiness */
   get_readiness(project_id?: string): Promise<ReadinessResponse> {
@@ -822,6 +912,20 @@ export class OrchestratorClient {
    *  POST /api/v1/orchestrator/runs/{runId}/abandon */
   abandon_route(run_id: string, body: AbandonBody): Promise<Record<string, unknown>> {
     const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/abandon`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** List Adapters
+   *  GET /api/v1/orchestrator/runs/{runId}/adapters */
+  list_adapters(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/adapters`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Register Adapter
+   *  POST /api/v1/orchestrator/runs/{runId}/adapters/register */
+  register_adapter(run_id: string, body: AdapterRegistration): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/adapters/register`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
 
@@ -1208,6 +1312,13 @@ export class OrchestratorClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
   }
 
+  /** Get Learned Rule
+   *  GET /api/v1/orchestrator/runs/{runId}/learned-rule */
+  get_learned_rule(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/learned-rule`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
   /** Lineage
    *  GET /api/v1/orchestrator/runs/{runId}/lineage */
   lineage(run_id: string): Promise<unknown> {
@@ -1445,6 +1556,20 @@ export class OrchestratorClient {
    *  POST /api/v1/orchestrator/runs/{runId}/rewind */
   run_rewind(run_id: string, body: RewindBody): Promise<Record<string, unknown>> {
     const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/rewind`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Latest Proposal
+   *  GET /api/v1/orchestrator/runs/{runId}/scheduler-proposals */
+  latest_proposal(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/scheduler-proposals`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Create Proposal
+   *  POST /api/v1/orchestrator/runs/{runId}/scheduler-proposals */
+  create_proposal_2(run_id: string, body: ProposalRequest): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/scheduler-proposals`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
 
@@ -1687,12 +1812,15 @@ export class OrchestratorClient {
 /* Module surface (mirrors __all__ in clients/python):
  * export class OrchestratorClient
  * export interface/type AbandonBody
+ * export interface/type AdapterRegistration
  * export interface/type AggregateStepOut
  * export interface/type ApprovalDecision
  * export interface/type ApprovalDigest
  * export interface/type ApprovalOutcome
  * export interface/type ApprovalRequest
  * export interface/type BlockBody
+ * export interface/type Brief
+ * export interface/type BriefTask
  * export interface/type BudgetDegradedOut
  * export interface/type CommentBody
  * export interface/type CompleteBody
@@ -1714,6 +1842,7 @@ export class OrchestratorClient {
  * export interface/type HeartbeatRequest
  * export interface/type HumanEditRequest
  * export interface/type IntentBody
+ * export interface/type Item
  * export interface/type LeaseBody
  * export interface/type LeaveRequest
  * export interface/type LimitsBody
@@ -1732,6 +1861,7 @@ export class OrchestratorClient {
  * export interface/type PrefsRequest
  * export interface/type ProgressBody
  * export interface/type PromoteBody
+ * export interface/type ProposalRequest
  * export interface/type ProposeBody
  * export interface/type ProposePlanGateRequest
  * export interface/type ProposePlanRequest
@@ -1740,12 +1870,14 @@ export class OrchestratorClient {
  * export interface/type ReadinessCheckOut
  * export interface/type ReadinessResponse
  * export interface/type ReasonBody
+ * export interface/type Reassign
  * export interface/type ReassignBody
  * export interface/type RedirectRequest
  * export interface/type RejectBody
  * export interface/type ReportBody
  * export interface/type ResolveBody
  * export interface/type RetryBody
+ * export interface/type Review
  * export interface/type ReviewBody
  * export interface/type ReviewFindingsOut
  * export interface/type RevokeBody

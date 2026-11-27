@@ -1,0 +1,68 @@
+clients-python	passed=106	failed=0	skipped=0	xfail=0
+integration	passed=2	failed=0	skipped=2	xfail=0
+integrations-connectors-wiki	passed=8	failed=0	skipped=0	xfail=0
+integrations-connectors-workflows	passed=35	failed=0	skipped=0	xfail=0
+language	passed=367	failed=0	skipped=0	xfail=0
+mcp	passed=18	failed=0	skipped=0	xfail=0
+packages-extensions	passed=93	failed=0	skipped=0	xfail=0
+packages-ops	passed=77	failed=0	skipped=0	xfail=0
+packages-telemetry	passed=31	failed=0	skipped=0	xfail=0
+scripts-eval	passed=41	failed=0	skipped=0	xfail=0
+scripts-ops	passed=36	failed=0	skipped=0	xfail=0
+scripts-root	passed=1	failed=0	skipped=0	xfail=0
+section1	passed=1270	failed=0	skipped=62	xfail=0
+section10	passed=96	failed=0	skipped=0	xfail=0
+section11	passed=60	failed=0	skipped=0	xfail=0
+section2	passed=61	failed=0	skipped=0	xfail=0
+section3	passed=149	failed=0	skipped=0	xfail=0
+section4	passed=2397	failed=1	skipped=60	xfail=0
+section5	passed=542	failed=0	skipped=8	xfail=4
+section6	passed=123	failed=0	skipped=0	xfail=0
+section7-vitest	passed=1205	failed=0	skipped=0	xfail=0
+section8	passed=104	failed=0	skipped=0	xfail=0
+---
+integration	skipped	1	integration.test_checkpoint1	checkpoint-1 predates three product laws the flow now hits: (1) the staged-approval completion gate (signal_done refuses while high-impact staged changes are unapplied - the engine's run creates them)
+integration	skipped	1	integration.test_checkpoint1	requires Postgres (set HARNESS_TEST_PG=1)
+section1	skipped	25	tests.test_audit_chain_pg	HARNESS_TEST_PG not set; live-PG audit chain tests skipped
+section1	skipped	2	tests.test_backup_metrics_pg	HARNESS_TEST_PG not set; live-PG backup metrics test skipped
+section1	skipped	2	tests.test_collab_push_pg	HARNESS_TEST_PG not set; live-PG collab push tests skipped
+section1	skipped	1	tests.test_f1_envelope_idempotency	HARNESS_TEST_PG not set; live-PG probe skipped
+section1	skipped	3	tests.test_fk_deletion_story.TestLivePostgresDeletionStory	HARNESS_TEST_PG not set; live-PG FK-migration probe skipped
+section1	skipped	1	tests.test_money_numeric.TestAsyncpgReserveSerialization	HARNESS_TEST_PG not set; live-PG money-migration probe skipped
+section1	skipped	1	tests.test_money_numeric.TestLivePostgresMoneyMigration	HARNESS_TEST_PG not set; live-PG money-migration probe skipped
+section1	skipped	2	tests.test_partitioned_retention	needs HARNESS_TEST_PG
+section1	skipped	6	tests.test_policy_sockets_pg	HARNESS_TEST_PG not set; live-PG policy socket tests skipped
+section1	skipped	1	tests.test_runs_index_tuning.TestLivePostgresRunsIndexPlan	HARNESS_TEST_PG not set; live-PG runs-index probe skipped
+section1	skipped	9	tests.test_session11_pg	HARNESS_TEST_PG not set; live-PG session 11 tests skipped
+section1	skipped	1	tests.test_session3_pg	HARNESS_TEST_PG not set; live-PG session 3 tests skipped
+section1	skipped	1	tests.test_session4_pg	HARNESS_TEST_PG not set; live-PG session 4 tests skipped
+section1	skipped	1	tests.test_session5_pg	HARNESS_TEST_PG not set; live-PG session 5 tests skipped
+section1	skipped	1	tests.test_session_owner_transfer_pg	HARNESS_TEST_PG not set; live-PG owner transfer test skipped
+section1	skipped	4	tests.test_upgrade_rehearsal_pg	HARNESS_TEST_PG not set; upgrade rehearsal skipped
+section1	skipped	1	tests.test_ws_fingerprint.TestLivePostgresFingerprintMigration	HARNESS_TEST_PG not set; live-PG fingerprint probe skipped
+section4	FAILED	1	tests.unit.test_s1_r05_resume_queue	assert 0 == 1
+ +  where 0 = len([])
+section4	skipped	17	tests.integration.test_container_p0	opt-in Docker
+section4	skipped	1	tests.integration.test_container_p0	opt-in real local model
+section4	skipped	9	tests.unit.test_budget_delivery_live_pg	HARNESS_TEST_PG not set; budget alert PG probe skipped
+section4	skipped	2	tests.unit.test_claim_cap_live_pg	HARNESS_TEST_PG not set; live-PG claim-cap test skipped
+section4	skipped	1	tests.unit.test_collab_approvals_live_pg	HARNESS_TEST_PG not set; approvals PG probe skipped
+section4	skipped	5	tests.unit.test_collab_chaos_live_pg	HARNESS_TEST_PG not set; live-PG collab chaos skipped
+section4	skipped	2	tests.unit.test_collab_race_codes_live_pg	HARNESS_TEST_PG not set; live-PG race-code tests skipped
+section4	skipped	4	tests.unit.test_cost_rollup_live_pg	HARNESS_TEST_PG not set; live-PG cost-rollup proofs skipped
+section4	skipped	2	tests.unit.test_demo_seed_live_pg	HARNESS_TEST_PG not set; live-PG demo-seed proof skipped
+section4	skipped	1	tests.unit.test_engine	opt-in OpenRouter: set HARNESS_LIVE_OPENROUTER=1 (strict, no outage skip)
+section4	skipped	1	tests.unit.test_pilot_metrics	HARNESS_TEST_PG not set
+section4	skipped	2	tests.unit.test_schedule_leader_live_pg	HARNESS_TEST_PG not set; live-PG leader election test skipped
+section4	skipped	3	tests.unit.test_session4_live_pg	HARNESS_TEST_PG not set; live-PG session 4 tests skipped
+section4	skipped	2	tests.unit.test_session5_live_pg	HARNESS_TEST_PG not set; live-PG session 5 tests skipped
+section4	skipped	1	tests.unit.test_session6_live_pg	HARNESS_TEST_PG not set; Session 6 PG probe skipped
+section4	skipped	2	tests.unit.test_session_purge_lease_sweep_live_pg	HARNESS_TEST_PG not set; live-PG session purge and lease sweep tests skipped
+section4	skipped	1	tests.unit.test_verdict_post_live_pg	HARNESS_TEST_PG / HARNESS_DATABASE_URL not set; verdict PG probe skipped
+section4	skipped	4	tests.unit.test_workspace_jobs_live_pg	HARNESS_TEST_PG not set; workspace jobs PG probe skipped
+section5	skipped	2	tests.unit.test_landlock_confinement	landlock is linux-only
+section5	skipped	6	tests.unit.test_landlock_read_isolation	landlock is linux-only
+section5	xfail	1	tests.unit.test_shell_gate_real_boundary	rule 7: 'cat d?cs/y.txt' reads docs/y.txt outside scope; docs marker in output
+section5	xfail	1	tests.unit.test_shell_gate_real_boundary	rule 7: 'grep -r {DOCS_MARKER}' reads docs/y.txt outside scope; docs marker in output
+section5	xfail	1	tests.unit.test_shell_gate_real_boundary	rule 7: 'grep -rn {DOCS_MARKER} *' reads docs/y.txt outside scope; docs marker in output
+section5	xfail	1	tests.unit.test_shell_gate_real_boundary	rule 7: 'python3 -c "print(open(\'docs/y.txt\').read())"' reads docs/y.txt outside scope; docs marker in output

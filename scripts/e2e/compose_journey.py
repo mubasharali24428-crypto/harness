@@ -84,9 +84,31 @@ SANDBOX = os.environ.get("E2E_SANDBOX_URL", "http://127.0.0.1:8005").rstrip("/")
 
 def _frontend_port() -> str:
     """The port compose publishes the UI on: HARNESS_FRONTEND_PORT from the environment, else the
-    repo's .env (a busy :3000 is answered there), else 3000. Only that one key is read."""
+    port compose itself reports for the target project's running frontend service, else the repo's
+    .env knob, else 3000. Only that one key is read."""
     if os.environ.get("HARNESS_FRONTEND_PORT"):
         return os.environ["HARNESS_FRONTEND_PORT"]
+    # 10X Wave A (X-03): follow the host. Two recorded failures shaped this
+    # order: (1) the old default probed :3000 while a stack booted with a
+    # non-default knob published elsewhere (STATUS, W33 readiness pack);
+    # (2) a stale .env knob (3010) can disagree with the live stack (3011 on
+    # the RC project). `compose port` on the journey's own project — default
+    # or E2E_COMPOSE_PROJECT — is the same source of truth the stack used, so
+    # it outranks .env; an explicit env override always wins, and any compose
+    # failure (docker down, project absent) falls through to .env, then 3000.
+    try:
+        out = subprocess.run(
+            compose_command("port", "frontend", "3000"),
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=True,
+        ).stdout.strip()
+        port = out.rsplit(":", 1)[-1].strip()
+        if port.isdigit():
+            return port
+    except (OSError, subprocess.SubprocessError):
+        pass
     try:
         for line in (ROOT / ".env").read_text().splitlines():
             if line.startswith("HARNESS_FRONTEND_PORT="):

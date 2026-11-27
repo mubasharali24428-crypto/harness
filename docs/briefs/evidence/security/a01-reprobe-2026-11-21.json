@@ -1,0 +1,17 @@
+{
+  "drill": "A-01 deployed-gate behavioral re-probe (closes F-SEC-04 from the P0 ledger)",
+  "executedAt": "2026-11-21T23:40:00+05:00",
+  "target": "harness-rc-worker-daemon-1 (live RC stack), image harness-worker-daemon:vv90r6",
+  "gateProvenance": "/opt/harness-shell/shell_gate.py sha256 2d6337ce14bf3561d6e1cb1b6d087a1b857bebe067a9a94b32e504602060ef75 — byte-identical to HEAD section5/src/harness_sandbox/shell_gate.py (re-probed this session)",
+  "runMode": "gate.run() invoked in-image with real confinement and real execution; throwaway workspace /tmp/a01-ws (removed after); no stack state changed",
+  "cases": [
+    {"case": "c2-dotdot-etc-passwd", "cmd": "cat ../../etc/passwd", "result": "DENIED COMMAND_REFUSED (forbidden pattern)"},
+    {"case": "c3-dotdot-etc-hosts", "cmd": "cat ../../etc/hosts", "result": "DENIED OUT_OF_SCOPE (requestScope ../../etc/hosts, grants false)", "delta": "OPEN on vw24b1 (content printed) -> CLOSED on vv90r6"},
+    {"case": "c4-tilde-arg", "cmd": "cat ~/x", "result": "DENIED OUT_OF_SCOPE (grants false)", "delta": "OPEN on vw24b1 -> CLOSED on vv90r6"},
+    {"case": "c5-parent-dir-arg", "cmd": "ls ..", "result": "DENIED OUT_OF_SCOPE (grants false)", "delta": "OPEN on vw24b1 -> CLOSED on vv90r6"},
+    {"case": "c6-outside-ws-read", "cmd": "cat /etc/hostname", "result": "DENIED OUT_OF_SCOPE (grants false)", "delta": "OPEN on vw24b1 -> CLOSED on vv90r6"},
+    {"case": "c8-control-in-scope", "cmd": "cat docs/y.txt", "result": "ALLOWED, exitCode 0, output 'in-scope-ok'", "note": "the vw24b1 probe caveat (confined child denied even in-scope reads) does not reproduce on the live vv90r6 worker-daemon path"}
+  ],
+  "disposition": "All A-01 deployed-tag negatives (items 3-6, and 9-10 by vintage of the same code) are CLOSED on the deployed vv90r6 set. The a01-dispositions redeploy requirement is satisfied by the vv90r6 deploy (daeface) plus this behavioral confirmation; G-B's A-01 row upgrades to 'all denied on the deployed tag'.",
+  "limitations": "Probe covers the decision layer plus real in-image execution in the worker-daemon container; the S-01 native-Linux re-drill (scripts/native_linux_drill.sh, G-B) remains its own row and was not re-run here."
+}

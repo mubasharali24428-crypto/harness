@@ -55,6 +55,9 @@ jobs:
       # job-level `if` (the first draft gated the job with
       # `contains(..., matrix.section)` and failed workflow startup).
       sections: ${{ steps.resolve.outputs.sections }}
+      # the section legs this change does NOT touch — python-tests-unaffected
+      # reports their required `pytest (<section>)` check as a no-op pass.
+      unaffected: ${{ steps.resolve.outputs.unaffected }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       # The nightly probe and by-hand runs have no diff to reason about: they
@@ -66,69 +69,86 @@ jobs:
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         id: forced
         run: |
-          list='["section1","section2","section3","section4","section5","section6","section8","section10","section11","mcp","language","e2e","migrations"]'
-          echo "changes=$list" >> "$GITHUB_OUTPUT"
-          echo "sections=$list" >> "$GITHUB_OUTPUT"
+          sections='["section1","section2","section3","section4","section5","section6","section8","section10","section11"]'
+          echo 'changes=["section1","section2","section3","section4","section5","section6","section8","section10","section11","mcp","language","e2e","migrations"]' >> "$GITHUB_OUTPUT"
+          # pytest legs only: mcp/language/e2e/migrations have their own jobs
+          # (and no top-level dir), same as the push/PR resolve step below.
+          echo "sections=$sections" >> "$GITHUB_OUTPUT"
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         if: github.event_name == 'push' || github.event_name == 'pull_request'
         with:
           # shared prefix in every filter: contracts is a path dependency of
-          # every section, and the Makefile recipes ARE the gates.
+          # every section, and the Makefile recipes ARE the gates. A change to
+          # this workflow runs every leg, so it is tested before it merges and
+          # every required check reports.
           filters: |
             section1:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section1/**'
             section2:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section2/**'
             section3:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section3/**'
             section4:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section4/**'
             section5:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section5/**'
             section6:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section6/**'
             section8:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section8/**'
             section10:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section10/**'
             section11:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section11/**'
             mcp:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'mcp/**'
             language:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'packages/language/**'
             e2e:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'deploy/**'
               - 'section4/**'
               - 'section7/e2e/**'
             migrations:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section1/migrations/**'
               - 'section1/src/**'
               - 'deploy/runners/**'
@@ -151,10 +171,11 @@ jobs:
             changes="${FILTER_CHANGES:-[]}"
             echo "changes=$changes" >> "$GITHUB_OUTPUT"
             # pytest legs = matched filters ∩ the section-name list
-            python3 -c 'import json,sys; changed=json.loads(sys.argv[1]); sections=["section1","section2","section3","section4","section5","section6","section8","section10","section11"]; print("sections="+json.dumps([s for s in sections if s in changed]))' "$changes" >> "$GITHUB_OUTPUT"
+            python3 -c 'import json,sys; changed=json.loads(sys.argv[1]); sections=["section1","section2","section3","section4","section5","section6","section8","section10","section11"]; print("sections="+json.dumps([s for s in sections if s in changed])); print("unaffected="+json.dumps([s for s in sections if s not in changed]))' "$changes" >> "$GITHUB_OUTPUT"
           else
             echo "changes=${FORCED_CHANGES:-[]}" >> "$GITHUB_OUTPUT"
             echo "sections=${FORCED_SECTIONS:-[]}" >> "$GITHUB_OUTPUT"
+            echo "unaffected=[]" >> "$GITHUB_OUTPUT"
           fi
 
   static-gates:
@@ -228,6 +249,23 @@ jobs:
       - name: pytest [make test-${{ matrix.section }}]
         run: make --no-print-directory test-${{ matrix.section }}
         working-directory: ${{ github.workspace }}
+
+  # Branch protection requires every `pytest (<section>)` check by name. A leg
+  # the change doesn't touch never starts, so its check never reports and the
+  # PR sits BLOCKED forever (every docs-only PR did). This reports those names
+  # as a no-op pass: same rule as above (unaffected sections don't run), but
+  # the required check now resolves instead of hanging.
+  python-tests-unaffected:
+    name: pytest (${{ matrix.section }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    needs: changes
+    if: needs.changes.outputs.unaffected != '[]'
+    strategy:
+      matrix:
+        section: ${{ fromJSON(needs.changes.outputs.unaffected) }}
+    steps:
+      - run: echo "${{ matrix.section }} not touched by this change; no tests to run."
 
   mcp:
     name: mcp server (pytest + ruff)
@@ -359,6 +397,31 @@ jobs:
           test "$code" = "0"
       - name: compose journey [make e2e-compose]
         run: make --no-print-directory e2e-compose
+      # R4 "since last iteration": one Playwright spec on the same stack, so
+      # the Diff pane's default scope, toggle, revert body and no-flash rule are
+      # proven in a real browser and not only in unit tests and a stubbed check.
+      # Only this spec runs (the other *.e2e.ts journeys predate CI and are not
+      # wired here). The specs sign in through the passwordless dev bypass, so
+      # identity is recreated with ownership off AFTER the journey above, which
+      # drives the real OTP flow and must keep doing so.
+      - name: identity with the passwordless dev bypass (Playwright sign-in)
+        run: |
+          HARNESS_REQUIRE_OWNERSHIP=false docker compose -f deploy/docker-compose.yml up -d --no-deps identity
+          for i in $(seq 1 45); do curl -fsS http://localhost:8001/health > /dev/null && exit 0; sleep 2; done
+          echo "identity did not come back"; exit 1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: section7/package-lock.json
+      - name: playwright — R4 since-last-iteration spec (section7)
+        working-directory: section7
+        # global-setup exits 246 when the stack is unreachable; here that is a
+        # failure, never a silent skip.
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          npx playwright test e2e/r4-since-last-iteration.e2e.ts --reporter=line
       - name: dump compose logs on failure
         if: failure()
         run: docker compose -f deploy/docker-compose.yml logs --no-color --tail 500 > /tmp/e2e-compose-logs.txt 2>&1 || true
@@ -517,6 +580,25 @@ jobs:
           # The job's service container owns 5499; do not start a second db.
           HARNESS_TEST_PG_EXTERNAL: "1"
           HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@localhost:5499/harness
+
+  readiness-drift:
+    # G-A (security master prompt P1): the committed deploy manifest must
+    # describe HEAD's lineage and HEAD's migration set. A merged migration
+    # flips this red until the stack is redeployed and a fresh manifest is
+    # committed — exactly the deployed-equals-reviewed drift signal.
+    name: readiness drift (manifest vs HEAD)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Full history: the check asks git whether the manifest's git_head is an
+      # ancestor of HEAD. The default shallow clone (depth 1) has no such
+      # commit, so it failed with "Not a valid commit name" even when the
+      # manifest was current.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: manifest coherence [make readiness-drift]
+        run: make --no-print-directory readiness-drift
 
   security-scan:
     # Wave9-E: supply-chain + secret scanning. pip-audit is WARN-posture this

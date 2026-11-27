@@ -18,6 +18,18 @@ harness/
 └── deploy/             # Section 10 assembly point
 ```
 
+## Docs map (X-05 diet, 2026-11-22)
+
+Live documents: `README.md` (start here) · `STATUS.md` (current readiness only —
+history split to the archive) · `FUTURE PLAN 2.0.md` (the working plan, incl. §20 10X
+program) · `docs/briefs/PROJECT-STATE.md` · `docs/TUTORIAL.md` · `docs/runbooks/` ·
+`docs/ci-gates.md` · `docs/GLOSSARY.md`.
+
+Superseded plans and historical status entries live under `docs/archive/` — read-only
+history, never edited: `FUTURE PLAN.md`, `roadmap-3.0.md`,
+`90-day-execution-plan-2026-11-11.md`, the 24 `m2-w*-plan.md` legs, and
+`STATUS-history-to-2026-11-06.md`.
+
 ## Commands (Section 1)
 
 Run from the repo root (paths are explicit, so nothing depends on your cwd):

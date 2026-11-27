@@ -10,6 +10,7 @@
 /** ApproveRequest. Required keys: reviewer_user_id. */
 export interface ApproveRequest {
   reviewer_user_id: string;
+  viewed_detail?: boolean | null;  // optional
 }
 
 /** ChangeStatus */
@@ -90,6 +91,13 @@ export class ReviewClient {
   /** @param http  shared transport; @param baseUrl resolved by Harness. */
   constructor(readonly http: HarnessHttp,
               public readonly baseUrl: string = "") {}
+
+  /** Blind Approval
+   *  GET /api/v1/review-kpi/blind-approval */
+  blind_approval(): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/review-kpi/blind-approval`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
 
   /** Get Reviewer Threshold Settings
    *  GET /api/v1/reviews/settings/thresholds */

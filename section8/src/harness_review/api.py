@@ -23,11 +23,12 @@ import harness_contracts as contracts
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from harness_contracts import KeyVault, make_bearer_dep
-from harness_contracts.roles import Principal, can
+from harness_contracts.roles import Principal, Role, can
 from pydantic import BaseModel, Field
 
 from .config import Settings
 from .heuristic import DEFAULT_REVIEWER_THRESHOLDS, REVIEWER_THRESHOLD_KEY
+from .kpi import blind_approval_kpi
 from .models import ChangedFile, ReviewData, ReviewStatus, RiskFlag
 from .service import ReviewService
 from .team_thresholds import get_team_reviewer_thresholds
@@ -83,6 +84,9 @@ def _request_diff(request: Request, diff_text: str | None) -> str | None:
 
 class ApproveRequest(BaseModel):
     reviewer_user_id: str = Field(..., min_length=1)
+    # X-07 KPI signal from the client: was the diff on screen before Approve? None = the client
+    # did not measure it (counted as unknown, never as blind).
+    viewed_detail: bool | None = None
 
 
 class RequestChangesRequest(BaseModel):
@@ -187,7 +191,8 @@ async def approve_pr(
     _require_approver(principal)
     svc: ReviewService = request.app.state.review_service
     try:
-        await svc.approve(pr_id, principal.userId, team_id=principal.teamId)
+        await svc.approve(pr_id, principal.userId, team_id=principal.teamId,
+                          viewed_detail=body.viewed_detail)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {
@@ -362,3 +367,16 @@ def _to_response_dict(data: ReviewData) -> dict[str, Any]:
         "reviewComments": data.review_comments,
         "testResults": [t.model_dump() for t in data.test_results],
     }
+
+
+@router.get("/review-kpi/blind-approval", status_code=status.HTTP_200_OK)
+async def blind_approval(request: Request, principal: RequirePrincipal) -> dict[str, Any]:
+    """X-07 KPI for the caller's team (admin only): blind-approval rate split by rendering."""
+    if principal.role != Role.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "ROLE_DENIED", "message": "admins only"}},
+        )
+    svc: ReviewService = request.app.state.review_service
+    async with await svc._session() as db:
+        return await blind_approval_kpi(db, principal.teamId)

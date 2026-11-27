@@ -67,3 +67,21 @@ confidentiality semantics", FUTURE PLAN §4 F-05), not to a test-driven patch.
 - `stack_tags` exit-code defect (week-03 §2 "open defect"): **already
   resolved** at `0e34421` — `main()` returns 2 when `docker ps` fails, the
   strict xfail is gone, 3/3 exit tests pass. The week-03 note predates it.
+
+## 5. Correction (platform+testing Q1, 2026-11-21)
+
+§1 says "the other two xfails are platform-dependent rows". They are not: all four
+strict xfails in `test_shell_gate_real_boundary.py` are the same `leak_xfail`
+(group G, rule 7), and they xfail on **both** platforms — macOS (Q0 junit, `42f337fc`)
+and Linux kernel 6.12.76-linuxkit (Q1, `2fda5bd8`: `542 passed, 10 skipped, 4 xfailed`).
+The darwin-only `read_xfail` is applied to no row (`_R_FAIL_OPEN` is empty).
+
+| id | command |
+|---|---|
+| `G2-cat-glob-dir-component-policy.py-91` | `cat d?cs/y.txt` |
+| `G6a-grep-recursive-no-path-policy.py-95` | `grep -r {DOCS_MARKER}` |
+| `G6b-grep-recursive-star-policy.py-95` | `grep -rn {DOCS_MARKER} *` |
+| `G7i-python-code-string-policy.py-102` | `python3 -c "print(open('docs/y.txt').read())"` |
+
+Same mechanism, same §2 reasoning, same §3 owner text: the signature covers all four.
+Ledger: `docs/briefs/evidence/quality/test-ledger.md` §2.

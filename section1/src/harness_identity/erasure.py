@@ -106,7 +106,8 @@ async def erase_account(body: ErasureBody, request: Request, p: Auth) -> dict:
             " run_collab_events e WHERE e.run_id = h.run_id AND e.actor_user_id = :u) OR EXISTS"
             " (SELECT 1 FROM run_participants x WHERE x.run_id = h.run_id AND x.user_id = :u)"
             " OR EXISTS (SELECT 1 FROM audit_log a JOIN team_members m ON m.id = a.actor_member_id"
-            " WHERE a.target_id = h.run_id AND m.user_id = :u)"), u)).scalar()
+            " WHERE a.target_id = h.run_id AND (m.user_id = :u OR m.removed_user_id = :u))"),
+            u)).scalar()
         if held:
             await write_audit(db, "account.erasure_deferred", actor_member_id=seat,
                               target_type="user", target_id=p.userId, detail={"heldRuns": held})
@@ -122,6 +123,10 @@ async def erase_account(body: ErasureBody, request: Request, p: Auth) -> dict:
         seats = (await db.execute(
             text("UPDATE team_members SET user_id = NULL, display_name = :g, role = 'viewer'"
                  " WHERE user_id = :u"), {**u, "g": _GONE})).rowcount
+        # Task 42: seats removed from a team earlier keep who held them in removed_user_id.
+        await db.execute(
+            text("UPDATE team_members SET removed_user_id = NULL, display_name = :g"
+                 " WHERE removed_user_id = :u"), {**u, "g": _GONE})
         await db.execute(
             text("UPDATE users SET email = :e, name = '', is_active = false WHERE id = :u"),
             {**u, "e": f"erased-{p.userId}@erased.invalid"})

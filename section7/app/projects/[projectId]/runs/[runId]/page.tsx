@@ -15,6 +15,7 @@ import AppShell from "@/components/AppShell";
 import { WorkingArea } from "@/components/WorkingArea";
 import { ChangeReview } from "@/components/ChangeReview";
 import { RunColumn } from "@/components/workspace/RunColumn";
+import { RunStatusHeader } from "@/components/workspace/RunStatusHeader";
 import { ReviewPane } from "@/components/workspace/ReviewPane";
 import { RunEvidence } from "@/components/workspace/RunEvidence";
 import { PresenceAvatars } from "@/components/workspace/PresenceAvatars";
@@ -22,17 +23,16 @@ import { useRun } from "@/components/workspace/useRun";
 import { Composer, COMPOSER_INPUT_ID } from "@/components/workspace/Composer";
 import { PlanPin } from "@/components/workspace/PlanPin";
 import { InlineApprovals, NextStepBox } from "@/components/workspace/RunPrompts";
-import { runRowTitle } from "@/components/workspace/previewData";
+import { LearnedRuleOffer } from "@/components/workspace/LearnedRuleOffer";
 import { PANES, paneFromSearch, searchWithPane, type PaneId } from "@/components/workspace/panes";
 import { showChangeReview, type DiffScope } from "@/lib/diffScope";
-import { formatMoneyUsd, formatRelativeTime } from "@/lib/format";
 import { ErrorState, LoadingState } from "@/components/States";
 import { Button } from "@/components/ui";
 import { loadSession } from "@/lib/auth";
 // W4 gate repair: the presentational aggregate moved to ./runDetailAggregate
 // (Next route modules may export ONLY the default). The page keeps the data
 // fetch; rendering helpers live with the component that uses them.
-import { pauseOrResumeRun, runSettled, stateLabel } from "../../../../runs/runsApi";
+import { pauseOrResumeRun, runSettled } from "../../../../runs/runsApi";
 import { RunDetailAggregate } from "./runDetailAggregate";
 import { ScopeRequestSection } from "./scopeRequestSection";
 import { SynthesisSection } from "./synthesisPanel";
@@ -48,6 +48,7 @@ export default function RunDetailPage({
   const [runId, setRunId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [selfId, setSelfId] = useState<string | null>(null);
   // M19-N4 (C10): the canned demo lands here with ?demo=1. The banner is a
   // UI honesty marker ONLY — the run's own events carry the durable replay
   // marker server-side.
@@ -78,6 +79,7 @@ export default function RunDetailPage({
   useEffect(() => {
     setToken(loadSession()?.token ?? null);
     setRole(loadSession()?.principal.role ?? null);
+    setSelfId(loadSession()?.principal.userId ?? null);
     // Read markers off window so the statically prerendered page never needs
     // a Suspense boundary (same pattern as the login page).
     const read = () => {
@@ -119,8 +121,6 @@ export default function RunDetailPage({
 
   const terminal = runSettled(agg);
   const control = agg?.state === "executing" ? "pause" : agg?.state === "paused" ? "resume" : null;
-  const cost = formatMoneyUsd(agg?.costUsd ?? null);
-  const estimate = formatMoneyUsd(agg?.estimatedCostUsd ?? null);
 
   return (
     <AppShell active="/runs" runId={runId}>
@@ -134,43 +134,34 @@ export default function RunDetailPage({
           )}
 
           {agg && (
-            <header className="ws-run-head">
-              <div className="ws-run-head-row">
-                <span className={`ws-dot lg ${agg.state}`} aria-hidden="true" />
-                <h1 className="ws-run-title">{runRowTitle(view.plan?.goal)}</h1>
-                {control && (
-                  <Button size="sm" variant={control === "pause" ? undefined : "primary"} disabled={controlBusy}
-                    onClick={() => void pauseResume(control)}>
-                    {control === "pause" ? "Pause" : "Resume"}
-                  </Button>
-                )}
-                {runId && token && <PresenceAvatars runId={runId} token={token} onOpen={() => selectPane("advanced")} />}
-                {agg.url ? (
-                  <a className="ws-run-pr" href={agg.url} target="_blank" rel="noreferrer">
-                    Pull request ↗
-                  </a>
-                ) : null}
-              </div>
-              <p className="ws-run-meta">
-                <span>{stateLabel(agg.state)}</span>
-                <span aria-hidden="true">·</span>
-                <span title="Metered spend for this run (cost ledger)">
-                  Spend {cost === "unknown" ? <span className="ws-unknown">unknown</span> : cost}
-                </span>
-                <span aria-hidden="true">·</span>
-                <span title="The plan's own estimate, not actual spend">
-                  Estimated {estimate === "unknown" ? <span className="ws-unknown">unknown</span> : estimate}
-                </span>
-                <span aria-hidden="true">·</span>
-                <span>Started {formatRelativeTime(agg.steps[0]?.ts ?? null)}</span>
-              </p>
-              {controlNote && <p role="status" className="ws-conn-note">{controlNote}</p>}
-              {view.stale && (
-                <p role="status" className="ws-conn-note">
-                  Reconnecting: this is the last state the server reported.
-                </p>
-              )}
-            </header>
+            // Operability slice 2: status first — goal, state, spend or "unknown", one next action.
+            <RunStatusHeader
+              goal={view.plan?.goal}
+              state={agg.state}
+              planApproved={agg.planApproved}
+              costUsd={agg.costUsd}
+              estimatedCostUsd={agg.estimatedCostUsd}
+              startedAt={agg.steps[0]?.ts ?? null}
+              stale={view.stale}
+              note={controlNote}
+              onOpenPane={selectPane}
+              controls={
+                <>
+                  {control && (
+                    <Button size="sm" variant={control === "pause" ? undefined : "primary"} disabled={controlBusy}
+                      onClick={() => void pauseResume(control)}>
+                      {control === "pause" ? "Pause" : "Resume"}
+                    </Button>
+                  )}
+                  {runId && token && <PresenceAvatars runId={runId} token={token} onOpen={() => selectPane("advanced")} />}
+                  {agg.url ? (
+                    <a className="ws-run-pr" href={agg.url} target="_blank" rel="noreferrer">
+                      Pull request ↗
+                    </a>
+                  ) : null}
+                </>
+              }
+            />
           )}
 
           <div className="ws-pane-tabs" role="group" aria-label="Open in the side pane">
@@ -198,7 +189,9 @@ export default function RunDetailPage({
 
           {agg && runId && token && (
             <>
-              <InlineApprovals runId={runId} token={token} role={role} tick={agg} />
+              <InlineApprovals runId={runId} token={token} role={role} selfId={selfId} tick={agg} />
+              {/* I-08: a repeated-denial stop offers its lesson as a rule to copy; never saved here. */}
+              <LearnedRuleOffer runId={runId} token={token} steps={agg.steps} />
               <NextStepBox state={agg.state} busy={controlBusy}
                 onAction={(a) => {
                   if (a === "diff") selectPane("diff");
@@ -271,6 +264,7 @@ export default function RunDetailPage({
                   <a className="ws-foot-link" href={`/projects/${projectId}/runs/${runId}/report`}>Read-only report →</a>
                   <a className="ws-foot-link" href={`/projects/${projectId}/runs/${runId}/checkpoints`}>Checkpoints →</a>
                   <a className="ws-foot-link" href={`/projects/${projectId}/tree`}>Repository files →</a>
+                  <a className="ws-foot-link" href={`/projects/${projectId}/planning`}>Assignment planning →</a>
                 </p>
               )}
             </>

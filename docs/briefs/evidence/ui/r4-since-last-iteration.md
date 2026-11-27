@@ -1,6 +1,6 @@
 # R4 evidence: "Since last iteration" in the Diff pane
 
-Date: 2026-11-25. Base: `master` at `96f86fe`. Scope: `section7/` only, no `contracts/` change.
+Date: 2026-11-25. Built on `master` at `96f86fe`; merged as #29 (`5654b53`). Scope: `section7/` only, no `contracts/` change.
 
 ## What changed
 
@@ -29,25 +29,67 @@ files, so this was implemented from the repo's own ReviewPane, DiffPane, ChangeR
 
 ## Results
 
-"Cloud" = Claude Code cloud session (no Docker, no compose stack). "Stubbed browser" = real Chromium
-against `next dev`, every backend answered by `scripts/r4-since-last-check.cjs`.
+Updated 2026-11-25 after #29 merged (`5654b53`). "Cloud" = Claude Code cloud session: it has the Docker
+client but no Docker daemon (no `/var/run/docker.sock`), so no compose stack can run there. "CI" = GitHub
+Actions `e2e-compose` job, which boots the full compose stack. "Stubbed browser" = real Chromium against
+`next dev` with every backend answered by `scripts/r4-since-last-check.cjs`.
+
+### Automated
 
 | # | Check | Where | Result |
 |---|-------|-------|--------|
-| 1 | `npx tsc --noEmit` | cloud | PASS |
+| 1 | `npx tsc --noEmit` | cloud; CI `vitest + tsc (section7)` on #29 | PASS |
 | 2 | `npx vitest run tests/unit/sinceLastIteration.test.ts tests/unit/diffScope.test.ts` (+ `sinceLastIterationDiff.test.tsx`) | cloud | PASS, 19 tests in 3 files |
-| 3 | `npx vitest run` (full) | cloud | PASS, 1220 tests in 115 files (baseline before the change: 1201 in 112) |
-| 4 | `npx playwright test e2e/r4-since-last-iteration.e2e.ts --reporter=line` | cloud | NOT RUN: global setup skipped, exit 246, no stack reachable. Pending a run against the stack |
-| 5 | Stubbed browser check, 10 assertions | cloud | PASS 10/10, no page errors |
-| 6 | Diff pane opens on since-last by default | stubbed browser | PASS. RC: pending |
-| 7 | Toggle to full PR shows the PR diff and the snapshot history; toggle back hides it (keyboard) | stubbed browser | PASS. RC: pending |
-| 8 | "Your decision" (review-decide) visible while since-last is primary | stubbed browser | PASS. RC: pending |
-| 9 | No ChangeReview flash on load (MutationObserver never saw it) | stubbed browser | PASS. RC: pending |
-| 10 | Run switch re-defaults to since-last | stubbed browser (full navigation) | PASS. Client-side sidebar switch is in the e2e only. RC: pending |
-| 11 | Hunk revert body is exactly `{ hunks: [{ path, index }] }` | stubbed browser | PASS. RC: pending |
-| 12 | axe (wcag2a/aa, 21aa, 22aa) clean in the pane at 1440 and 375 | stubbed browser | PASS. RC: pending |
-| 13 | Section 1: `./.venv/bin/python -m pytest tests/ -q` | cloud, fresh venv, Python 3.13, SQLite 3.53 | 1261 passed, 63 skipped, 8 errors, all in `tests/test_runs_index_tuning.py` (fixture fails with SQLite "too many SQL variables"). This PR does not touch `section1/`; re-run on the owner's Mac |
-| 14 | Section 1: `./.venv/bin/ruff check src tests scripts` | cloud | PASS |
+| 3 | `npx vitest run` (full) | cloud; CI on #29 | PASS, 1220 tests in 115 files (baseline 1201 in 112) |
+| 4 | Stubbed browser check, 10 assertions | cloud | PASS 10/10, no page errors |
+| 5 | `npx playwright test e2e/r4-since-last-iteration.e2e.ts --reporter=line` | cloud | NOT RUN: no Docker daemon, global setup exits 246 (stack unreachable) |
+| 5 | same command, against the compose stack | CI, [PR #31](https://github.com/mubasharali24428-crypto/harness/pull/31), run [45645352207](https://github.com/mubasharali24428-crypto/harness/actions/runs/45645352207/job/139314893279), head `30ac5a3` | PASS: 3 passed, 1 skipped. Passed: default since-last with decision visible, no snapshot history and axe clean; toggle to full PR and back; revert body `{ hunks: [{ path, index }] }`. Skipped: "switching runs", because the demo seed returns the same run for a team, so there is no second run to switch to. Needs #31's spec stub fix (CORS headers on the sandbox stubs) |
+
+### On RC (`:3011`), owner's Mac
+
+Source: **owner's report of 2026-11-25, not a cloud run.** Raw logs have not been pasted into the repo yet.
+
+| # | Check | Where | Result |
+|---|-------|-------|--------|
+| 5 | `npx playwright test e2e/r4-since-last-iteration.e2e.ts` against RC | owner's Mac, RC `:3011` | PASS 3/3 (owner-reported). CI compose run of the same spec shows 3 passed, 1 skipped ("switching runs"); the skip is expected with the demo seed |
+| 4 | `node section7/scripts/r4-since-last-check.cjs` against RC | owner's Mac, RC `:3011` | PASS 10/10 (owner-reported) |
+
+### Manual on RC (`:3011`), for the owner
+
+Rows 6 to 12 below are still unticked by hand; the two automated runs above cover the default scope,
+toggle and revert paths but not the 1440/375 light/dark visual pass (row 12).
+
+| # | Check | Stubbed browser (reference) | RC result |
+|---|-------|-----------------------------|-----------|
+| 6 | Diff pane opens on "Since last iteration" by default | PASS | |
+| 7 | Toggle to "Full pull request" shows the PR diff and the snapshot history; toggle back hides it | PASS | |
+| 8 | "Your decision" stays visible while since-last is shown | PASS | |
+| 9 | No snapshot-history (ChangeReview) flash while the pane loads | PASS | |
+| 10 | Switching to another run opens on since-last again | PASS (full navigation only) | |
+| 11 | Reverting a ticked hunk works and the newest snapshot becomes the revert | PASS (body checked) | |
+| 12 | Pane readable and usable at 1440 and 375, light and dark | PASS (axe, light) | |
+
+### Section 1
+
+| # | Check | Where | Result |
+|---|-------|-------|--------|
+| 13 | `./.venv/bin/python -m pytest tests/ -q` | cloud, fresh venv, Python 3.13, SQLite 3.53 | 1261 passed, 63 skipped, 8 errors, all in `tests/test_runs_index_tuning.py` (SQLite "too many SQL variables" in the fixture). R4 does not touch `section1/` |
+| 13 | same | owner's Mac | PASS, about 1270 passed (owner-reported; exact count and log not pasted) |
+| 14 | `./.venv/bin/ruff check src tests scripts` | cloud | PASS |
+| 14 | same | owner's Mac | PASS, green (owner-reported) |
+
+### Stack-merge Mac results (2026-11-25)
+
+Source: **owner's reports, not cloud runs.** Raw logs are in the owner's Mac evidence file
+(`mac-phase-b-run-2026-11-25.md`), not in this repo. These do not change STATUS or the NOT READY verdict.
+
+| Item | Check | Where | Result |
+|------|-------|-------|--------|
+| PR 33 | section5 shell-gate pytest, head `94dd92a2` | owner's Mac | rc=0, 136 passed, 2 skipped (macOS procfs), 9 xfailed (owner-reported) |
+| PR 36 | `make gate` on PR head `2dafdf24` | owner's Mac | GATE GREEN, tsc + vitest 1220 (owner-reported) |
+| PR 27 branch (not merged) | Task 36 Playwright at `5793ce9f`, after compose migration 0082 | owner's Mac | 1 passed (owner-reported) |
+
+PR 27 intentionally not merged — reason TBD.
 
 Screenshots (stubbed browser, light): `r4-since-last-1440.png`, `r4-full-pr-1440.png`,
 `r4-since-last-375.png`.

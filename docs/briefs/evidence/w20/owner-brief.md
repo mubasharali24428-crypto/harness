@@ -1,7 +1,7 @@
 # W20 owner brief — release readiness (prepared 2026-10-30, evening)
 
 **This page records no decision.** The decision record in
-[`docs/m2-w20-plan.md`](../../../m2-w20-plan.md#decision-record) is untouched and
+[`docs/archive/m2-w20-plan.md`](../../../archive/m2-w20-plan.md#decision-record) is untouched and
 blank; an authorized owner who did not write the code fills it in. This is the
 evidence summary for that owner. Every claim links to the full table and raw
 files in the [W20 evidence README](README.md#owner-readiness-refill-prepared-2026-10-30-evening-for-the-authorized-owner).

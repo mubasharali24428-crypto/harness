@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { clearSession, loadSession } from "@/lib/auth";
 import { apiFetch, IDENTITY_BASE } from "@/lib/api";
 import { EmptyState, ErrorState, LoadingState } from "@/components/States";
-import { runRowTitle } from "@/components/workspace/previewData";
+import { runRowTitle } from "@/components/workspace/runRows";
 import { listRuns, stateLabel, type RunDto } from "../runs/runsApi";
 
 interface PortalProject {

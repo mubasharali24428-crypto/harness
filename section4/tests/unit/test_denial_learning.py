@@ -196,3 +196,64 @@ def test_a_denial_stop_suggests_the_rule_in_the_durable_reason(tmp_path):
     # the suggestion is also kept structured on the run record for the API
     stored = run_data.get("_suggested_rule") or ""
     assert stored and "/etc/nginx/nginx.conf" in stored
+
+
+# ------------------------------------------- 4. Sprint 2 Task 14: the stop remembers (CD-02)
+
+CASE_DDL = (
+    "CREATE TABLE case_memory (case_id VARCHAR(36) PRIMARY KEY, team_id TEXT NOT NULL,"
+    " project_id TEXT, run_id TEXT NOT NULL, failure_class TEXT, tool TEXT, paths TEXT,"
+    " fingerprint TEXT, outcome TEXT, weight REAL, suggested_rule TEXT,"
+    " status TEXT CHECK (status = 'proposed'), recorded_at TIMESTAMP)",
+    "CREATE TABLE project_rules (project_id TEXT, content TEXT)",
+)
+
+
+def test_a_second_denial_stop_recalls_the_first_and_never_another_teams(tmp_path):
+    from unit.test_goal_image_execution import _started, run
+
+    svc, run_data, plan, factory, _ = _started(tmp_path, DenialEngine())
+
+    async def setup():
+        async with factory() as db:
+            for d in CASE_DDL:
+                await db.execute(text(d))
+            await db.execute(text(  # same path, other tenant: must never be recalled
+                "INSERT INTO case_memory VALUES ('foreign', 't2', 'px', 'r-other',"
+                " 'denials_repeated', 'bash', '[\"/etc/nginx/nginx.conf\"]', 'x', 'recovered',"
+                " 1.0, 'LEAK', 'proposed',"
+                " CURRENT_TIMESTAMP)"))
+            await db.commit()
+
+    run(setup())
+    run_data["state_machine"].start_execution()
+    run(svc._execute(run_data, plan))
+    assert run_data["_similar_cases"] == []  # first stop: nothing earlier in t1
+
+    # a second stuck run in the same team hits the same boundary
+    again = {**run_data, "runId": "r2", "_guard_stopped": None,
+             "_denial_scope_requests": run_data["_denial_scope_requests"]}
+    run(svc._guard_stopped("r2", again, run_data["state_machine"], "denials_repeated",
+                           type("G", (), {"calls_seen": 3})(), None, None))
+    recalled = again["_similar_cases"]
+    assert [c["runId"] for c in recalled] == ["r1"]
+    assert "LEAK" not in json.dumps(recalled)
+
+    async def rows():
+        async with factory() as db:
+            cases = (await db.execute(text(
+                "SELECT team_id, status FROM case_memory WHERE team_id = 't1'"))).all()
+            rules = (await db.execute(text("SELECT count(*) FROM project_rules"))).scalar()
+            return cases, rules
+
+    cases, rules = run(rows())
+    assert [tuple(c) for c in cases] == [("t1", "proposed"), ("t1", "proposed")]
+    assert rules == 0  # promotion stays the human rules PUT
+
+
+def test_a_stop_without_the_case_table_still_stops(tmp_path):
+    """Pre-0080 schema: memory is best-effort, the stop is not."""
+    engine = DenialEngine()
+    _svc, run_data, seen = _execute(tmp_path, engine)
+    assert run_data.get("_guard_stopped") == "denials_repeated"
+    assert run_data["_similar_cases"] == []

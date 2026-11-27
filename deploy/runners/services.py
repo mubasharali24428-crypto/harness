@@ -592,7 +592,9 @@ def app_orchestrator():
     # Session 5 (part 43): discussion (comments, mentions, promote, search, retention).
     from harness_orchestrator import (
         agent_tree,
+        adapters,
         artifacts,
+        assignment_plan,
         control,
         delegation,
         deployments,
@@ -603,6 +605,7 @@ def app_orchestrator():
         plans,
         presence,
         retention_holds,
+        scheduler_proposal,
         search,
         shares,
         visuals,
@@ -621,7 +624,8 @@ def app_orchestrator():
     for _r in (presence.router, participation.router, control.router, agent_tree.router,
                delegation.router, discussion.router, plans.router, execution.router, artifacts.router, search.router,
                exports.router, retention_holds.router, shares.router,
-               deployments.router, visuals.router):
+               deployments.router, visuals.router, assignment_plan.router, adapters.router,
+               scheduler_proposal.router):
         app.include_router(_r)
 
     # Part 38.005: org policy applies to every classified run/plan route of org-linked teams

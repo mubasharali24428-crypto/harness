@@ -35,7 +35,7 @@ ISO_UTC_MS = r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}\+00:00"
 
 def server_dsn() -> str:
     raw = os.environ.get("HARNESS_TEST_PG", "")
-    return raw if "://" in raw else "postgresql://harness:harness@127.0.0.1:5499/harness"
+    return raw if "://" in raw else (os.environ.get("HARNESS_TEST_PG_DSN") or "postgresql://harness:harness@127.0.0.1:5499/harness")
 
 
 @pytest.fixture

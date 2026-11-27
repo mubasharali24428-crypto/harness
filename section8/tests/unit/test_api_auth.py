@@ -32,7 +32,7 @@ def test_approve_uses_principal_not_body():
     recorded = {}
 
     class StubService:
-        async def approve(self, pr_id, reviewer_user_id, *, team_id=None):
+        async def approve(self, pr_id, reviewer_user_id, *, team_id=None, viewed_detail=None):
             recorded["pr_id"] = pr_id
             recorded["reviewer_user_id"] = reviewer_user_id
 

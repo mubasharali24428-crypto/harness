@@ -37,7 +37,7 @@ import os
 import re
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from harness_contracts.roles import READ_ONLY, Principal, Role
@@ -45,7 +45,7 @@ from harness_contracts.timeutil import as_utc, db_now
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, OperationalError
 
-from harness_orchestrator import domain_metrics, notify
+from harness_orchestrator import approval_copy, case_memory, domain_metrics, notify
 
 logger = logging.getLogger(__name__)
 
@@ -225,12 +225,45 @@ async def _approval_change(
     before: dict[str, Any] | None,
     after: dict[str, Any],
     extra: dict[str, Any] | None = None,
+    audit_only: dict[str, Any] | None = None,
 ) -> None:
     """One approval transition = a product event (shown live to collaborators, no diff
-    or free text) plus a security audit row with before/after values, same transaction."""
+    or free text) plus a security audit row with before/after values, same transaction.
+    ``audit_only`` keys land on the audit row but never on the collaborator event."""
     detail = {"approvalId": approval_id, "before": before, "after": after, **(extra or {})}
     await _event(db, p, run_id, name, detail, None)
-    await _audit(db, p, name, run_id, detail)
+    await _audit(db, p, name, run_id, {**detail, **(audit_only or {})})
+
+
+# X-07: the closed rendering label set, identical to section8 decision_context.RENDERINGS
+# (no cross-section import: the isolation law). "unknown" = no row, pre-0077 schema, any error.
+RENDERINGS: tuple[str, ...] = ("technical", "plain", "decision", "unknown")
+
+
+async def member_rendering(factory: Any, team_id: str | None, user_id: str | None) -> str:
+    """The approval rendering this member had selected (``team_members.approval_rendering``,
+    migration 0077, written by section1's ``/me/rendering`` doors), else ``"unknown"``.
+
+    Read in its OWN short session, before the decision transaction: on Postgres a failed
+    statement (e.g. a pre-0077 schema) would otherwise abort the decision itself. Fail-open:
+    telemetry context must never turn a working approval into an error."""
+    if not team_id or not user_id:
+        return "unknown"
+    try:
+        async with factory() as db:
+            row = (
+                await db.execute(
+                    text(
+                        "SELECT approval_rendering FROM team_members"
+                        " WHERE team_id = :t AND user_id = :u LIMIT 1"
+                    ),
+                    {"t": team_id, "u": user_id},
+                )
+            ).first()
+    except Exception:  # noqa: BLE001 - best-effort instrumentation
+        return "unknown"
+    value = str(row[0] or "").strip() if row is not None else ""
+    return value if value in RENDERINGS[:3] else "unknown"
 
 
 async def _participant(db: Any, run_id: str, user_id: str) -> Any:
@@ -836,6 +869,7 @@ def _view(r: Any) -> dict[str, Any]:
         "decidedAt": _iso(r.decided_at),
         "outcome": r.outcome,
         "expiresAt": str(r.expires_at),
+        **approval_copy.render(r.action, paths),  # X-07/X-21: same facts, plain words + grid
     }
 
 
@@ -903,7 +937,78 @@ async def request_approval(
     return {**_view(row), "designatedApprover": leader}
 
 
+async def similar_cases_for_run(factory: Any, run_id: str) -> list[dict[str, Any]]:
+    """Task 14: up to 3 similar earlier denial cases for this run's team.
+
+    Reuses case_memory's own team-scoped similarity; never returns this run's
+    own case or another team's. Best-effort like the recall at the stop: an old
+    schema, a run with no recorded case or a DB hiccup yields [] so that
+    listing approvals can never fail over lesson rows. Proposals only.
+    """
+    try:
+        async with factory() as db:
+            own = (await db.execute(text(
+                "SELECT team_id, tool, paths, recorded_at FROM case_memory"
+                " WHERE run_id = :r ORDER BY recorded_at DESC LIMIT 1"),
+                {"r": run_id},
+            )).mappings().first()
+            if own is None:
+                return []
+            cases = await case_memory.load_cases(db, own["team_id"])
+        paths = json.loads(own["paths"]) if isinstance(own["paths"], str) else own["paths"]
+        others = [c for c in cases if c["runId"] != run_id]
+        similar = case_memory.retrieve_similar_cases(
+            others, paths, own["tool"], datetime.now(UTC),
+            limit=case_memory.MAX_RECALLED,
+        )
+        return [{"caseId": c["caseId"], "runId": c["runId"], "outcome": c["outcome"],
+                 "score": c["score"], "suggestedRule": c["suggestedRule"]} for c in similar]
+    except Exception:  # noqa: BLE001 - listing approvals must survive missing memory
+        logger.warning("similar cases unavailable for %s", run_id, exc_info=True)
+        return []
+
+
+NO_LEARNED_RULE: dict[str, Any] = {"offer": None, "similarCases": []}
+
+
+async def learned_rule_for_run(factory: Any, run_id: str, team_id: str) -> dict[str, Any]:
+    """Sprint 5 Task 37 (I-08 UI): the lesson this run's denial stop recorded, read-only.
+
+    ``offer`` is the run's own newest case (migration 0080): the bounded rule text a human
+    may copy into the project rules, the paths it names and when it was recorded. It is
+    always ``status="proposed"`` (CD-02): nothing here writes a rule, and the only write
+    path stays the human ``PUT /projects/{id}/rules``. ``similarCases`` reuses the
+    team-scoped recall the approvals list shows. ``team_id`` is filtered again here on top
+    of the route's ownership check. Best-effort: an old schema or a DB hiccup reads as "no
+    lesson", never as an error on the run page."""
+    try:
+        async with factory() as db:
+            own = (await db.execute(text(
+                "SELECT failure_class, paths, suggested_rule, recorded_at FROM case_memory"
+                " WHERE run_id = :r AND team_id = :t ORDER BY recorded_at DESC LIMIT 1"),
+                {"r": run_id, "t": team_id},
+            )).mappings().first()
+    except Exception:  # noqa: BLE001 - the run page must survive missing memory
+        logger.warning("learned rule unavailable for %s", run_id, exc_info=True)
+        return dict(NO_LEARNED_RULE)
+    if own is None:
+        return dict(NO_LEARNED_RULE)
+    paths = json.loads(own["paths"]) if isinstance(own["paths"], str) else list(own["paths"])
+    recorded = own["recorded_at"]
+    return {
+        "offer": {
+            "failureClass": own["failure_class"],
+            "paths": paths,
+            "suggestedRule": own["suggested_rule"],
+            "recordedAt": recorded.isoformat() if hasattr(recorded, "isoformat") else recorded,
+            "status": "proposed",
+        },
+        "similarCases": await similar_cases_for_run(factory, run_id),
+    }
+
+
 async def list_approvals(factory: Any, run_id: str) -> list[dict[str, Any]]:
+    similar = await similar_cases_for_run(factory, run_id)
     try:
         await expire_stale_approvals(factory, run_id)  # show expiry truthfully, with evidence
     except Exception:  # noqa: BLE001 - listing must work on any schema
@@ -932,7 +1037,9 @@ async def list_approvals(factory: Any, run_id: str) -> list[dict[str, Any]]:
             ]
             voided = {x["approvalId"] for x in loaded if x.get("voidedApproval")}
     return [
-        {**_view(r), "amendedAfterApproval": r.state == "pending" and r.id in voided} for r in rows
+        {**_view(r), "amendedAfterApproval": r.state == "pending" and r.id in voided,
+         "similarCases": similar}
+        for r in rows
     ]
 
 
@@ -992,9 +1099,15 @@ async def amend_approval(
 
 
 async def decide_approval(
-    factory: Any, p: Principal, run_id: str, approval_id: str, approve: bool, digest: str
+    factory: Any, p: Principal, run_id: str, approval_id: str, approve: bool, digest: str,
+    *, viewed_detail: bool | None = None,
 ) -> dict[str, Any]:
+    """Leader decides a pending request for the exact digest they reviewed.
+
+    ``viewed_detail`` is the client's X-07 blind-approval signal (was the diff on screen
+    before Approve; ``None`` = not measured). It never affects the decision itself."""
     new = "approved" if approve else "rejected"
+    rendering = await member_rendering(factory, p.teamId, p.userId)
     async with factory() as db:
         await _require_leader(db, p, run_id, "approval.decide")
         row = await _get_approval(db, run_id, approval_id)
@@ -1044,6 +1157,10 @@ async def decide_approval(
             db, p, run_id, f"approval.{new}", approval_id,
             {"state": "pending"}, {"state": new, "decidedBy": p.userId},
             {"requester": row.requester_user_id, "digest": digest, "paths": row.paths},
+            # X-07 blind-approval KPI context (section8 kpi.py reads it; teamId comes from
+            # _audit). Audit row only: a member's rendering and attention are not broadcast.
+            audit_only={"rendering": rendering,
+                        **({"viewedDetail": viewed_detail} if approve else {})},
         )
         await db.commit()
         row = await _get_approval(db, run_id, approval_id)

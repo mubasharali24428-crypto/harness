@@ -10,7 +10,8 @@ import * as React from "react";
 import type { RunView } from "./useRun";
 import { DiffPane } from "./DiffPane";
 import { IterationDiffScope } from "./IterationDiffScope";
-import type { DiffScope } from "@/lib/diffScope";
+import { diffViewCountsAsSeen, sinceLastCoversFullPr, type DiffScope } from "@/lib/diffScope";
+import type { CheckpointFile } from "@/lib/api";
 import { reviewVerdictFacts } from "../../../app/review/verdictCard";
 import { addReviewComment, approvePr, listReviewComments, requestChanges, type ReviewComment } from "@/lib/api";
 import { getUserId } from "@/lib/auth";
@@ -41,6 +42,35 @@ export function ReviewPane({ view, token, role, projectId = null, runKey, onDiff
   const [decision, setDecision] = React.useState<string | null>(null);
   const [status, setStatus] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  // X-07 KPI: did the diff ever come on screen before Approve? Measured, not assumed.
+  // With R4's scope switch, only a view of the whole change counts: the full
+  // pull request, or a since-last view that covered every hunk of it
+  // (diffViewCountsAsSeen; docs/decisions/2026-11-25-blind-approval-diff-seen-DRAFT.md).
+  // The observer is re-created whenever eligibility flips, so switching scope
+  // while the diff is already on screen is measured too.
+  const diffRef = React.useRef<HTMLDivElement | null>(null);
+  const [diffSeen, setDiffSeen] = React.useState(false);
+  const [scope, setScope] = React.useState<DiffScope | null>(null);
+  const [iterationFiles, setIterationFiles] = React.useState<CheckpointFile[] | null>(null);
+  const reportScope = React.useRef(onDiffScopeChange);
+  reportScope.current = onDiffScopeChange;
+  const onScope = React.useCallback((s: DiffScope | null) => {
+    setScope(s);
+    reportScope.current?.(s);
+  }, []);
+  const coversAll = React.useMemo(
+    () => sinceLastCoversFullPr(review?.diff, iterationFiles),
+    [review?.diff, iterationFiles],
+  );
+  const counts = diffViewCountsAsSeen(scope, coversAll);
+  React.useEffect(() => {
+    const el = diffRef.current;
+    if (!el || diffSeen || !counts || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) setDiffSeen(true); },
+      { threshold: 0.25 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [diffSeen, counts]);
 
   React.useEffect(() => {
     if (!prId) return;
@@ -66,7 +96,7 @@ export function ReviewPane({ view, token, role, projectId = null, runKey, onDiff
     setError(null);
     try {
       const reviewer = getUserId() ?? "ui-user";
-      if (kind === "approve") await approvePr(prId, reviewer, token);
+      if (kind === "approve") await approvePr(prId, reviewer, token, diffSeen);
       else await requestChanges(prId, [{ body: note.trim() }], reviewer, token);
       setDecision(kind === "approve"
         ? "Approved. Merging still happens on GitHub, by a person."
@@ -178,10 +208,12 @@ export function ReviewPane({ view, token, role, projectId = null, runKey, onDiff
         </section>
       )}
 
-      <IterationDiffScope key={runKey ?? runId ?? ""} projectId={projectId} runId={runId} token={token} compact
-        onDiffScopeChange={onDiffScopeChange}>
-        <DiffPane view={view} compact onComment={ready && canDecide ? comment : undefined} />
-      </IterationDiffScope>
+      <div ref={diffRef} data-testid="review-diff-observed" data-diff-counts={counts ? "true" : "false"}>
+        <IterationDiffScope key={runKey ?? runId ?? ""} projectId={projectId} runId={runId} token={token} compact
+          onDiffScopeChange={onScope} onIterationFiles={setIterationFiles}>
+          <DiffPane view={view} compact onComment={ready && canDecide ? comment : undefined} />
+        </IterationDiffScope>
+      </div>
     </div>
   );
 }

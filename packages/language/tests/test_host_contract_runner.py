@@ -131,7 +131,12 @@ def test_a_replay_reproduces_the_digest_without_touching_the_host():
     assert second.status == first.status
     assert second.code == first.code
     assert second.output == first.output
-    assert second.operations == first.operations
+    # durationMs is wall-clock, re-measured on every run (the digest excludes it by
+    # design, contract_runner.py docstring); a 0 ms vs 1 ms boundary failed seed 10.
+    def no_time(ops):
+        return [op.model_dump(exclude={"durationMs"}) for op in ops]
+
+    assert no_time(second.operations) == no_time(first.operations)
     assert second.digest == first.digest
     assert second.evidence["policy"] == first.evidence["policy"]
     assert live.calls == calls_after_live, "a replay must not reach the live host"

@@ -79,13 +79,31 @@ async def _wait_ready(engine, timeout_s: float = 90.0) -> None:
             await asyncio.sleep(1.0)
 
 
+async def _fresh_database(server_url: str) -> str:
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    name = f"walk_{uuid.uuid4().hex[:10]}"
+    admin = create_async_engine(server_url, isolation_level="AUTOCOMMIT")
+    try:
+        await _wait_ready(admin)
+        async with admin.connect() as conn:
+            await conn.execute(text(f'CREATE DATABASE "{name}"'))
+    finally:
+        await admin.dispose()
+    return server_url.rsplit("/", 1)[0] + "/" + name
+
+
 async def test_full_migration_walk_then_real_vector_search(pg_url):
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
     sys.path.insert(0, str(HARNESS_ROOT / "deploy" / "runners"))
     import migrate as migrate_runner
 
-    engine = create_async_engine(pg_url)
+    # The container is module-scoped and the other test migrates it too, so the
+    # fresh-install walk gets an empty database of its own: under random order
+    # (2026-11-21, pytest-randomly) it otherwise saw an already-migrated DB.
+    engine = create_async_engine(await _fresh_database(pg_url))
     try:
         await _wait_ready(engine)
 
