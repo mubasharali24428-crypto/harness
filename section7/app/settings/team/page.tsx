@@ -38,8 +38,6 @@ import { ErrorState } from "@/components/States";
 import { BreadcrumbTrail, settingsCrumbs } from "@/components/Breadcrumbs";
 import { loadSession } from "@/lib/auth";
 import { loadErrorMessage } from "@/lib/humanize";
-// M14-F4 — shared optimistic-mutation engine (apply → wire → commit/rollback).
-import { runOptimistic } from "@/hooks/useOptimistic";
 import {
   TEAM_ROLES,
   TeamInviteDto,
@@ -49,11 +47,10 @@ import {
   listInvites,
   listMembers,
   redeemInvite,
-  removeMember,
   resendInvite,
   revokeInvite,
-  updateMemberRole,
 } from "./teamApi";
+import { changeRoleOptimistic, memberByUserId, removeMemberOptimistic } from "./rosterOps";
 // M14-F2a/F4 — presentational tables live in tables.tsx: Next 15's generated
 // route-type check rejects any non-default export from a page module, so the
 // wave-9 "export MembersTable from the page" pattern moved out of page.tsx
@@ -65,7 +62,6 @@ import {
 import {
   InvitesTable,
   MembersTable,
-  restoreRow,
   type InviteActions,
   type RosterActions,
 } from "./tables";
@@ -139,10 +135,12 @@ export default function TeamSettingsPage() {
   // roster management (H-010)
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [pendingRemovalId, setPendingRemovalId] = useState<string | null>(null);
-  const [rosterError, setRosterError] = useState<string | null>(null);
+  const [rosterError, setRosterError] = useState<{ userId: string; message: string } | null>(null);
 
   // M14-F2a — invite lifecycle mutations
   const [busyInviteId, setBusyInviteId] = useState<string | null>(null);
+  // Operability slice 4: Revoke is destructive, so it asks in the row first.
+  const [pendingRevokeId, setPendingRevokeId] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
 
   // Admin-only controls come straight from the frozen Principal contract
@@ -229,6 +227,7 @@ export default function TeamSettingsPage() {
     const token = loadSession()?.token ?? "";
     setBusyInviteId(inviteId);
     setInviteError(null);
+    setPendingRevokeId(null);
     try {
       await revokeInvite(teamId, inviteId, token);
       await refresh(teamId); // row stays visible with status "revoked"
@@ -239,9 +238,18 @@ export default function TeamSettingsPage() {
     }
   };
 
-  const inviteActions = {
+  const inviteActions: InviteActions = {
     onResend: (id: string) => void onInviteResend(id),
     onRevoke: (id: string) => void onInviteRevoke(id),
+    onAskRevoke: (id: string) => {
+      setInviteError(null);
+      setPendingRevokeId(id);
+      focusSoon(`[data-testid="confirm-revoke-${id}"]`);
+    },
+    onCancelRevoke: (id: string) => {
+      setPendingRevokeId((cur) => (cur === id ? null : cur));
+      focusSoon(`[data-testid="revoke-invite-${id}"]`);
+    },
   };
 
   const onRedeem = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -276,60 +284,44 @@ export default function TeamSettingsPage() {
   // refetch on success — the mutation response IS server truth for this
   // change, and a refetch would clobber a concurrently in-flight optimistic
   // row. The confirm state clears immediately either way.
+  // Operability slice 4: the mutations live in ./rosterOps (same optimistic apply / row-scoped
+  // rollback as M14-F4) so the button-to-URL path is tested. Actions carry the user id (D3).
+  const store = { get: () => members, set: setMembers };
+  // F4 (live check 2026-11-26): when a control is replaced, move focus to what replaced it
+  // instead of letting it fall to <body>.
+  const focusSoon = (selector: string) =>
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(selector)?.focus());
+  const failRow = (row: TeamMemberDto, verb: string, error: string) => {
+    setRosterError({ userId: row.userId as string, message: `Could not ${verb} ${row.displayName}: ${error}` });
+    focusSoon(`#row-error-${row.userId}`);
+  };
+
   const onConfirmRemove = async (userId: string) => {
     if (!teamId) return;
-    const token = loadSession()?.token ?? "";
+    const row = memberByUserId(members, userId);
+    if (!row) return;
     setBusyUserId(userId);
     setRosterError(null);
     setPendingRemovalId(null);
-    const outcome = await runOptimistic<TeamMemberDto[], null>({
-      apply: () => {
-        const snapshot = members;
-        setMembers(members.filter((m) => m.userId !== userId)); // instant removal
-        return snapshot;
-      },
-      request: () => removeMember(teamId, userId, token),
-      rollback: (_snapshot) => {
-        // Restore only THIS row from the pre-mutation snapshot.
-        const prior = members.find((m) => m.userId === userId);
-        if (prior) setMembers((cur) => restoreRow(cur, prior));
-      },
-      onError: (message) => setRosterError(message),
-    });
-    if (outcome === "confirmed") {
+    const out = await removeMemberOptimistic(store, teamId, row, loadSession()?.token ?? "");
+    if (out.ok) {
       setError(null);
-      setNotice("Member removed from the team.");
+      setNotice(`${row.displayName} was removed from the team.`);
+      focusSoon("#team-notice");
+    } else {
+      failRow(row, "remove", out.error);
     }
     setBusyUserId(null);
   };
 
-  // M14-F4 — role change via PATCH, now OPTIMISTIC: the dropdown shows the
-  // chosen role instantly; commit reconciles with the SERVER's echoed role,
-  // and failure snaps the row back to its previous state + shows the error.
   const onRoleChange = async (userId: string, role: TeamRole) => {
     if (!teamId) return;
-    const token = loadSession()?.token ?? "";
+    const row = memberByUserId(members, userId);
+    if (!row) return;
     setBusyUserId(userId);
     setRosterError(null);
-    await runOptimistic<TeamMemberDto[], { userId: string; role: string }>({
-      apply: () => {
-        const snapshot = members;
-        setMembers(members.map((m) => (m.userId === userId ? { ...m, role } : m)));
-        return snapshot;
-      },
-      request: () => updateMemberRole(teamId, userId, role, token),
-      // Reconcile with SERVER truth (the echoed {userId, role}), not the guess.
-      commit: (res) =>
-        setMembers((cur) =>
-          cur.map((m) => (m.userId === res.userId ? { ...m, role: res.role } : m)),
-        ),
-      rollback: (_snapshot) => {
-        // Snap THIS row back to its pre-mutation state only.
-        const prior = members.find((m) => m.userId === userId);
-        if (prior) setMembers((cur) => restoreRow(cur, prior));
-      },
-      onError: (message) => setRosterError(message),
-    });
+    const out = await changeRoleOptimistic(store, teamId, row, role, loadSession()?.token ?? "");
+    if (!out.ok) failRow(row, "change the role of", out.error);
     setBusyUserId(null);
   };
 
@@ -337,9 +329,11 @@ export default function TeamSettingsPage() {
     onAskRemove: (userId: string) => {
       setRosterError(null);
       setPendingRemovalId(userId);
+      focusSoon(`[data-testid="confirm-remove-${userId}"]`);
     },
     onCancelRemove: (userId: string) => {
       setPendingRemovalId((cur) => (cur === userId ? null : cur));
+      focusSoon(`[data-testid="ask-remove-${userId}"]`);
     },
     onConfirmRemove,
     onRoleChange,
@@ -367,7 +361,7 @@ export default function TeamSettingsPage() {
           </div>
         ))}
       {!error && notice && (
-        <div role="status" style={{ color: "var(--green)", marginBottom: 16 }}>
+        <div role="status" id="team-notice" tabIndex={-1} style={{ color: "var(--green)", marginBottom: 16 }}>
           {notice}
         </div>
       )}
@@ -379,16 +373,12 @@ export default function TeamSettingsPage() {
             Roster management (remove / change roles) is restricted to team admins.
           </p>
         )}
-        {rosterError && (
-          <p role="alert" style={{ color: "var(--red)" }}>
-            {rosterError}
-          </p>
-        )}
         <MembersTable
           members={members}
           isAdmin={isAdmin}
           busyUserId={busyUserId}
           pendingRemovalId={pendingRemovalId}
+          rowError={rosterError}
           actions={rosterActions}
         />
       </section>
@@ -462,6 +452,7 @@ export default function TeamSettingsPage() {
         <InvitesTable
           invites={invites}
           busyInviteId={busyInviteId}
+          pendingRevokeId={pendingRevokeId}
           actions={inviteActions}
         />
       </section>

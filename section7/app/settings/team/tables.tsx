@@ -46,8 +46,13 @@ void INVITE_STATUS_DOC;
 export interface InviteActions {
   /** Resend pressed — caller owns the POST + refresh + one-time token UI. */
   onResend: (inviteId: string) => void;
-  /** Revoke pressed — caller owns the DELETE + refresh + error text. */
+  /** Revoke confirmed — caller owns the DELETE + refresh + error text. */
   onRevoke: (inviteId: string) => void;
+  /** Operability slice 4: first press on Revoke asks in the row. Without it, Revoke acts at once
+   *  (the pre-slice behaviour, kept for callers that confirm elsewhere). */
+  onAskRevoke?: (inviteId: string) => void;
+  /** Back out of the in-row revoke confirm. */
+  onCancelRevoke?: (inviteId: string) => void;
 }
 
 /** Presentational invites lifecycle table (M14-F2a core). One row per invite
@@ -56,11 +61,14 @@ export interface InviteActions {
 export function InvitesTable({
   invites,
   busyInviteId,
+  pendingRevokeId = null,
   actions,
 }: {
   invites: TeamInviteDto[];
   /** Invite id whose mutation is in flight (disables that row's buttons). */
   busyInviteId: string | null;
+  /** Invite id showing the in-row "Revoke this invite?" confirm. */
+  pendingRevokeId?: string | null;
   actions: InviteActions;
 }) {
   return (
@@ -86,7 +94,30 @@ export function InvitesTable({
             </td>
             <td style={cellStyle}>{new Date(i.expiresAt).toLocaleString()}</td>
             <td style={cellStyle}>
-              {i.status === "draft" || i.status === "sent" ? (
+              {(i.status === "draft" || i.status === "sent") && pendingRevokeId === i.id ? (
+                <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                  <span style={{ color: "var(--red)" }}>Revoke this invite? The link stops working.</span>
+                  <Button
+                    variant="danger"
+                    testId={`confirm-revoke-${i.id}`}
+                    loading={busyInviteId === i.id}
+                    loadingText="Revoking…"
+                    onClick={() => actions.onRevoke(i.id)}
+                    aria-label={`Confirm revoking the invite for ${i.email}`}
+                  >
+                    Yes, revoke
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    testId={`cancel-revoke-${i.id}`}
+                    disabled={busyInviteId === i.id}
+                    onClick={() => actions.onCancelRevoke?.(i.id)}
+                    aria-label={`Keep the invite for ${i.email}`}
+                  >
+                    Cancel
+                  </Button>
+                </span>
+              ) : i.status === "draft" || i.status === "sent" ? (
                 <>
                   <Button
                     variant="secondary"
@@ -101,7 +132,7 @@ export function InvitesTable({
                     variant="danger"
                     testId={`revoke-invite-${i.id}`}
                     disabled={busyInviteId === i.id}
-                    onClick={() => actions.onRevoke(i.id)}
+                    onClick={() => (actions.onAskRevoke ? actions.onAskRevoke(i.id) : actions.onRevoke(i.id))}
                     aria-label={`Revoke invite for ${i.email}`}
                   >
                     Revoke
@@ -176,6 +207,7 @@ export function MembersTable({
   isAdmin,
   busyUserId,
   pendingRemovalId,
+  rowError = null,
   actions,
 }: {
   members: TeamMemberDto[];
@@ -184,6 +216,8 @@ export function MembersTable({
   busyUserId: string | null;
   /** Member id showing the inline Remove confirmation. */
   pendingRemovalId: string | null;
+  /** F5 (live check 2026-11-26): a failed remove / role change, shown in that member's row. */
+  rowError?: { userId: string; message: string } | null;
   actions: RosterActions;
 }) {
   return (
@@ -264,6 +298,12 @@ export function MembersTable({
                   >
                     Remove
                   </Button>
+                )}
+                {m.userId && rowError?.userId === m.userId && (
+                  <p role="alert" id={`row-error-${m.userId}`} tabIndex={-1} data-testid={`row-error-${m.userId}`}
+                    style={{ color: "var(--red)", margin: "6px 0 0" }}>
+                    {rowError.message}
+                  </p>
                 )}
               </td>
             )}
