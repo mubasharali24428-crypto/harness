@@ -76,61 +76,76 @@ jobs:
         if: github.event_name == 'push' || github.event_name == 'pull_request'
         with:
           # shared prefix in every filter: contracts is a path dependency of
-          # every section, and the Makefile recipes ARE the gates.
+          # every section, and the Makefile recipes ARE the gates. A change to
+          # this workflow runs every leg, so it is tested before it merges and
+          # every required check reports.
           filters: |
             section1:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section1/**'
             section2:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section2/**'
             section3:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section3/**'
             section4:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section4/**'
             section5:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section5/**'
             section6:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section6/**'
             section8:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section8/**'
             section10:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section10/**'
             section11:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section11/**'
             mcp:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'mcp/**'
             language:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'packages/language/**'
             e2e:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'deploy/**'
               - 'section4/**'
               - 'section7/e2e/**'
             migrations:
               - 'contracts/**'
               - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'section1/migrations/**'
               - 'section1/src/**'
               - 'deploy/runners/**'
