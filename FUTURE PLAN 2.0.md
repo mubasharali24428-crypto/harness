@@ -386,6 +386,7 @@ Every candidate gets a written adopt, pilot, defer or reject decision with evide
 - Plans superseded as working documents (kept as history under `docs/archive/` since 2026-11-22): `docs/archive/FUTURE PLAN.md`, `docs/archive/90-day-execution-plan-2026-11-11.md`, `docs/archive/roadmap-3.0.md`; plus the 24 `docs/archive/m2-w*-plan.md` legs and `docs/archive/STATUS-history-to-2026-11-06.md`.
 - Still-current inputs: `docs/plans/two-week-release-candidate-plan-2026-11-06.md`, `docs/plans/ui-overhaul-plan-2026-11-13.md`, `docs/briefs/PROJECT-STATE.md`, `docs/briefs/capability-matrix.md`, `docs/briefs/evidence/s12/part52.md`, `docs/decisions/2026-11-04-w31-scheduler.md`, `docs/decisions/2026-11-05-w30-candidate-audit.md`, `docs/decisions/2026-11-06-scale-tiers.md`, `docs/hx-execution-architecture.md`, `docs/hx-language-spec.md`, `docs/legal/`, `docs/pilot-remediation/`, `docs/runbooks/`.
 - `docs/briefs/harness-10x-plan-2026-11-22.md` — the 10X program detail: landscape analysis, owner product ideas (approval rendering by reader; geometric context store evolution), wave rationale, measurement and kill criteria.
+- `docs/briefs/memory/hybrid-memory-architecture.md` — Hybrid memory (A+B+C) index: project memory (W12), case memory (I-08), simplicial context store (X-12…X-15); built vs proposed.
 - Old estimates and counts in any source are snapshots. Re-verify before relying on them.
 
 ## 20. The 10X program (added 2026-11-22)

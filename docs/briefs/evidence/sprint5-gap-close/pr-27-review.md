@@ -36,3 +36,5 @@ Green: `changes`, static gates, vitest+tsc, security scan, e2e compose journey, 
 3. Owner Mac: RC redeploy → Task 45b (manifest) so `readiness drift` is green.
 4. Confirm every required check green on the final SHA.
 5. Owner review of PR #27 and merge (not from cloud).
+
+See also: `docs/briefs/memory/hybrid-memory-architecture.md` for how case memory (`similarCases`, `0080_case_memory`) relates to project memory and the proposed context store.
