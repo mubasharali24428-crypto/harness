@@ -13,6 +13,14 @@ Rules (FUTURE PLAN 2.0 §12, decisions D-03/D-05/D-07 defaults, CD-02):
 * Members (any non-admin role) see only their own approved tasks with dependency KEYS, never
   another member's task body (C-04/C-05). Foreign or unknown project -> identical 404.
 * Audit rows carry ids, versions and states only — never brief text.
+
+7.1 completion (C-01, 2026-11-25): the brief also carries the roles the project needs (each with
+capability keys), project outputs, and per task a priority, outputs and required capabilities.
+The brief is rejected (422 BAD_BRIEF) when its dependency graph has a cycle or a task names a
+role the brief did not declare. Proposals stay honest about what Harness cannot know: there is
+no admin-maintained capability or availability store yet (D-07 default), so every assignment
+says ``capabilityFit="unverified"`` and ``availability="unknown"``, and ``assigneeStatus`` tells
+an unnamed assignee apart from a named person who is not a current team member.
 """
 
 from __future__ import annotations
@@ -36,6 +44,9 @@ Key = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$")]
 Line = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 
 
+Priority = Literal["high", "medium", "low"]
+
+
 class BriefTask(BaseModel):
     model_config = ConfigDict(extra="forbid")
     key: Key
@@ -44,15 +55,29 @@ class BriefTask(BaseModel):
     requiredRole: Line | None = None
     preferredAssignee: str | None = Field(default=None, max_length=64)
     dependsOn: list[Key] = Field(default_factory=list, max_length=20)
+    priority: Priority | None = None
+    outputs: list[Line] = Field(default_factory=list, max_length=10)
+    requiredCapabilities: list[Key] = Field(default_factory=list, max_length=10)
+
+
+class RoleSpec(BaseModel):
+    """A role the project needs. Capabilities are labels the admin wrote; they grant nothing."""
+
+    model_config = ConfigDict(extra="forbid")
+    name: Line
+    capabilities: list[Key] = Field(default_factory=list, max_length=20)
 
 
 class Brief(BaseModel):
-    """C-01: goals, constraints, roles, acceptance criteria, tasks."""
+    """C-01: goals, constraints, roles, capabilities, dependencies, priorities, outputs,
+    acceptance criteria, tasks."""
 
     model_config = ConfigDict(extra="forbid")
     goals: list[Line] = Field(min_length=1, max_length=20)
     constraints: list[Line] = Field(default_factory=list, max_length=20)
     acceptanceCriteria: list[Line] = Field(default_factory=list, max_length=20)
+    roles: list[RoleSpec] = Field(default_factory=list, max_length=20)
+    outputs: list[Line] = Field(default_factory=list, max_length=20)
     tasks: list[BriefTask] = Field(min_length=1, max_length=50)
 
 
@@ -92,31 +117,101 @@ def _require_admin(p: Principal) -> None:
         raise _err(403, "ROLE_DENIED", "only project admins may plan or review assignments")
 
 
-async def _members(db: Any, team_id: str) -> set[str]:
+READ_ONLY_SEATS = {"viewer", "guest"}  # contracts roles.READ_ONLY: they cannot act on runs
+
+
+async def _members(db: Any, team_id: str) -> tuple[set[str], set[str]]:
+    """(every current seat's user id, the read-only ones). Role is compared case-insensitively
+    because ORM writes persist enum NAMES ('VIEWER') while raw rows may hold values."""
     rows = await db.execute(
-        text("SELECT user_id FROM team_members WHERE team_id = :t AND user_id IS NOT NULL"),
+        text("SELECT user_id, role FROM team_members WHERE team_id = :t AND user_id IS NOT NULL"),
         {"t": team_id})
-    return {r.user_id for r in rows}
+    seats = [(r.user_id, str(r.role or "").lower()) for r in rows]
+    return {u for u, _ in seats}, {u for u, role in seats if role in READ_ONLY_SEATS}
 
 
-def propose(brief: Brief, members: set[str]) -> list[dict[str, Any]]:
-    """C-02, deterministic: name only what the authorized context supports."""
+def _find_cycle(deps: dict[str, list[str]]) -> list[str] | None:
+    """Return one dependency cycle as a key path (first key repeated at the end), or None."""
+    state: dict[str, int] = {}  # 1 = on the current path, 2 = finished
+    for root in deps:
+        if state.get(root):
+            continue
+        path, stack = [root], [iter(deps[root])]
+        state[root] = 1
+        while stack:
+            nxt = next(stack[-1], None)
+            if nxt is None:
+                state[path.pop()] = 2
+                stack.pop()
+            elif state.get(nxt) == 1:
+                return path[path.index(nxt):] + [nxt]
+            elif not state.get(nxt):
+                state[nxt] = 1
+                path.append(nxt)
+                stack.append(iter(deps[nxt]))
+    return None
+
+
+def validate_brief(brief: Brief) -> None:
+    """C-01 shape rules a schema cannot express. 422 BAD_BRIEF names the first problem."""
     keys = [t.key for t in brief.tasks]
     if len(set(keys)) != len(keys):
         raise _err(422, "BAD_BRIEF", "task keys must be unique")
-    out = []
+    roles = [r.name for r in brief.roles]
+    if len(set(roles)) != len(roles):
+        raise _err(422, "BAD_BRIEF", "role names must be unique")
     for t in brief.tasks:
         if unknown := set(t.dependsOn) - set(keys):
             raise _err(422, "BAD_BRIEF", f"task {t.key} depends on unknown keys {sorted(unknown)}")
-        known = t.preferredAssignee in members
+        if roles and t.requiredRole is not None and t.requiredRole not in roles:
+            raise _err(422, "BAD_BRIEF", f"task {t.key} requires role {t.requiredRole!r},"
+                       " which the brief does not declare")
+    if cycle := _find_cycle({t.key: t.dependsOn for t in brief.tasks}):
+        raise _err(422, "BAD_BRIEF", f"dependency cycle: {' -> '.join(cycle)}")
+
+
+def _assignee_fields(assignee: str | None, status: str) -> dict[str, Any]:
+    return {
+        "assignee": assignee,
+        "assigneeStatus": status,
+        "rationale": {
+            "member": "named in brief; current team member",
+            "not_a_member": "named assignee is not a current team member; availability unknown",
+            "read_only": "named assignee has a read-only seat (viewer or guest) and cannot take"
+                         " work; availability unknown",
+            "unnamed": "no authorized team member named; availability unknown",
+        }[status],
+        "uncertainty": "low" if status == "member" else "unknown",
+    }
+
+
+def propose(brief: Brief, members: set[str],
+            read_only: frozenset[str] | set[str] = frozenset()) -> list[dict[str, Any]]:
+    """C-02, deterministic: name only what the authorized context supports. A read-only seat
+    (viewer or guest) named in the brief is never proposed for work (found by 7.7 eval)."""
+    validate_brief(brief)
+    role_caps = {r.name: r.capabilities for r in brief.roles}
+    out = []
+    for t in brief.tasks:
+        if t.preferredAssignee is None:
+            status = "unnamed"
+        else:
+            status = ("not_a_member" if t.preferredAssignee not in members
+                      else "read_only" if t.preferredAssignee in read_only else "member")
+        known = status == "member"
+        caps = list(dict.fromkeys([*role_caps.get(t.requiredRole or "", []),
+                                   *t.requiredCapabilities]))
         out.append({
             "task": t.key, "kind": t.kind, "dependsOn": t.dependsOn,
-            "assignee": t.preferredAssignee if known else None,
-            "rationale": "named in brief; current team member" if known
-            else "no authorized team member named; availability unknown",
-            "uncertainty": "low" if known else "unknown",
-            "missingExpertise": [] if known else [t.requiredRole or "unspecified"],
+            **_assignee_fields(t.preferredAssignee if known else None, status),
+            "missingExpertise": [] if known else [t.requiredRole or "unspecified", *caps],
             "costEstimate": "unknown",
+            "priority": t.priority or "unspecified",
+            "requiredCapabilities": caps,
+            # No admin-maintained capability or availability store exists yet (D-07 default),
+            # so a fit or an availability is never asserted, even for a named member.
+            "capabilityFit": "unverified",
+            "availability": "unknown",
         })
     return out
 
@@ -164,7 +259,7 @@ async def create_proposal(projectId: str, brief: Brief, p: _api.RequirePrincipal
         version = 1 if latest is None else latest.version + 1
         return await _insert(db, p, projectId, version, latest.version if latest else None,
                              "proposed", brief.model_dump_json(),
-                             propose(brief, await _members(db, p.teamId)), None)
+                             propose(brief, *await _members(db, p.teamId)), None)
 
 
 @router.post("/projects/{projectId}/assignment-plans/{version}/review", status_code=201)
@@ -183,12 +278,17 @@ async def review(projectId: str, version: int, req: Review, p: _api.RequirePrinc
             raise _err(422, "NOTE_REQUIRED", "a rejection needs a note explaining the disagreement")
         assignments = json.loads(latest.assignments)
         if req.decision == "edit":
-            members, by_task = await _members(db, p.teamId), {a["task"]: a for a in assignments}
+            (members, read_only), by_task = (await _members(db, p.teamId),
+                                             {a["task"]: a for a in assignments})
             for r in req.reassign:
                 if r.task not in by_task or (r.assignee is not None and r.assignee not in members):
                     raise _err(422, "BAD_REASSIGN", f"unknown task or non-member for {r.task}")
+                if r.assignee in read_only:
+                    raise _err(422, "BAD_REASSIGN",
+                               f"{r.task}: a viewer or guest seat cannot be assigned work")
                 by_task[r.task].update(
                     assignee=r.assignee, rationale="set by admin review",
+                    assigneeStatus="member" if r.assignee else "unnamed",
                     uncertainty="low" if r.assignee else "unknown")
         state = {"approve": "approved", "reject": "rejected", "edit": "proposed"}[req.decision]
         return await _insert(db, p, projectId, version + 1, version, state,
@@ -219,6 +319,7 @@ async def my_tasks(projectId: str, p: _api.RequirePrincipal) -> dict:
         return {"version": None, "tasks": []}
     brief = json.loads(row.brief)
     titles = {t["key"]: t["title"] for t in brief["tasks"]}
+    own = {t["key"]: t for t in brief["tasks"]}  # only read for the caller's own tasks below
     assignments = json.loads(row.assignments)
     by_task = {a["task"]: a for a in assignments}
     mine = [a for a in assignments if a["assignee"] == p.userId]
@@ -228,6 +329,9 @@ async def my_tasks(projectId: str, p: _api.RequirePrincipal) -> dict:
     # their own task's dependsOn — no other member's title, body or id is sent.
     tasks = [{"task": a["task"], "title": titles[a["task"]], "kind": a["kind"],
               "dependsOn": a["dependsOn"],
+              # 7.1: priority and outputs of the caller's OWN task (older briefs lack them).
+              "priority": own[a["task"]].get("priority") or "unspecified",
+              "outputs": own[a["task"]].get("outputs", []),
               "dependsOnStatus": {k: ("ready" if by_task.get(k, {}).get("assignee") == p.userId
                                       else "waiting") for k in a["dependsOn"]}}
              for a in mine]
