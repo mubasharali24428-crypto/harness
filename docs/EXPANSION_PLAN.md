@@ -138,3 +138,4 @@ runs, Slack app, standup bot (S6), third-party provider plugins via frozen contr
   oauth/ticket redemption works across replicas; metrics scraped.
 - P2: end-to-end paid-flow fixture test; invite→role→approve chain proven; spend visible.
 - P3: e2e green in CI; load profile meets SLOs; docs published.
+
